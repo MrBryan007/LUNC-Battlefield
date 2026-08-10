@@ -543,3 +543,520 @@
     let lastDepthTs = 0;
 
     let spotWs = null;
+    let futWs = null;
+    let localBids = {};
+    let localAsks = {};
+    let reconnectAttempts = 0;
+    let reconnectTimer = null;
+    let geckoTimer = null;
+    let geckoFails = 0;
+
+    function setStatus(main, detail, ok) {
+      const el = document.getElementById("dataMode");
+      if (el) {
+        el.textContent = main;
+        el.className = ok ? "live" : "error";
+      }
+      const ag = document.getElementById("agentStatus");
+      if (ag) ag.textContent = detail || "";
+      const pairEl = document.getElementById("pair");
+      if (pairEl) {
+        const label = priceSource === SRC.GECKO ? " · CoinGecko"
+                    : priceSource === SRC.BINANCE ? " · Binance"
+                    : " · Simulated";
+        pairEl.textContent = (tokens[current] ? tokens[current].name : "LUNC/USDT") + label;
+      }
+    }
+
+    function updateStatusUI() {
+      const priceLabel = priceSource === SRC.GECKO ? "CoinGecko"
+                       : priceSource === SRC.BINANCE ? "Binance"
+                       : "Sim";
+      const depthLabel = depthSource === SRC.BINANCE ? "Binance depth"
+                       : "Est. walls";
+      const ok = priceSource !== SRC.SIM;
+      setStatus(
+        ok ? ("PRICE · " + priceLabel.toUpperCase()) : "SIMULATION",
+        "Depth: " + depthLabel,
+        ok
+      );
+    }
+
+    async function fetchGecko() {
+      try {
+        const url = "https://api.coingecko.com/api/v3/simple/price?ids=terra-luna&vs_currencies=usd&include_24hr_vol=true&include_24hr_change=true";
+        const res = await fetch(url, { cache: "no-store" });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json();
+        const coin = data["terra-luna"];
+        if (!coin || !coin.usd) throw new Error("No price");
+
+        lastPrice = price;
+        price = coin.usd;
+        lastPriceTs = Date.now();
+        priceHistory.push(price);
+        if (priceHistory.length > 40) priceHistory.shift();
+
+        if (depthSource !== SRC.BINANCE) {
+          const vol = coin.usd_24h_vol || 5e6;
+          const base = Math.max(0.7, Math.min(5, vol / 3.5e6));
+          buyWall = base * (0.92 + Math.random() * 0.2);
+          sellWall = base * (0.88 + Math.random() * 0.22);
+        }
+
+        geckoFails = 0;
+        if (priceSource !== SRC.BINANCE) {
+          priceSource = SRC.GECKO;
+          isLive = true;
+        }
+        updateStatusUI();
+        return true;
+      } catch (e) {
+        console.warn("[Gecko]", e.message || e);
+        geckoFails++;
+        if (geckoFails >= 3 && priceSource === SRC.GECKO) {
+          priceSource = SRC.SIM;
+          isLive = depthSource === SRC.BINANCE;
+          updateStatusUI();
+        }
+        return false;
+      }
+    }
+
+    function startGecko() {
+      if (geckoTimer) return;
+      fetchGecko();
+      geckoTimer = setInterval(fetchGecko, 12000);
+    }
+
+    function calcWalls() {
+      let bidSum = 0, askSum = 0;
+      const levels = 12;
+      Object.keys(localBids).map(Number).sort((a,b)=>b-a).slice(0,levels)
+        .forEach(p => { bidSum += p * (localBids[p]||0); });
+      Object.keys(localAsks).map(Number).sort((a,b)=>a-b).slice(0,levels)
+        .forEach(p => { askSum += p * (localAsks[p]||0); });
+      return { buy: bidSum/1e6, sell: askSum/1e6 };
+    }
+
+    function connectBinance(symbol) {
+      if (!symbol) return;
+      if (spotWs) { try { spotWs.onclose=null; spotWs.close(); } catch(e){} spotWs=null; }
+      if (futWs)  { try { futWs.onclose=null; futWs.close(); } catch(e){} futWs=null; }
+      if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer=null; }
+
+      localBids = {}; localAsks = {};
+      const streams = symbol + "@bookTicker/" + symbol + "@depth20@100ms";
+      const url = "wss://stream.binance.com:9443/stream?streams=" + streams;
+      console.log("[Binance] try", url);
+      spotWs = new WebSocket(url);
+
+      spotWs.onopen = () => {
+        reconnectAttempts = 0;
+        depthSource = SRC.BINANCE;
+        updateStatusUI();
+        pushFeed("Binance depth connected", "win");
+      };
+
+      spotWs.onmessage = (evt) => {
+        try {
+          const raw = JSON.parse(evt.data);
+          const msg = raw.data || raw;
+
+          if (msg.b != null && msg.a != null) {
+            const bid = parseFloat(msg.b), ask = parseFloat(msg.a);
+            if (bid > 0 && ask > 0) {
+              const mid = (bid+ask)/2;
+              lastPrice = price;
+              price = mid;
+              lastPriceTs = Date.now();
+              priceHistory.push(mid);
+              if (priceHistory.length > 40) priceHistory.shift();
+              priceSource = SRC.BINANCE;
+              isLive = true;
+            }
+          }
+
+          const bids = msg.bids || (Array.isArray(msg.b) ? msg.b : null);
+          const asks = msg.asks || (Array.isArray(msg.a) ? msg.a : null);
+          if (bids && asks) {
+            localBids = {}; localAsks = {};
+            bids.forEach(l => { const p=+l[0], q=+l[1]; if (q>0) localBids[p]=q; });
+            asks.forEach(l => { const p=+l[0], q=+l[1]; if (q>0) localAsks[p]=q; });
+            const w = calcWalls();
+            if (w.buy > 0.01) buyWall = w.buy;
+            if (w.sell > 0.01) sellWall = w.sell;
+            lastDepthTs = Date.now();
+            depthSource = SRC.BINANCE;
+            updateStatusUI();
+          }
+        } catch(e) {}
+      };
+
+      spotWs.onclose = () => {
+        depthSource = SRC.SIM;
+        if (priceSource === SRC.BINANCE) priceSource = SRC.GECKO;
+        updateStatusUI();
+        pushFeed("Binance depth closed — using CoinGecko/Sim", "info");
+        scheduleBinanceReconnect(symbol);
+      };
+      spotWs.onerror = () => {};
+
+      try {
+        futWs = new WebSocket("wss://fstream.binance.com/market/ws/" + symbol + "@forceOrder");
+        futWs.onmessage = (evt) => {
+          try {
+            const raw = JSON.parse(evt.data);
+            const o = (raw.data || raw).o || raw;
+            if (!o || o.q == null) return;
+            const usd = parseFloat(o.q) * parseFloat(o.p || o.ap || 0);
+            if (usd < 800) return;
+            const side = (o.S || "").toUpperCase();
+            const sizeM = (usd/1e6).toFixed(2);
+            const power = Math.min(2.8, 0.7 + usd/500000);
+            if (side === "SELL") {
+              const lost = Math.max(1, Math.round(usd/150000));
+              pushFeed("Liquidated long • $" + sizeM + "M  Bulls -" + lost + " units", "loss");
+              const zz = (Math.random()-0.5)*15;
+              launchStrike(targetX + 12, targetX - 6, zz, 0xf87171, power);
+              createExplosion(targetX - 7, zz, 0xf87171, power);
+              buyWall = Math.max(0.25, buyWall * 0.92);
+              playLiq();
+            } else {
+              const lost = Math.max(1, Math.round(usd/150000));
+              pushFeed("Liquidated short • $" + sizeM + "M  Bears -" + lost + " units", "liq");
+              const zz = (Math.random()-0.5)*15;
+              launchStrike(targetX - 12, targetX + 6, zz, tokens[current].color, power);
+              createExplosion(targetX + 7, zz, tokens[current].color, power);
+              sellWall = Math.max(0.25, sellWall * 0.92);
+              playLiq();
+            }
+          } catch(e) {}
+        };
+      } catch(e) {}
+    }
+
+    function scheduleBinanceReconnect(symbol) {
+      if (reconnectTimer) return;
+      reconnectAttempts++;
+      const delay = Math.min(20000, 2000 * Math.pow(1.5, reconnectAttempts));
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        connectBinance(symbol);
+      }, delay);
+    }
+
+    function connectLive(symbol) {
+      if (symbol) connectBinance(symbol);
+    }
+
+    function fmtTvl(v) {
+      if (v == null || isNaN(v)) return "$—";
+      if (v >= 1e6) return "$" + (v/1e6).toFixed(2) + "M";
+      if (v >= 1e3) return "$" + (v/1e3).toFixed(1) + "K";
+      return "$" + Math.round(v);
+    }
+
+    async function fetchChainTvl() {
+      try {
+        const res = await fetch("https://api.llama.fi/v2/chains", { cache: "no-store" });
+        const chains = await res.json();
+        const terra = chains.find(c => c.name === "Terra Classic");
+        const el = document.getElementById("tvlValue");
+        if (el && terra) el.textContent = fmtTvl(terra.tvl);
+      } catch(e) { console.warn("[Llama chain]", e.message); }
+    }
+
+    async function fetchProtocolTvl(slug, elId) {
+      try {
+        const res = await fetch("https://api.llama.fi/tvl/" + slug, { cache: "no-store" });
+        const tvl = await res.json();
+        const el = document.getElementById(elId);
+        if (el) el.textContent = fmtTvl(typeof tvl === "number" ? tvl : null);
+      } catch(e) {}
+    }
+
+    async function fetchCMC() {
+      try {
+        const url = "https://pro-api.coinmarketcap.com/public-api/v3/cryptocurrency/quotes/latest?id=4172&convert=USD";
+        const res = await fetch(url, { cache: "no-store" });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const json = await res.json();
+        let coin = null;
+        if (json.data) {
+          coin = Array.isArray(json.data) ? json.data[0] : (json.data["4172"] || Object.values(json.data)[0]);
+        }
+        if (!coin) return;
+        const quote = (coin.quote && (coin.quote.USD || coin.quote.usd)) || {};
+        const mcap = quote.market_cap;
+        const rank = coin.cmc_rank || coin.rank;
+        const mcapEl = document.getElementById("cmcMcap");
+        const rankEl = document.getElementById("cmcRank");
+        if (mcapEl && mcap != null) {
+          mcapEl.textContent = mcap >= 1e9 ? "$"+(mcap/1e9).toFixed(2)+"B" : "$"+(mcap/1e6).toFixed(2)+"M";
+        }
+        if (rankEl && rank != null) rankEl.textContent = "#" + rank;
+      } catch(e) { console.warn("[CMC]", e.message); }
+    }
+
+    function startContextFeeds() {
+      const tick = () => {
+        fetchChainTvl();
+        fetchProtocolTvl("terraport", "tvlTerraport");
+        fetchProtocolTvl("garudadefi", "tvlGaruda");
+        fetchProtocolTvl("juris-protocol", "tvlJuris");
+        fetchCMC();
+      };
+      tick();
+      setInterval(tick, 55000);
+    }
+
+    setInterval(() => {
+      const age = Date.now() - lastPriceTs;
+      if (age > 25000 && priceSource !== SRC.SIM) {
+        if (priceSource === SRC.BINANCE) {
+          priceSource = SRC.GECKO;
+        } else {
+          priceSource = SRC.SIM;
+          isLive = false;
+        }
+        updateStatusUI();
+      }
+      if (depthSource === SRC.BINANCE && Date.now() - lastDepthTs > 20000) {
+        depthSource = SRC.SIM;
+        updateStatusUI();
+      }
+    }, 3000);
+    // ---------- Optional local Data Bridge ----------
+    let bridgeTimer = null;
+    let bridgeOk = false;
+
+    async function pollLocalBridge() {
+      try {
+        const res = await fetch("http://127.0.0.1:8787/snapshot", { cache: "no-store" });
+        if (!res.ok) throw new Error("bridge http " + res.status);
+        const snap = await res.json();
+        if (!snap || !snap.market) throw new Error("bad snapshot");
+
+        if (snap.market.price > 0) {
+          lastPrice = price;
+          price = snap.market.price;
+          lastPriceTs = Date.now();
+          priceHistory.push(price);
+          if (priceHistory.length > 40) priceHistory.shift();
+          priceSource = SRC.GECKO;
+          isLive = true;
+        }
+        if (snap.walls) {
+          if (snap.walls.buyM > 0) buyWall = snap.walls.buyM;
+          if (snap.walls.sellM > 0) sellWall = snap.walls.sellM;
+          if (snap.walls.quality === "live") depthSource = SRC.BINANCE;
+        }
+        if (Array.isArray(snap.events)) {
+          snap.events.forEach(ev => {
+            if (ev.type === "liquidation" && ev.usd > 500) {
+              const power = Math.min(2.8, 0.7 + ev.usd / 500000);
+              const zz = (Math.random() - 0.5) * 15;
+              if (ev.side === "long") {
+                pushFeed("Liquidated long • $" + (ev.usd/1e6).toFixed(2) + "M  Bulls hit", "loss");
+                createExplosion(targetX - 7, zz, 0xf87171, power);
+              } else {
+                pushFeed("Liquidated short • $" + (ev.usd/1e6).toFixed(2) + "M  Bears hit", "liq");
+                createExplosion(targetX + 7, zz, tokens[current].color, power);
+              }
+            }
+          });
+        }
+        if (snap.ecosystem) {
+          const el = document.getElementById("tvlValue");
+          if (el && snap.ecosystem.chainTvlUsd) {
+            const v = snap.ecosystem.chainTvlUsd;
+            el.textContent = v >= 1e6 ? "$"+(v/1e6).toFixed(2)+"M" : "$"+(v/1e3).toFixed(1)+"K";
+          }
+          const p = snap.ecosystem.protocols || {};
+          const set = (id, val) => {
+            const e = document.getElementById(id);
+            if (!e || val == null) return;
+            e.textContent = val >= 1e6 ? "$"+(val/1e6).toFixed(2)+"M" : "$"+(val/1e3).toFixed(1)+"K";
+          };
+          if (p.terraport) set("tvlTerraport", p.terraport.tvlUsd);
+          if (p.garuda) set("tvlGaruda", p.garuda.tvlUsd);
+          if (p.juris) set("tvlJuris", p.juris.tvlUsd);
+        }
+        bridgeOk = true;
+        setStatus("PRICE · BRIDGE", "Local data bridge", true);
+        return true;
+      } catch (e) {
+        bridgeOk = false;
+        return false;
+      }
+    }
+
+    function startBridgePoll() {
+      if (bridgeTimer) return;
+      pollLocalBridge();
+      bridgeTimer = setInterval(pollLocalBridge, 2500);
+    }
+
+    // Boot data layer
+    startGecko();
+    startContextFeeds();
+    startBridgePoll();
+    if (tokens[current] && tokens[current].symbol) {
+      connectBinance(tokens[current].symbol);
+    }
+    updateStatusUI();
+    pushFeed("LUNC Ecosystem Battlefield", "win");
+    pushFeed("WASD move · armies follow walls · burns & liqs strike", "info");
+
+    // ========== MAIN LOOP ==========
+    setInterval(() => {
+      if (priceSource !== SRC.SIM && priceHistory.length > 5) {
+        const recent = priceHistory.slice(-8);
+        const delta = recent[recent.length-1] - recent[0];
+        momentum = momentum * 0.72 + (delta / (price || 1)) * 35;
+      } else if (priceSource === SRC.SIM) {
+        momentum += (Math.random() - 0.47) * 0.18;
+        momentum *= 0.88;
+        const speed = current === "LUNC" ? 0.00000012 : current === "USTC" ? 0.00001 : 0.0000005;
+        price += momentum * speed;
+        if (price < tokens[current].base * 0.7) price = tokens[current].base * 0.7;
+        if (price > tokens[current].base * 1.4) price = tokens[current].base * 1.4;
+        lastPriceTs = Date.now();
+        if (Math.random() < 0.12) {
+          buyWall = Math.max(0.6, Math.min(6, buyWall + (Math.random() - 0.5) * 0.45));
+          sellWall = Math.max(0.6, Math.min(6, sellWall + (Math.random() - 0.5) * 0.45));
+        }
+      }
+
+      if (price > rangeHigh) {
+        pushFeed("BULLS TAKE THE RANGE!", "win");
+        showVictory(true);
+        const mid = price;
+        const half = (rangeHigh - rangeLow) * 0.5;
+        rangeLow = mid - half;
+        rangeHigh = mid + half;
+        createExplosion(targetX, 0, tokens[current].color, 1.9);
+        buyWall = Math.min(6, buyWall + 0.35);
+      }
+      if (price < rangeLow) {
+        pushFeed("BEARS TAKE THE RANGE!", "loss");
+        showVictory(false);
+        const mid = price;
+        const half = (rangeHigh - rangeLow) * 0.5;
+        rangeLow = mid - half;
+        rangeHigh = mid + half;
+        createExplosion(targetX, 0, 0xf87171, 1.9);
+        sellWall = Math.min(6, sellWall + 0.35);
+      }
+
+      const t = tokens[current];
+      document.getElementById("battleRange").textContent =
+        `NEW BATTLE ${rangeLow.toFixed(t.decimals)} – ${rangeHigh.toFixed(t.decimals)}  |  Bears ${rangeLow.toFixed(t.decimals)} | Bulls ${rangeHigh.toFixed(t.decimals)}`;
+      document.getElementById("price").textContent = "$" + price.toFixed(t.decimals);
+
+      const tickVal = (momentum * 55).toFixed(2);
+      const tickEl = document.getElementById("tick");
+      tickEl.textContent = (momentum >= 0 ? "+" : "") + tickVal + "%";
+      tickEl.style.color = momentum >= 0 ? "#34d399" : "#f87171";
+
+      const press = document.getElementById("pressure");
+      if (momentum > 0.07) { press.textContent = "Buyers advancing"; press.className = "pressure buyers"; }
+      else if (momentum < -0.07) { press.textContent = "Sellers pushing"; press.className = "pressure sellers"; }
+      else { press.textContent = "Contested"; press.className = "pressure contested"; }
+
+      if (!isLive) {
+        buyWall = Math.max(0.5, buyWall + (Math.random()-0.5)*0.1);
+        sellWall = Math.max(0.5, sellWall + (Math.random()-0.5)*0.1);
+      }
+      document.getElementById("buyWall").textContent = "$" + buyWall.toFixed(2) + "M";
+      document.getElementById("sellWall").textContent = "$" + sellWall.toFixed(2) + "M";
+
+      if (Date.now() - lastRebuild > 5000 && Math.random() < 0.12) rebuildUnits();
+
+      if ((!isLive || Math.random() < 0.04) && tokens[current].hasBurns && Math.random() < 0.13) {
+        const amount = (Math.random()*7 + 1.5).toFixed(1);
+        pushFeed(`LUNC BURN ${amount}B → Massive Bull power surge`, "burn");
+        createExplosion(targetX + (Math.random()-0.5)*10, (Math.random()-0.5)*15, 0xfbbf24, 2.15, true);
+        buyWall = Math.min(6.5, buyWall + 0.45);
+        momentum += 0.12;
+        playBurn();
+      }
+    }, 700);
+
+    // ========== ANIMATION ==========
+    const clock = new THREE.Clock();
+    function animate() {
+      requestAnimationFrame(animate);
+      const dt = clock.getDelta();
+      updateWASD(dt);
+      controls.update();
+
+      if (cameraShake > 0.01) {
+        camera.position.x += (Math.random()-0.5) * cameraShake * 0.35;
+        camera.position.y += (Math.random()-0.5) * cameraShake * 0.2;
+        cameraShake *= 0.88;
+      }
+
+      const mid = (rangeLow + rangeHigh) / 2;
+      const span = Math.max(rangeHigh - rangeLow, 1e-12);
+      targetX = ((price - mid) / span) * 30;
+      battleLine.position.x += (targetX - battleLine.position.x) * 0.09;
+
+      bulls.forEach(u => {
+        const rank = u.userData.type;
+        const desired = targetX - (6.5 + rank * 4.8);
+        u.position.x += (desired - u.position.x) * 0.018;
+        u.position.y = Math.sin(Date.now()*0.0028 + u.position.z) * 0.05;
+      });
+      bears.forEach(u => {
+        const rank = u.userData.type;
+        const desired = targetX + (6.5 + rank * 4.8);
+        u.position.x += (desired - u.position.x) * 0.018;
+        u.position.y = Math.sin(Date.now()*0.0028 + u.position.z + 1.5) * 0.05;
+      });
+
+      for (let i = projectiles.length - 1; i >= 0; i--) {
+        const r = projectiles[i];
+        const dx = r.userData.tx - r.position.x;
+        r.position.x += Math.sign(dx) * Math.min(Math.abs(dx), r.userData.speed);
+        r.position.y += Math.sin(Date.now()*0.01 + i) * 0.02;
+        r.userData.life -= dt;
+        if (Math.abs(dx) < 0.4 || r.userData.life <= 0) {
+          createExplosion(r.position.x, r.position.z, r.userData.color, r.userData.power * 0.85);
+          scene.remove(r);
+          projectiles.splice(i, 1);
+        }
+      }
+
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.userData.life -= dt * 1.1;
+        p.position.x += p.userData.vx;
+        p.position.y += p.userData.vy;
+        p.position.z += p.userData.vz;
+        p.userData.vy -= 0.02;
+        p.material.opacity = Math.max(0, p.userData.life);
+        p.scale.setScalar(Math.max(0.01, p.userData.life * 0.9));
+        if (p.userData.life <= 0) { scene.remove(p); particles.splice(i, 1); }
+      }
+
+      greenLight.intensity = 2.2 + Math.sin(Date.now()*0.0016) * 0.7;
+      redLight.intensity = 2.0 + Math.cos(Date.now()*0.0016) * 0.6;
+      centerLight.intensity = 0.85 + Math.sin(Date.now()*0.0022) * 0.35;
+
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    window.addEventListener("resize", () => {
+      camera.aspect = innerWidth / innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+    });
+
+    pushFeed("Ecosystem: Terraport + Garuda + Juris TVL live", "info");
+    pushFeed("Click anywhere to enable sound", "info");
+  </script>
+</body>
+</html>
