@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>LUNC Ecosystem Battlefield</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { overflow: hidden; background: #03060a; font-family: 'Inter', system-ui, sans-serif; color: #e5e7eb; user-select: none; }
+
+    #topHud {
+      position: absolute; top: 0; left: 0; right: 0; z-index: 50;
+      background: linear-gradient(180deg, rgba(3,6,10,0.97) 0%, rgba(3,6,10,0.85) 100%);
+      backdrop-filter: blur(18px);
+      border-bottom: 1px solid rgba(52, 211, 153, 0.2);
+      padding: 9px 16px 11px;
+      display: flex; flex-wrap: wrap; gap: 20px; align-items: center;
+    }
+    .battle-range { color: #fbbf24; font-weight: 600; font-size: 11.8px; letter-spacing: 0.1px; line-height: 1.3; }
+    .price-big { font-size: 24px; font-weight: 800; color: white; letter-spacing: -0.5px; display: flex; align-items: baseline; gap: 7px; }
+    .tick { font-size: 13px; font-weight: 600; }
+    .pressure { font-weight: 700; font-size: 13px; }
+    .pressure.buyers { color: #34d399; text-shadow: 0 0 12px rgba(52,211,153,0.45); }
+    .pressure.sellers { color: #f87171; text-shadow: 0 0 12px rgba(248,113,113,0.45); }
+    .pressure.contested { color: #fbbf24; }
+    .walls { display: flex; gap: 18px; }
+    .wall-label { font-size: 9.5px; opacity: 0.55; margin-bottom: 1px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .wall-buy strong { color: #34d399; font-size: 15.5px; font-weight: 700; }
+    .wall-sell strong { color: #f87171; font-size: 15.5px; font-weight: 700; }
+
+    #tokenBar {
+      position: absolute; top: 64px; left: 50%; transform: translateX(-50%);
+      z-index: 45; display: flex; gap: 4px;
+      background: rgba(0,0,0,0.8); padding: 4px 6px;
+      border-radius: 40px; border: 1px solid rgba(255,255,255,0.08);
+    }
+    .token-btn {
+      padding: 5px 12px; border-radius: 24px; border: none;
+      background: transparent; color: #9ca3af; cursor: pointer;
+      font-size: 11px; font-weight: 550; transition: all 0.15s;
+    }
+    .token-btn:hover { color: white; background: rgba(255,255,255,0.06); }
+    .token-btn.active { background: #34d399; color: #04140f; font-weight: 700; box-shadow: 0 0 14px rgba(52,211,153,0.5); }
+
+    #leftPanel, #rightPanel {
+      position: absolute; top: 108px; z-index: 40;
+      background: rgba(4, 8, 13, 0.94);
+      backdrop-filter: blur(14px);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 12px; padding: 13px 14px;
+      box-shadow: 0 8px 28px rgba(0,0,0,0.5);
+    }
+    #leftPanel { left: 11px; width: 255px; }
+    #rightPanel { right: 11px; width: 285px; max-height: 480px; overflow-y: auto; }
+
+    .panel-title { color: #34d399; font-weight: 700; font-size: 11.5px; margin-bottom: 8px; letter-spacing: 0.4px; text-transform: uppercase; }
+    .feed-item { padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 11.5px; line-height: 1.35; }
+    .feed-item.burn { color: #fbbf24; font-weight: 600; }
+    .feed-item.liq { color: #67e8f9; }
+    .feed-item.win { color: #34d399; font-weight: 700; }
+    .feed-item.loss { color: #f87171; }
+    .feed-item.info { color: #94a3b8; }
+
+    #hint { position: absolute; bottom: 11px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.75); padding: 5px 14px; border-radius: 28px; font-size: 10.5px; color: #9ca3af; z-index: 40; border: 1px solid rgba(255,255,255,0.05); }
+    #dataMode { position: absolute; bottom: 11px; right: 12px; z-index: 40; background: rgba(0,0,0,0.75); padding: 4px 11px; border-radius: 18px; font-size: 10px; color: #64748b; border: 1px solid rgba(255,255,255,0.06); }
+    #dataMode.live { color: #34d399; border-color: rgba(52,211,153,0.35); }
+    #dataMode.error { color: #f87171; }
+
+    #victoryFlash { position: absolute; inset: 0; z-index: 30; pointer-events: none; opacity: 0; transition: opacity 0.28s; background: radial-gradient(circle at center, rgba(52,211,153,0.22), transparent 70%); }
+    #victoryFlash.bear { background: radial-gradient(circle at center, rgba(248,113,113,0.22), transparent 70%); }
+    #victoryFlash.show { opacity: 1; }
+
+    @media (max-width: 900px) {
+      #leftPanel { display: none; }
+      #rightPanel { width: 240px; max-height: 300px; top: 100px; }
+      .price-big { font-size: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="victoryFlash"></div>
+
+  <div id="topHud">
+    <div>
+      <div class="battle-range" id="battleRange">NEW BATTLE — connecting —</div>
+      <div style="opacity:0.5; font-size:10.5px; margin-top:2px;" id="utc">UTC --:--:--</div>
+    </div>
+    <div>
+      <div style="opacity:0.55; font-size:10.5px;" id="pair">LUNC/USDT</div>
+      <div class="price-big">
+        <span id="price">$—</span>
+        <span class="tick" id="tick">—</span>
+      </div>
+    </div>
+    <div>
+      <div style="opacity:0.5; font-size:9.5px; margin-bottom:1px; text-transform:uppercase; letter-spacing:0.4px;">Pressure</div>
+      <div class="pressure contested" id="pressure">—</div>
+    </div>
+    <div class="walls">
+      <div><div class="wall-label">Buy Wall</div><strong id="buyWall">$—</strong></div>
+      <div><div class="wall-label">Sell Wall</div><strong id="sellWall">$—</strong></div>
+      <div><div class="wall-label">Terra Classic TVL</div><strong id="tvlValue" style="color:#67e8f9;">$—</strong></div>
+      <div><div class="wall-label">CMC MCap</div><strong id="cmcMcap" style="color:#a78bfa;">$—</strong></div>
+      <div><div class="wall-label">CMC Rank</div><strong id="cmcRank" style="color:#fbbf24;">—</strong></div>
+    </div>
+  </div>
+
+  <div id="tokenBar">
+    <button class="token-btn active" data-token="LUNC">LUNC</button>
+    <button class="token-btn" data-token="USTC">USTC</button>
+    <button class="token-btn" data-token="JURIS">JURIS</button>
+    <button class="token-btn" data-token="TERRA">TERRA</button>
+    <button class="token-btn" data-token="KNEEL">KNEEL</button>
+  </div>
+
+  <div id="leftPanel">
+        <div class="panel-title">LUNC Ecosystem</div>
+    <div style="font-size:11.5px; line-height:1.5; opacity:0.9;">
+      <strong style="color:#34d399;">Green</strong> = Bulls &nbsp;|&nbsp; <strong style="color:#f87171;">Red</strong> = Bears<br>
+      <span style="color:#fbbf24;">Burns</span> = power surges
+    </div>
+    <div style="margin-top:12px; border-top:1px solid rgba(255,255,255,0.08); padding-top:10px;">
+      <div style="font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:#94a3b8; margin-bottom:6px;">Protocol TVL</div>
+      <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;">
+        <span>Terraport</span><strong id="tvlTerraport" style="color:#38bdf8;">$—</strong>
+      </div>
+      <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;">
+        <span>Garuda</span><strong id="tvlGaruda" style="color:#a78bfa;">$—</strong>
+      </div>
+      <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px;">
+        <span>Juris</span><strong id="tvlJuris" style="color:#f472b6;">$—</strong>
+      </div>
+    </div>
+    <div style="margin-top:10px; font-size:10px; opacity:0.55;">
+      Multi-source • Edge Agent
+    </div>
+  </div>
+
+  <div id="rightPanel">
+    <div class="panel-title">Live Market Feed</div>
+    <div id="feed"></div>
+  </div>
+
+  <div id="hint">WASD move • Drag orbit • Scroll zoom</div>
+  <div id="dataMode">CONNECTING…</div>
+  <div id="agentStatus" style="position:absolute;bottom:40px;right:12px;z-index:40;background:rgba(0,0,0,0.75);padding:4px 11px;border-radius:18px;font-size:10px;color:#94a3b8;border:1px solid rgba(255,255,255,0.06);max-width:220px;text-align:right;"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script>
+    // =====================================================
+    // LUNC ECOSYSTEM BATTLEFIELD v4
+    // =====================================================
+
+    const tokens = {
+      LUNC:  { name: "LUNC/USDT", base: 0.000052, color: 0x34d399, hasBurns: true, decimals: 8, symbol: "luncusdt" },
+      USTC:  { name: "USTC/USDT", base: 0.0052,   color: 0x38bdf8, hasBurns: false, decimals: 5, symbol: "ustcusdt" },
+      JURIS: { name: "JURIS",     base: 0.0000037, color: 0xa78bfa, hasBurns: false, decimals: 7, symbol: null },
+      TERRA: { name: "TERRA",     base: 0.00145,   color: 0xfbbf24, hasBurns: false, decimals: 5, symbol: null },
+      KNEEL: { name: "KNEEL",     base: 0.0061,    color: 0xf472b6, hasBurns: false, decimals: 4, symbol: null }
+    };
+
+    let current = "LUNC";
+    let price = tokens.LUNC.base;
+    let rangeLow = price * 0.92;
+    let rangeHigh = price * 1.08;
+    let buyWall = 1.8;
+    let sellWall = 1.6;
+    let momentum = 0;
+    let targetX = 0;
+    let lastRebuild = 0;
+    let isLive = false;
+    let lastPrice = price;
+    let priceHistory = [];
+    let cameraShake = 0;
+
+    let audioCtx = null;
+    function initAudio() {
+      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    function playTone(freq, dur=0.12, type="sine", vol=0.07) {
+      if (!audioCtx) return;
+      try {
+        const o = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        o.type = type; o.frequency.value = freq;
+        g.gain.value = vol;
+        o.connect(g); g.connect(audioCtx.destination);
+        o.start();
+        g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+        o.stop(audioCtx.currentTime + dur);
+      } catch(e){}
+    }
+    function playBurn() { playTone(210, 0.32, "sawtooth", 0.06); setTimeout(()=>playTone(320, 0.22, "triangle", 0.045), 70); }
+    function playLiq() { playTone(165, 0.13, "square", 0.05); }
+    function playVictory(bull) { playTone(bull?420:150, 0.18, "sine", 0.08); setTimeout(()=>playTone(bull?530:110, 0.28, "sine", 0.06), 110); }
+    document.body.addEventListener("click", initAudio, { once: true });
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x010308);
+    scene.fog = new THREE.FogExp2(0x010308, 0.0095);
+
+    const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 0.1, 300);
+    camera.position.set(0, 38, 36);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    document.body.appendChild(renderer.domElement);
+
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.maxPolarAngle = Math.PI / 2.35;
+    controls.minDistance = 14;
+    controls.maxDistance = 85;
+    controls.target.set(0, 0.5, 0);
+
+    const keys = {};
+    window.addEventListener("keydown", e => { keys[e.code] = true; });
+    window.addEventListener("keyup", e => { keys[e.code] = false; });
+    function updateWASD(dt) {
+      const speed = (keys["ShiftLeft"] || keys["ShiftRight"] ? 28 : 14) * dt;
+      const forward = new THREE.Vector3();
+      camera.getWorldDirection(forward);
+      forward.y = 0; forward.normalize();
+      const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0,1,0)).normalize();
+      if (keys["KeyW"]) { camera.position.addScaledVector(forward, speed); controls.target.addScaledVector(forward, speed); }
+      if (keys["KeyS"]) { camera.position.addScaledVector(forward, -speed); controls.target.addScaledVector(forward, -speed); }
+      if (keys["KeyA"]) { camera.position.addScaledVector(right, -speed); controls.target.addScaledVector(right, -speed); }
+      if (keys["KeyD"]) { camera.position.addScaledVector(right, speed); controls.target.addScaledVector(right, speed); }
+      if (keys["KeyQ"]) { camera.position.y -= speed; controls.target.y -= speed; }
+      if (keys["KeyE"]) { camera.position.y += speed; controls.target.y += speed; }
+    }
+
+    scene.add(new THREE.AmbientLight(0x0a121c, 0.62));
+    const sun = new THREE.DirectionalLight(0xfff0dd, 1.35);
+    sun.position.set(16, 52, 22);
+    scene.add(sun);
+    const fill = new THREE.DirectionalLight(0x1a3355, 0.45);
+    fill.position.set(-22, 18, -12);
+    scene.add(fill);
+    const greenLight = new THREE.PointLight(0x34d399, 2.8, 100);
+    greenLight.position.set(-13, 14, 0);
+    scene.add(greenLight);
+    const redLight = new THREE.PointLight(0xf87171, 2.5, 100);
+    redLight.position.set(13, 14, 0);
+    scene.add(redLight);
+    const centerLight = new THREE.PointLight(0xfbbf24, 1.1, 60);
+    centerLight.position.set(0, 10, 0);
+    scene.add(centerLight);
+    const rimG = new THREE.PointLight(0x6ee7b7, 0.9, 50);
+    rimG.position.set(-22, 6, 18);
+    scene.add(rimG);
+    const rimR = new THREE.PointLight(0xfca5a5, 0.9, 50);
+    rimR.position.set(22, 6, -18);
+    scene.add(rimR);
+
+    const groundGeo = new THREE.PlaneGeometry(120, 70, 120, 60);
+    const pos = groundGeo.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i), z = pos.getY(i);
+      pos.setZ(i, Math.sin(x * 0.08) * 0.35 + Math.cos(z * 0.11) * 0.25);
+    }
+    groundGeo.computeVertexNormals();
+    const ground = new THREE.Mesh(
+      groundGeo,
+      new THREE.MeshStandardMaterial({ color: 0x0a100e, roughness: 0.95, metalness: 0.02 })
+    );
+    ground.rotation.x = -Math.PI / 2;
+    scene.add(ground);
+
+    const grid = new THREE.GridHelper(100, 50, 0x1f3d32, 0x0d1a14);
+    grid.position.y = 0.04;
+    grid.material.opacity = 0.55;
+    grid.material.transparent = true;
+    scene.add(grid);
+
+    const ridgeMat = new THREE.MeshStandardMaterial({ color: 0x1a2a22, roughness: 0.85, metalness: 0.05 });
+    for (let i = -4; i <= 4; i++) {
+      if (i === 0) continue;
+      const ridge = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.18, 58), ridgeMat);
+      ridge.position.set(i * 11, 0.1, 0);
+      scene.add(ridge);
+    }
