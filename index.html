@@ -110,8 +110,6 @@
     <button class="token-btn active" data-token="LUNC">LUNC</button>
     <button class="token-btn" data-token="USTC">USTC</button>
     <button class="token-btn" data-token="JURIS">JURIS</button>
-    <button class="token-btn" data-token="TERRA">TERRA</button>
-    <button class="token-btn" data-token="KNEEL">KNEEL</button>
   </div>
 
   <div id="leftPanel">
@@ -133,7 +131,7 @@
       </div>
     </div>
     <div style="margin-top:10px; font-size:10px; opacity:0.55;">
-      Multi-source • Edge Agent
+      DefiLlama · CoinGecko · Binance
     </div>
   </div>
 
@@ -150,15 +148,14 @@
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
   <script>
     // =====================================================
-    // LUNC ECOSYSTEM BATTLEFIELD v4
+    // LUNC ECOSYSTEM BATTLEFIELD v5
     // =====================================================
 
     const tokens = {
-      LUNC:  { name: "LUNC/USDT", base: 0.000052, color: 0x34d399, hasBurns: true, decimals: 8, symbol: "luncusdt" },
-      USTC:  { name: "USTC/USDT", base: 0.0052,   color: 0x38bdf8, hasBurns: false, decimals: 5, symbol: "ustcusdt" },
-      JURIS: { name: "JURIS",     base: 0.0000037, color: 0xa78bfa, hasBurns: false, decimals: 7, symbol: null },
-      TERRA: { name: "TERRA",     base: 0.00145,   color: 0xfbbf24, hasBurns: false, decimals: 5, symbol: null },
-      KNEEL: { name: "KNEEL",     base: 0.0061,    color: 0xf472b6, hasBurns: false, decimals: 4, symbol: null }
+      // base is a fallback seed only, never shown as live. Quotes checked 2026-09-08 via DefiLlama.
+      LUNC:  { name: "LUNC/USDT", base: 0.00005346, color: 0x34d399, hasBurns: true, decimals: 8, symbol: "luncusdt", gecko: "terra-luna" },
+      USTC:  { name: "USTC/USDT", base: 0.005579,   color: 0x38bdf8, hasBurns: false, decimals: 5, symbol: "ustcusdt", gecko: "terrausd" },
+      JURIS: { name: "JURIS",     base: 0.00000245, color: 0xa78bfa, hasBurns: false, decimals: 8, symbol: null, gecko: "juris-protocol" }
     };
 
     let current = "LUNC";
@@ -527,6 +524,12 @@
       rebuildUnits();
       pushFeed(`Switched to ${sym}`, "win");
       if (t.symbol) connectLive(t.symbol);
+      else {
+        if (spotWs) { try { spotWs.onclose = null; spotWs.close(); } catch (e) {} spotWs = null; }
+        depthSource = SRC.SIM;
+      }
+      fetchLlama();
+      fetchGecko();
     }
     document.querySelectorAll(".token-btn").forEach(btn => {
       btn.addEventListener("click", () => setToken(btn.dataset.token));
@@ -536,7 +539,7 @@
       document.getElementById("utc").textContent = "UTC " + new Date().toISOString().substr(11, 8);
     }, 1000);
 
-    const SRC = { GECKO: "coingecko", BINANCE: "binance", SIM: "sim" };
+    const SRC = { GECKO: "coingecko", BINANCE: "binance", LLAMA: "llama", SIM: "sim" };
     let priceSource = SRC.SIM;
     let depthSource = SRC.SIM;
     let lastPriceTs = Date.now();
@@ -563,6 +566,7 @@
       if (pairEl) {
         const label = priceSource === SRC.GECKO ? " · CoinGecko"
                     : priceSource === SRC.BINANCE ? " · Binance"
+                    : priceSource === SRC.LLAMA ? " · DefiLlama"
                     : " · Simulated";
         pairEl.textContent = (tokens[current] ? tokens[current].name : "LUNC/USDT") + label;
       }
@@ -571,6 +575,7 @@
     function updateStatusUI() {
       const priceLabel = priceSource === SRC.GECKO ? "CoinGecko"
                        : priceSource === SRC.BINANCE ? "Binance"
+                       : priceSource === SRC.LLAMA ? "DefiLlama"
                        : "Sim";
       const depthLabel = depthSource === SRC.BINANCE ? "Binance depth"
                        : "Est. walls";
@@ -582,20 +587,58 @@
       );
     }
 
-    async function fetchGecko() {
+    function applySpot(next, source) {
+      if (!(next > 0)) return;
+      lastPrice = price;
+      price = next;
+      lastPriceTs = Date.now();
+      priceHistory.push(price);
+      if (priceHistory.length > 40) priceHistory.shift();
+      if (priceSource !== SRC.BINANCE || source === SRC.BINANCE) {
+        priceSource = source;
+      }
+      isLive = true;
+    }
+
+    async function fetchLlama() {
+      const t = tokens[current];
+      if (!t || !t.gecko) return false;
       try {
-        const url = "https://api.coingecko.com/api/v3/simple/price?ids=terra-luna&vs_currencies=usd&include_24hr_vol=true&include_24hr_change=true";
+        const id = "coingecko:" + t.gecko;
+        const url = "https://coins.llama.fi/prices/current/" + id;
         const res = await fetch(url, { cache: "no-store" });
         if (!res.ok) throw new Error("HTTP " + res.status);
         const data = await res.json();
-        const coin = data["terra-luna"];
+        const coin = data.coins && data.coins[id];
+        if (!coin || !(coin.price > 0)) throw new Error("No price");
+        applySpot(coin.price, SRC.LLAMA);
+        geckoFails = 0;
+        updateStatusUI();
+        return true;
+      } catch (e) {
+        console.warn("[Llama]", e.message || e);
+        return false;
+      }
+    }
+
+    async function fetchGecko() {
+      const t = tokens[current];
+      if (!t || !t.gecko) return false;
+      try {
+        const url = "https://api.coingecko.com/api/v3/simple/price?ids=" + encodeURIComponent(t.gecko)
+          + "&vs_currencies=usd&include_24hr_vol=true&include_24hr_change=true&include_market_cap=true";
+        const res = await fetch(url, { cache: "no-store" });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json();
+        const coin = data[t.gecko];
         if (!coin || !coin.usd) throw new Error("No price");
 
-        lastPrice = price;
-        price = coin.usd;
-        lastPriceTs = Date.now();
-        priceHistory.push(price);
-        if (priceHistory.length > 40) priceHistory.shift();
+        applySpot(coin.usd, SRC.GECKO);
+        const mcapEl = document.getElementById("cmcMcap");
+        if (mcapEl && coin.usd_market_cap > 0) {
+          const mcap = coin.usd_market_cap;
+          mcapEl.textContent = mcap >= 1e9 ? "$"+(mcap/1e9).toFixed(2)+"B" : "$"+(mcap/1e6).toFixed(2)+"M";
+        }
 
         if (depthSource !== SRC.BINANCE) {
           const vol = coin.usd_24h_vol || 5e6;
@@ -625,8 +668,9 @@
 
     function startGecko() {
       if (geckoTimer) return;
+      fetchLlama();
       fetchGecko();
-      geckoTimer = setInterval(fetchGecko, 12000);
+      geckoTimer = setInterval(() => { fetchLlama(); fetchGecko(); }, 20000);
     }
 
     function calcWalls() {
@@ -777,26 +821,23 @@
     }
 
     async function fetchCMC() {
+      const t = tokens[current];
+      if (!t || !t.gecko) return;
       try {
-        const url = "https://pro-api.coinmarketcap.com/public-api/v3/cryptocurrency/quotes/latest?id=4172&convert=USD";
+        const url = "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=" + encodeURIComponent(t.gecko);
         const res = await fetch(url, { cache: "no-store" });
         if (!res.ok) throw new Error("HTTP " + res.status);
-        const json = await res.json();
-        let coin = null;
-        if (json.data) {
-          coin = Array.isArray(json.data) ? json.data[0] : (json.data["4172"] || Object.values(json.data)[0]);
-        }
+        const rows = await res.json();
+        const coin = Array.isArray(rows) ? rows[0] : null;
         if (!coin) return;
-        const quote = (coin.quote && (coin.quote.USD || coin.quote.usd)) || {};
-        const mcap = quote.market_cap;
-        const rank = coin.cmc_rank || coin.rank;
         const mcapEl = document.getElementById("cmcMcap");
         const rankEl = document.getElementById("cmcRank");
-        if (mcapEl && mcap != null) {
+        if (mcapEl && coin.market_cap > 0) {
+          const mcap = coin.market_cap;
           mcapEl.textContent = mcap >= 1e9 ? "$"+(mcap/1e9).toFixed(2)+"B" : "$"+(mcap/1e6).toFixed(2)+"M";
         }
-        if (rankEl && rank != null) rankEl.textContent = "#" + rank;
-      } catch(e) { console.warn("[CMC]", e.message); }
+        if (rankEl) rankEl.textContent = coin.market_cap_rank ? ("#" + coin.market_cap_rank) : "—";
+      } catch(e) { console.warn("[MCap]", e.message); }
     }
 
     function startContextFeeds() {
@@ -813,13 +854,9 @@
 
     setInterval(() => {
       const age = Date.now() - lastPriceTs;
-      if (age > 25000 && priceSource !== SRC.SIM) {
-        if (priceSource === SRC.BINANCE) {
-          priceSource = SRC.GECKO;
-        } else {
-          priceSource = SRC.SIM;
-          isLive = false;
-        }
+      if (age > 45000 && priceSource !== SRC.SIM) {
+        priceSource = SRC.SIM;
+        isLive = false;
         updateStatusUI();
       }
       if (depthSource === SRC.BINANCE && Date.now() - lastDepthTs > 20000) {
@@ -974,12 +1011,9 @@
 
       if (Date.now() - lastRebuild > 5000 && Math.random() < 0.12) rebuildUnits();
 
-      if ((!isLive || Math.random() < 0.04) && tokens[current].hasBurns && Math.random() < 0.13) {
-        const amount = (Math.random()*7 + 1.5).toFixed(1);
-        pushFeed(`LUNC BURN ${amount}B → Massive Bull power surge`, "burn");
-        createExplosion(targetX + (Math.random()-0.5)*10, (Math.random()-0.5)*15, 0xfbbf24, 2.15, true);
-        buyWall = Math.min(6.5, buyWall + 0.45);
-        momentum += 0.12;
+      if (!isLive && tokens[current].hasBurns && Math.random() < 0.08) {
+        pushFeed("Sim burn flash (not a chain event)", "burn");
+        createExplosion(targetX + (Math.random()-0.5)*10, (Math.random()-0.5)*15, 0xfbbf24, 1.4, true);
         playBurn();
       }
     }, 700);
@@ -1055,7 +1089,7 @@
       renderer.setSize(innerWidth, innerHeight);
     });
 
-    pushFeed("Ecosystem: Terraport + Garuda + Juris TVL live", "info");
+    pushFeed("Prices: DefiLlama, then CoinGecko. Depth: Binance if the stream opens.", "info");
     pushFeed("Click anywhere to enable sound", "info");
   </script>
 </body>
