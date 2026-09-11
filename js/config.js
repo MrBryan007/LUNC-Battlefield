@@ -6,7 +6,8 @@
     CALCULATED: 'CALCULATED',
     ESTIMATED: 'ESTIMATED',
     SIMULATED: 'SIMULATED',
-    UNAVAILABLE: 'UNAVAILABLE'
+    UNAVAILABLE: 'UNAVAILABLE',
+    PARTIAL: 'PARTIAL'
   });
 
   function httpsOnly(url) {
@@ -22,26 +23,28 @@
     if (typeof global.LUNC_API_BASE === 'string' && global.LUNC_API_BASE) {
       return httpsOnly(global.LUNC_API_BASE);
     }
-    return null; // browser fallbacks only on Pages
-  }
-
-  function bridgeUrl() {
-    const q = new URLSearchParams(location.search).get('bridge');
-    if (q && /^https:\/\//i.test(q)) return q;
-    if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
-      return 'http://127.0.0.1:8787/snapshot';
+    const bridge = new URLSearchParams(location.search).get('bridge');
+    if (bridge && /^https:\/\//i.test(bridge)) {
+      try {
+        const u = new URL(bridge);
+        if (u.pathname.endsWith('/snapshot')) {
+          u.pathname = u.pathname.replace(/\/snapshot\/?$/, '');
+          return httpsOnly(u.toString());
+        }
+        return httpsOnly(bridge.replace(/\/$/, ''));
+      } catch (_) {}
     }
-    return null; // never poll localhost from github.io
+    return null;
   }
 
   const tokens = {
     LUNC: {
-      name: 'LUNC/USDT', base: 0.00005346, color: 0x49d39a, hasBurns: true, decimals: 8,
+      name: 'LUNC/USDT', base: 0.00005122, color: 0x49d39a, hasBurns: true, decimals: 8,
       symbol: 'luncusdt', futures: '1000luncusdt', gecko: 'terra-luna',
       battlefield: 'war'
     },
     USTC: {
-      name: 'USTC/USDT', base: 0.005579, color: 0x56b9d1, hasBurns: false, decimals: 5,
+      name: 'USTC/USDT', base: 0.00514, color: 0x56b9d1, hasBurns: false, decimals: 5,
       symbol: 'ustcusdt', futures: 'ustcusdt', gecko: 'terrausd',
       battlefield: 'repeg', objective: 1.0
     },
@@ -58,7 +61,6 @@
     DataTruth,
     tokens,
     apiBase: resolveApiBase(),
-    bridgeUrl: bridgeUrl(),
     liquidityBands: [
       { id: 'immediate', label: 'Immediate defense', minPct: 0, maxPct: 0.5 },
       { id: 'near', label: 'Near wall', minPct: 0.5, maxPct: 1 },
@@ -71,7 +73,11 @@
       { min: 1e7, label: 'bombardment' },
       { min: 1e8, label: 'major burn event' },
       { min: 1e9, label: 'massive battlefield event' }
-    ]
+    ],
+    // Prefer deeper REST snapshot; WS only refreshes near market
+    binanceRestDepthLimit: 1000,
+    // api.binance.com often 451 in restricted regions; vision mirrors public market data
+    binanceRestBase: 'https://data-api.binance.vision'
   };
 
   global.LUNCBattle = global.LUNCBattle || {};

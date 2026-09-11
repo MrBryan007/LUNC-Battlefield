@@ -167,5 +167,6 @@
 .truth-estimated { color: var(--gold); }
 .truth-simulated { color: var(--bear); }
 .truth-unavailable { color: #6b736c; }
+.truth-partial { color: #c9a227; }
 .row .bull { color: var(--bull); }
 .row .bear { color: var(--bear); }

@@ -7,12 +7,12 @@
     // =====================================================
 
     const tokens = {
-      LUNC:  { name: 'LUNC/USDT', base: 0.00005346, color: 0x49d39a, hasBurns: true,  decimals: 8, symbol: 'luncusdt', futures: '1000luncusdt', gecko: 'terra-luna' },
-      USTC:  { name: 'USTC/USDT', base: 0.005579,   color: 0x56b9d1, hasBurns: false, decimals: 5, symbol: 'ustcusdt', futures: 'ustcusdt', gecko: 'terrausd' },
+      LUNC:  { name: 'LUNC/USDT', base: 0.00005122, color: 0x49d39a, hasBurns: true,  decimals: 8, symbol: 'luncusdt', futures: '1000luncusdt', gecko: 'terra-luna' },
+      USTC:  { name: 'USTC/USDT', base: 0.00514,    color: 0x56b9d1, hasBurns: false, decimals: 5, symbol: 'ustcusdt', futures: 'ustcusdt', gecko: 'terrausd' },
       JURIS: { name: 'JURIS',     base: 0.00000245, color: 0xa791dc, hasBurns: false, decimals: 8, symbol: null, futures: null, gecko: 'juris-protocol' }
     };
 
-    const SRC = { GECKO: 'coingecko', BINANCE: 'binance', LLAMA: 'llama', SIM: 'sim', BRIDGE: 'bridge' };
+    const SRC = { GECKO: 'coingecko', BINANCE: 'binance', LLAMA: 'llama', SIM: 'sim', BRIDGE: 'bridge', API: 'api', UNKNOWN: 'unknown' };
     let current = 'LUNC';
     let price = tokens[current].base;
     let lastPrice = price;
@@ -26,9 +26,11 @@
     let isLive = false;
     let priceHistory = [];
     let priceSource = SRC.SIM;
-    let depthSource = SRC.SIM;
+    let depthSource = SRC.SIM; // SIM | BINANCE | API
+    let depthVendorLabel = 'Unavailable'; // truthful UI label
     let lastPriceTs = Date.now();
     let lastDepthTs = 0;
+    let restDepthTimer = null;
     let cameraShake = 0;
     let audioCtx = null;
 
@@ -218,78 +220,29 @@
     const ropePts=[]; for(let z=-28;z<=28;z+=1) ropePts.push(new THREE.Vector3(0,.26,z));
     const rope=new THREE.Line(new THREE.BufferGeometry().setFromPoints(ropePts),ropeMat); frontGroup.add(rope);
 
-    // -------------------- Units --------------------
+    // -------------------- Units / effects (extracted modules) --------------------
     const bulls=[], bears=[];
     const projectilePool=[], particlePool=[];
 
-    function setShadow(mesh, cast=true) { mesh.castShadow=cast; mesh.receiveShadow=true; return mesh; }
-    function cylinderBetween(radius,length,colorMat,axis='z') {
-      const m=new THREE.Mesh(new THREE.CylinderGeometry(radius,radius,length,7),colorMat);
-      if(axis==='z') m.rotation.x=Math.PI/2; else if(axis==='x') m.rotation.z=Math.PI/2;
-      return m;
+    const unitsApi = (window.LUNCBattle && LUNCBattle.units)
+      ? LUNCBattle.units.createApi({ THREE, scene, terrainHeight, mat })
+      : null;
+    const effectsApi = (window.LUNCBattle && LUNCBattle.effects)
+      ? LUNCBattle.effects.createApi({
+          THREE, scene, terrainHeight, projectilePool, particlePool,
+          onShake: (amp, power) => { cameraShake = Math.min(1.1, cameraShake + amp * power); }
+        })
+      : null;
+    if (!unitsApi || !effectsApi) {
+      console.error('[LUNCBattle] units.js / effects.js failed to load');
     }
 
-    function createInfantry(color, side) {
-      const g=new THREE.Group();
-      const armor=mat(color,.58,.16,color,.08), cloth=mat(0x202922,.9,.02), skin=mat(0xcda77e,.9,0), steel=mat(0x343e38,.42,.38);
-      const torso=setShadow(new THREE.Mesh(new THREE.CylinderGeometry(.22,.31,.65,7),armor)); torso.position.y=.78;
-      const head=setShadow(new THREE.Mesh(new THREE.SphereGeometry(.17,8,6),skin)); head.position.y=1.23;
-      const helm=setShadow(new THREE.Mesh(new THREE.SphereGeometry(.19,8,5,0,Math.PI*2,0,Math.PI/2),steel)); helm.position.y=1.27;
-      const leg1=setShadow(cylinderBetween(.075,.52,cloth,'y')); leg1.position.set(-.12,.32,0);
-      const leg2=leg1.clone(); leg2.position.x=.12;
-      const arm1=setShadow(cylinderBetween(.065,.48,armor,'y')); arm1.position.set(-.30,.76,0); arm1.rotation.z=-.26;
-      const arm2=arm1.clone(); arm2.position.x=.30; arm2.rotation.z=.26;
-      const rifle=setShadow(cylinderBetween(.045,.72,steel,'z')); rifle.position.set(side*.34,.76,side*.16); rifle.rotation.y=Math.PI/2;
-      g.add(torso,head,helm,leg1,leg2,arm1,arm2,rifle);
-      g.scale.setScalar(.92); g.userData={type:0,side,phase:Math.random()*Math.PI*2,weapon:rifle,shot:Math.random()*3}; return g;
-    }
+    function createUnit(color, side, type) { return unitsApi.createUnit(color, side, type); }
+    function formationSlots(count, side, type) { return unitsApi.formationSlots(count, side, type); }
+    function disposeArmy(arr) { unitsApi.disposeArmy(arr); }
+    function launchStrike(fromX,toX,z,color,power=1) { effectsApi.launchStrike(fromX,toX,z,color,power); }
+    function createExplosion(x,z,color,power=1,isBurn=false) { effectsApi.createExplosion(x,z,color,power,isBurn); }
 
-    function createArmor(color,side) {
-      const g=new THREE.Group();
-      const armor=mat(color,.52,.26,color,.08), steel=mat(0x222b27,.5,.42), track=mat(0x111713,.78,.16);
-      const hull=setShadow(new THREE.Mesh(new THREE.DodecahedronGeometry(.7,0),armor)); hull.scale.set(1.35,.48,.9); hull.position.y=.58;
-      const turret=setShadow(new THREE.Mesh(new THREE.CylinderGeometry(.34,.46,.38,8),armor)); turret.position.y=.94;
-      const barrel=setShadow(cylinderBetween(.065,1.2,steel,'x')); barrel.position.set(side*.68,1.02,0);
-      const wheelMat=track;
-      [-.45,0,.45].forEach(dx=>[-.45,.45].forEach(z=>{ const w=setShadow(new THREE.Mesh(new THREE.CylinderGeometry(.18,.18,.12,8),wheelMat)); w.rotation.x=Math.PI/2; w.position.set(dx,.28,z); g.add(w); }));
-      g.add(hull,turret,barrel); g.userData={type:1,side,phase:Math.random()*Math.PI*2,weapon:barrel,shot:Math.random()*4}; return g;
-    }
-
-    function createArtillery(color,side) {
-      const g=new THREE.Group();
-      const armor=mat(color,.6,.19,color,.06), steel=mat(0x2d3731,.46,.38), base=mat(0x171e19,.8,.12);
-      const platform=setShadow(new THREE.Mesh(new THREE.CylinderGeometry(.55,.7,.28,8),base)); platform.position.y=.28;
-      const housing=setShadow(new THREE.Mesh(new THREE.CylinderGeometry(.32,.43,.64,7),armor)); housing.position.y=.67;
-      const barrel=setShadow(cylinderBetween(.095,1.55,steel,'x')); barrel.position.set(side*.78,1.0,0); barrel.rotation.z=-side*.16;
-      const stabilizer1=setShadow(cylinderBetween(.07,.9,base,'z')); stabilizer1.position.set(-.28,.16,.35);
-      const stabilizer2=stabilizer1.clone(); stabilizer2.position.z=-.35;
-      g.add(platform,housing,barrel,stabilizer1,stabilizer2); g.userData={type:2,side,phase:Math.random()*Math.PI*2,weapon:barrel,shot:Math.random()*5}; return g;
-    }
-
-    function createUnit(color, side, type) {
-      const g=type===0?createInfantry(color,side):type===1?createArmor(color,side):createArtillery(color,side);
-      const shadow=new THREE.Mesh(new THREE.CircleGeometry(type===1?.62:.38,14),new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:.18,depthWrite:false}));
-      shadow.rotation.x=-Math.PI/2; shadow.position.y=.025; g.add(shadow);
-      g.rotation.y = side<0 ? Math.PI/2 : -Math.PI/2;
-      scene.add(g); return g;
-    }
-
-    function formationSlots(count,side,type) {
-      const slots=[];
-      const cols=type===0?8:5;
-      const spacingZ=type===0?2.1:3.35;
-      const spacingX=type===0?1.8:3.2;
-      const back=type===0?8.6:type===1?15:21;
-      for(let i=0;i<count;i++) {
-        const row=Math.floor(i/cols), col=i%cols;
-        const z=(col-(cols-1)/2)*spacingZ + (row%2?spacingZ*.5:0);
-        const x=side*(back+row*spacingX);
-        slots.push({x,z});
-      }
-      return slots;
-    }
-
-    function disposeArmy(arr) { arr.forEach(u=>scene.remove(u)); arr.length=0; }
     function rebuildUnits() {
       disposeArmy(bulls); disposeArmy(bears);
       const mobile=innerWidth<760;
@@ -300,43 +253,11 @@
         art: Math.min(maxArt,Math.max(2,Math.round(1+wall*.72)))
       });
       const bc=counts(buyWall), rc=counts(sellWall);
-      function spawn(side,color,c,list) {
-        [[0,c.inf],[1,c.armor],[2,c.art]].forEach(([type,n])=>{
-          const slots=formationSlots(n,side,type);
-          slots.forEach((s,i)=>{ const u=createUnit(color,side,type); u.position.set(s.x,terrainHeight(s.x,s.z),s.z); u.userData.home=s; u.userData.index=i; list.push(u); });
-        });
-      }
-      spawn(-1,tokens[current].color,bc,bulls); spawn(1,0xe4675f,rc,bears);
+      unitsApi.spawnFormation(-1, tokens[current].color, bc, bulls);
+      unitsApi.spawnFormation(1, 0xe4675f, rc, bears);
       lastRebuild=Date.now();
     }
     rebuildUnits();
-
-    function launchStrike(fromX,toX,z,color,power=1) {
-      const matGlow=new THREE.MeshBasicMaterial({color});
-      const bolt=new THREE.Mesh(new THREE.SphereGeometry(.11+.04*Math.min(power,2),7,6),matGlow);
-      bolt.position.set(fromX,1.1+Math.random()*1.2,z);
-      bolt.userData={tx:toX,speed:13+power*5,life:2.2,color,power,prev:bolt.position.clone()};
-      scene.add(bolt); projectilePool.push(bolt);
-    }
-
-    function createExplosion(x,z,color,power=1,isBurn=false) {
-      const count=Math.floor((isBurn?24:14)*Math.min(2.2,power));
-      const palette=isBurn?[0xffdc72,0xf59e0b,0xe66526]:[color,0xf2c66d,0xd96f42];
-      for(let i=0;i<count;i++) {
-        const sphere=new THREE.Mesh(new THREE.SphereGeometry(.12+Math.random()*.18*power,6,5),new THREE.MeshBasicMaterial({color:palette[i%palette.length],transparent:true,opacity:.9}));
-        sphere.position.set(x+(Math.random()-.5)*1.2,terrainHeight(x,z)+.25+Math.random()*.55,z+(Math.random()-.5)*1.2);
-        sphere.userData={vx:(Math.random()-.5)*3.2*power,vy:1.3+Math.random()*3.4*power,vz:(Math.random()-.5)*3.2*power,life:.45+Math.random()*.55,smoke:false};
-        scene.add(sphere); particlePool.push(sphere);
-      }
-      for(let i=0;i<Math.max(2,Math.round(power*3));i++) {
-        const smoke=new THREE.Mesh(new THREE.SphereGeometry(.26+Math.random()*.25,7,6),new THREE.MeshBasicMaterial({color:0x3b4039,transparent:true,opacity:.3,depthWrite:false}));
-        smoke.position.set(x+(Math.random()-.5)*.7,terrainHeight(x,z)+.6,z+(Math.random()-.5)*.7);
-        smoke.userData={vx:(Math.random()-.5)*.35,vy:.45+Math.random()*.55,vz:(Math.random()-.5)*.35,life:1.4+Math.random()*.7,smoke:true};
-        scene.add(smoke); particlePool.push(smoke);
-      }
-      const light=new THREE.PointLight(isBurn?0xffc247:color,isBurn?4.8:3.2,18); light.position.set(x,3.2,z); scene.add(light); setTimeout(()=>scene.remove(light),180);
-      cameraShake=Math.min(1.1,cameraShake+(isBurn?.35:.2)*power);
-    }
 
     function showVictory(bull) {
       const el=$('victoryFlash'); el.className=bull?'show':'show bear'; setTimeout(()=>el.className='',430); playVictory(bull);
@@ -344,7 +265,7 @@
 
     // -------------------- UI / token switching --------------------
     function updateWallLabels() {
-      const liveDepth = depthSource===SRC.BINANCE;
+      const liveDepth = depthSource===SRC.BINANCE || depthSource===SRC.API;
       const mark = liveDepth
         ? '<span class="qual live">(live)</span>'
         : '<span class="qual est">(est.)</span>';
@@ -355,31 +276,67 @@
     }
 
     function updateStatusUI() {
-      const priceLabel = priceSource===SRC.GECKO?'CoinGecko':priceSource===SRC.BINANCE?'Binance':priceSource===SRC.LLAMA?'DefiLlama':priceSource===SRC.BRIDGE?'Bridge':'Simulation';
-      const depthLabel = depthSource===SRC.BINANCE?'Binance depth (LIVE)':'Estimated walls (NOT live order book)';
+      const priceLabel = priceSource===SRC.GECKO?'CoinGecko'
+        :priceSource===SRC.BINANCE?'Binance'
+        :priceSource===SRC.LLAMA?'DefiLlama'
+        :priceSource===SRC.API?'Backend API'
+        :priceSource===SRC.BRIDGE?'Backend API'
+        :'Simulation';
+      let depthLabel;
+      if (depthSource===SRC.BINANCE) depthLabel = 'Binance depth (LIVE)';
+      else if (depthSource===SRC.API) depthLabel = (depthVendorLabel || 'Backend API') + ' depth (LIVE)';
+      else depthLabel = 'Estimated walls (NOT live order book)';
       const live = priceSource!==SRC.SIM;
       $('dataMode').textContent=live?('LIVE · '+priceLabel.toUpperCase()):'SIMULATION — price not live';
       $('dataMode').className=live?'live':'error';
       $('agentStatus').textContent='Depth: '+depthLabel+' · build v7';
       $('pair').textContent=tokens[current].name+' · '+priceLabel;
+      if (window.LUNCBattle && LUNCBattle.ui) LUNCBattle.ui.lastDepthSourceLabel = depthLabel;
       updateWallLabels();
     }
 
     function applySpot(next,source) {
       if(!(next>0)) return;
+      // Prefer live exchange ticks; allow Llama/Gecko to refresh when Binance is stale or absent
+      const binanceFresh = priceSource===SRC.BINANCE && (Date.now()-lastPriceTs) < 15000;
+      if (binanceFresh && source!==SRC.BINANCE) return;
       lastPrice=price; price=next; lastPriceTs=Date.now();
       priceHistory.push(price); if(priceHistory.length>48) priceHistory.shift();
-      if(priceSource!==SRC.BINANCE || source===SRC.BINANCE) priceSource=source;
-      isLive=true;
+      priceSource=source;
+      isLive = source!==SRC.SIM;
+    }
+
+
+    async function fetchBinanceRestPrice(symbol) {
+      if (!symbol || !window.LUNCBattle || !LUNCBattle.market || !LUNCBattle.market.fetchBinanceSpotPrice) {
+        return false;
+      }
+      try {
+        const spot = await LUNCBattle.market.fetchBinanceSpotPrice(symbol);
+        if (!spot || spot.truth !== LUNCBattle.DataTruth.LIVE || !(spot.mid > 0)) {
+          if (spot && spot.reason) console.warn('[Binance REST price]', spot.reason);
+          return false;
+        }
+        applySpot(spot.mid, SRC.BINANCE);
+        updateStatusUI();
+        return true;
+      } catch (e) {
+        console.warn('[Binance REST price]', e.message || e);
+        return false;
+      }
     }
 
     function setToken(sym) {
       current=sym; const t=tokens[sym];
       price=t.base; lastPrice=price; rangeLow=price*.92; rangeHigh=price*1.08; priceHistory=[]; momentum=0;
+      priceSource=SRC.SIM; isLive=false; lastPriceTs=Date.now();
+      depthSource=SRC.SIM; depthVendorLabel='Unavailable';
       bullLight.color.setHex(t.color);
       document.querySelectorAll('.token-btn').forEach(b=>b.classList.toggle('active',b.dataset.token===sym));
       rebuildUnits(); pushFeed('Command switched to '+sym,'win');
       if(t.symbol) connectBinance(t.symbol,t.futures); else closeExchangeSockets();
+      // Immediate multi-source refresh so USTC/LUNC don't sit on stale base
+      fetchBinanceRestPrice(t.symbol);
       fetchLlama(); fetchGecko(); fetchMarketContext(); updateStatusUI();
     }
     document.querySelectorAll('.token-btn').forEach(btn=>btn.addEventListener('click',()=>setToken(btn.dataset.token)));
@@ -393,7 +350,8 @@
       if(spotWs){try{spotWs.onclose=null;spotWs.close();}catch(_){} spotWs=null;}
       if(futWs){try{futWs.onclose=null;futWs.close();}catch(_){} futWs=null;}
       if(reconnectTimer){clearTimeout(reconnectTimer);reconnectTimer=null;}
-      depthSource=SRC.SIM;
+      depthSource=SRC.SIM; depthVendorLabel='Unavailable';
+      if(restDepthTimer){clearInterval(restDepthTimer);restDepthTimer=null;}
     }
 
     async function fetchLlama() {
@@ -416,9 +374,18 @@
         const d=await r.json(), coin=d[t.gecko]; if(!coin||!(coin.usd>0)) throw new Error('No price');
         applySpot(coin.usd,SRC.GECKO);
         if(coin.usd_market_cap>0) $('marketCap').textContent=fmtUsd(coin.usd_market_cap);
-        if(depthSource!==SRC.BINANCE) {
+        if (coin.usd_24h_vol > 0 && window.LUNCBattle && LUNCBattle.market) {
+          LUNCBattle.market.setVolume24h(coin.usd_24h_vol, LUNCBattle.DataTruth.LIVE);
+          if (LUNCBattle.ui) {
+            LUNCBattle.ui.lastVolumeUsd = coin.usd_24h_vol;
+            LUNCBattle.ui.lastVolumeTruth = LUNCBattle.DataTruth.LIVE;
+          }
+        }
+        // Estimated walls only when no live book — clearly ESTIMATED, never labeled Binance
+        if(depthSource!==SRC.BINANCE && depthSource!==SRC.API) {
           const vol=coin.usd_24h_vol||5e6, base=Math.max(.7,Math.min(5,vol/3.5e6));
           buyWall=base*(.92+Math.random()*.18); sellWall=base*(.90+Math.random()*.2);
+          depthVendorLabel = 'Estimated (CoinGecko vol proxy)';
         }
         updateStatusUI(); return true;
       } catch(e){ console.warn('[CoinGecko]',e.message||e); return false; }
@@ -449,19 +416,105 @@
       tick(); setInterval(tick,60000);
     }
 
-    function calcWalls() {
-      let bid=0, ask=0;
-      Object.keys(localBids).map(Number).sort((a,b)=>b-a).slice(0,12).forEach(p=>bid+=p*(localBids[p]||0));
-      Object.keys(localAsks).map(Number).sort((a,b)=>a-b).slice(0,12).forEach(p=>ask+=p*(localAsks[p]||0));
-      return {buy:bid/1e6,sell:ask/1e6};
+    function applyLiveBook(mid, sourceName, sourceLabel) {
+      if (!(mid > 0) || !window.LUNCBattle || !LUNCBattle.market) return;
+      sourceName = sourceName || 'binance';
+      sourceLabel = sourceLabel || (sourceName === 'binance' ? 'Binance' : sourceName === 'api' ? 'Backend API' : 'Unknown');
+      const st = LUNCBattle.market.updateFromMaps(mid, localBids, localAsks, LUNCBattle.DataTruth.LIVE, sourceName, sourceLabel);
+      if (st.buyWallM != null && st.buyWallM > 0.01) buyWall = Math.max(0.25, Math.min(12, st.buyWallM));
+      if (st.sellWallM != null && st.sellWallM > 0.01) sellWall = Math.max(0.25, Math.min(12, st.sellWallM));
+      if (LUNCBattle.ui) {
+        LUNCBattle.ui.lastBookImbalance = st.imbalance || 0;
+        LUNCBattle.ui.lastBookTruth = (st.zones && st.zones.truth === LUNCBattle.DataTruth.PARTIAL)
+          ? LUNCBattle.DataTruth.PARTIAL
+          : LUNCBattle.DataTruth.LIVE;
+        LUNCBattle.ui.lastZones = st.zones;
+      }
+      renderLiquidityHud(st.zones, sourceLabel);
+    }
+
+    function renderLiquidityHud(zones, sourceLabel) {
+      const el = document.getElementById('liquidityZones');
+      if (!el) return;
+      if (!zones || zones.truth === 'UNAVAILABLE') {
+        el.textContent = 'UNAVAILABLE — no live order book';
+        return;
+      }
+      const fmt = u => {
+        if (u == null) return '—';
+        return u >= 1e6 ? '$'+(u/1e6).toFixed(2)+'M' : '$'+(u/1e3).toFixed(0)+'K';
+      };
+      const cell = z => {
+        const name = z.label.replace(' defense','').replace(' wall','').replace(' liquidity','');
+        if (z.truth === 'UNAVAILABLE') return name + ' UNAVAILABLE';
+        if (z.truth === 'PARTIAL') return name + ' ' + fmt(z.usd) + ' PARTIAL';
+        return name + ' ' + fmt(z.usd);
+      };
+      const row = (side) => (zones[side] || []).map(cell).join(' · ');
+      const cover = 'bid≤' + (zones.maxBidPct||0).toFixed(2) + '% · ask≤' + (zones.maxAskPct||0).toFixed(2) + '%';
+      const src = sourceLabel || zones.sourceLabel || 'Unknown';
+      const liveDepth = (typeof depthSource !== 'undefined') && (depthSource === SRC.BINANCE || depthSource === SRC.API);
+      let badge;
+      if (!liveDepth) {
+        badge = '<span class="qual est">(ESTIMATED · not live book)</span>';
+      } else if (zones.truth === 'PARTIAL') {
+        badge = '<span class="qual est">(PARTIAL · ' + src + ')</span>';
+      } else {
+        badge = '<span class="qual live">(LIVE · ' + src + ')</span>';
+      }
+      el.innerHTML = '<div class="micro">' + badge + ' · coverage ' + cover + '</div>'
+        + '<div class="micro">Bid: ' + row('bids') + '</div>'
+        + '<div class="micro">Ask: ' + row('asks') + '</div>';
+    }
+
+    /** Merge depth20 snapshot into a deeper local book without wiping far levels. */
+    function mergeDepth20IntoLocal(bids, asks) {
+      if (!bids.length || !asks.length) return;
+      const bidPrices = bids.map(l => +l[0]).filter(p => p > 0);
+      const askPrices = asks.map(l => +l[0]).filter(p => p > 0);
+      if (!bidPrices.length || !askPrices.length) return;
+      const minBid = Math.min(...bidPrices);
+      const maxAsk = Math.max(...askPrices);
+      // Drop stale near-side levels inside the WS window, keep deeper REST levels
+      Object.keys(localBids).forEach(k => { if (+k >= minBid) delete localBids[k]; });
+      Object.keys(localAsks).forEach(k => { if (+k <= maxAsk) delete localAsks[k]; });
+      bids.forEach(l => { const p=+l[0], q=+l[1]; if (p>0) { if (q>0) localBids[p]=q; else delete localBids[p]; } });
+      asks.forEach(l => { const p=+l[0], q=+l[1]; if (p>0) { if (q>0) localAsks[p]=q; else delete localAsks[p]; } });
+    }
+
+    async function seedBinanceRestDepth(symbol) {
+      if (!symbol || !window.LUNCBattle || !LUNCBattle.market) return;
+      const snap = await LUNCBattle.market.fetchBinanceRestDepth(symbol, LUNCBattle.config.binanceRestDepthLimit || 1000);
+      if (snap.truth !== LUNCBattle.DataTruth.LIVE) {
+        console.warn('[Binance REST depth]', snap.reason || 'unavailable');
+        return;
+      }
+      localBids = {}; localAsks = {};
+      (snap.bids || []).forEach(l => { const p=+l[0], q=+l[1]; if (p>0 && q>0) localBids[p]=q; });
+      (snap.asks || []).forEach(l => { const p=+l[0], q=+l[1]; if (p>0 && q>0) localAsks[p]=q; });
+      const midPx = price > 0 ? price : 0;
+      if (midPx > 0) {
+        depthSource = SRC.BINANCE;
+        depthVendorLabel = 'Binance';
+        lastDepthTs = Date.now();
+        applyLiveBook(midPx, 'binance', 'Binance');
+        updateStatusUI();
+      }
     }
 
     function connectBinance(symbol,futuresSymbol=null) {
       if(!symbol) return; closeExchangeSockets(); localBids={}; localAsks={};
+      // Seed deep book via REST, then keep near market fresh via WS depth20
+      seedBinanceRestDepth(symbol);
+      if (restDepthTimer) clearInterval(restDepthTimer);
+      restDepthTimer = setInterval(() => {
+        if (tokens[current].symbol === symbol) seedBinanceRestDepth(symbol);
+      }, 20000);
+
       const streams=symbol+'@bookTicker/'+symbol+'@depth20@100ms';
       try {
         spotWs=new WebSocket('wss://stream.binance.com:9443/stream?streams='+streams);
-        spotWs.onopen=()=>{ reconnectAttempts=0; depthSource=SRC.BINANCE; updateStatusUI(); pushFeed('Binance order book connected','win'); };
+        spotWs.onopen=()=>{ reconnectAttempts=0; depthSource=SRC.BINANCE; depthVendorLabel='Binance'; updateStatusUI(); pushFeed('Binance order book connected','win'); };
         spotWs.onmessage=evt=>{
           try {
             const raw=JSON.parse(evt.data), msg=raw.data||raw;
@@ -469,34 +522,71 @@
               const bid=+msg.b,ask=+msg.a; if(bid>0&&ask>0) applySpot((bid+ask)/2,SRC.BINANCE);
             }
             if(Array.isArray(msg.bids)&&Array.isArray(msg.asks)) {
-              localBids={}; localAsks={};
-              msg.bids.forEach(l=>{const p=+l[0],q=+l[1];if(q>0)localBids[p]=q;});
-              msg.asks.forEach(l=>{const p=+l[0],q=+l[1];if(q>0)localAsks[p]=q;});
-              const w=calcWalls(); if(w.buy>.01)buyWall=w.buy;if(w.sell>.01)sellWall=w.sell;
-              lastDepthTs=Date.now(); depthSource=SRC.BINANCE;
+              if (Object.keys(localBids).length === 0 && Object.keys(localAsks).length === 0) {
+                // No REST seed yet — use depth20 alone (will mark deep bands PARTIAL/UNAVAILABLE)
+                localBids={}; localAsks={};
+                msg.bids.forEach(l=>{const p=+l[0],q=+l[1];if(q>0)localBids[p]=q;});
+                msg.asks.forEach(l=>{const p=+l[0],q=+l[1];if(q>0)localAsks[p]=q;});
+              } else {
+                mergeDepth20IntoLocal(msg.bids, msg.asks);
+              }
+              const midPx = price > 0 ? price : ((Object.keys(localBids).length && Object.keys(localAsks).length) ? (Math.max(...Object.keys(localBids).map(Number))+Math.min(...Object.keys(localAsks).map(Number)))/2 : 0);
+              applyLiveBook(midPx || price, 'binance', 'Binance');
+              lastDepthTs=Date.now(); depthSource=SRC.BINANCE; depthVendorLabel='Binance';
             }
             updateStatusUI();
           } catch(_) {}
         };
-        spotWs.onclose=()=>{ depthSource=SRC.SIM; if(priceSource===SRC.BINANCE)priceSource=SRC.GECKO; updateStatusUI(); scheduleReconnect(symbol,futuresSymbol); };
+        spotWs.onclose=()=>{
+          if(depthSource===SRC.BINANCE){ depthSource=SRC.SIM; depthVendorLabel='Unavailable'; }
+          if(priceSource===SRC.BINANCE) priceSource=SRC.GECKO;
+          // Don't leave a stale LIVE·Binance zones badge when the book socket dies
+          const zel=document.getElementById('liquidityZones');
+          if(zel && depthSource===SRC.SIM) zel.textContent='UNAVAILABLE — live order book disconnected';
+          if(window.LUNCBattle&&LUNCBattle.ui){ LUNCBattle.ui.lastBookTruth=LUNCBattle.DataTruth.UNAVAILABLE; LUNCBattle.ui.lastZones=null; }
+          updateStatusUI(); scheduleReconnect(symbol,futuresSymbol);
+        };
         spotWs.onerror=()=>{};
       } catch(_) { scheduleReconnect(symbol,futuresSymbol); }
 
-      // USD-M public liquidation stream. Failure is non-fatal; the battlefield keeps running.
+      // USD-M public liquidation stream → strength score + War Room + battlefield FX
       try {
         if(!futuresSymbol) return;
         futWs=new WebSocket('wss://fstream.binance.com/ws/'+futuresSymbol+'@forceOrder');
         futWs.onmessage=evt=>{
           try {
             const raw=JSON.parse(evt.data),o=(raw.data||raw).o||raw; if(!o||o.q==null) return;
-            const usd=parseFloat(o.q)*parseFloat(o.p||o.ap||0); if(!(usd>=800)) return;
-            const side=(o.S||'').toUpperCase(), power=Math.min(2.5,.7+usd/500000), zz=(Math.random()-.5)*14;
+            const amount=parseFloat(o.q);
+            const px=parseFloat(o.p||o.ap||0);
+            const usd=amount*px; if(!(usd>=800)) return;
+            const side=(o.S||'').toUpperCase();
+            const sym=(o.s||futuresSymbol||'').toUpperCase();
+            const ts = o.T || Date.now();
+            const power=Math.min(2.5,.7+usd/500000), zz=(Math.random()-.5)*14;
+            const entry = (window.LUNCBattle && LUNCBattle.ui && LUNCBattle.ui.recordLiquidation)
+              ? LUNCBattle.ui.recordLiquidation({
+                  symbol: sym, side, amount, usd, timestamp: ts,
+                  source: 'Binance Futures'
+                })
+              : { classification: side==='SELL'?'LONG_LIQ':'SHORT_LIQ' };
+            const when = new Date(ts).toISOString().slice(11,19) + 'Z';
             if(side==='SELL') {
-              pushFeed('Long liquidation · '+fmtUsd(usd)+' · Bulls hit','loss'); launchStrike(targetX+12,targetX-6,zz,0xe4675f,power); createExplosion(targetX-6.5,zz,0xe4675f,power); buyWall=Math.max(.25,buyWall*.93);
+              // Longs liquidated → forced sells → bearish pressure on bulls
+              pushFeed('LIVE LIQ · '+sym+' · LONG · qty '+amount+' · ~'+fmtUsd(usd)+' · '+when+' · Binance Futures','loss');
+              launchStrike(targetX+12,targetX-6,zz,0xe4675f,power);
+              createExplosion(targetX-6.5,zz,0xe4675f,power);
+              buyWall=Math.max(.25,buyWall*.93);
             } else {
-              pushFeed('Short liquidation · '+fmtUsd(usd)+' · Bears hit','liq'); launchStrike(targetX-12,targetX+6,zz,tokens[current].color,power); createExplosion(targetX+6.5,zz,tokens[current].color,power); sellWall=Math.max(.25,sellWall*.93);
+              // Shorts liquidated → forced buys → bullish pressure on bears
+              pushFeed('LIVE LIQ · '+sym+' · SHORT · qty '+amount+' · ~'+fmtUsd(usd)+' · '+when+' · Binance Futures','liq');
+              launchStrike(targetX-12,targetX+6,zz,tokens[current].color,power);
+              createExplosion(targetX+6.5,zz,tokens[current].color,power);
+              sellWall=Math.max(.25,sellWall*.93);
             }
             playLiq();
+            if (window.LUNCBattle && LUNCBattle.ui && typeof LUNCBattle.ui.tickStrength==='function') {
+              LUNCBattle.ui.tickStrength();
+            }
           } catch(_) {}
         };
       } catch(_) {}
@@ -510,35 +600,109 @@
     }
 
     function startPriceFeeds() {
+      const t0 = tokens[current];
+      fetchBinanceRestPrice(t0.symbol);
       fetchLlama(); fetchGecko();
-      geckoTimer=setInterval(()=>{fetchLlama();fetchGecko();},22000);
-      if(tokens[current].symbol) connectBinance(tokens[current].symbol,tokens[current].futures);
+      geckoTimer=setInterval(()=>{
+        const t = tokens[current];
+        // Poll vision REST so USTC/LUNC stay accurate when WS is 451-blocked
+        fetchBinanceRestPrice(t.symbol);
+        fetchLlama();
+        fetchGecko();
+      },8000);
+      if(t0.symbol) connectBinance(t0.symbol,t0.futures);
     }
 
-    // Local bridge is intentionally disabled on public GitHub Pages. Enable only on localhost,
-    // or pass ?bridge=https://your-bridge.example/snapshot if a HTTPS bridge is deployed.
-    let bridgeTimer=null;
-    function bridgeUrl() {
-      const q=new URLSearchParams(location.search).get('bridge');
-      if(q && /^https:\/\//i.test(q)) return q;
-      if(location.hostname==='localhost'||location.hostname==='127.0.0.1') return 'http://127.0.0.1:8787/snapshot';
-      return null;
-    }
-    async function pollBridge(url) {
+    // Primary market bridge: HTTPS ?api=…/snapshot (no localhost on Pages)
+    let apiTimer = null;
+    async function pollApiSnapshot() {
+      if (!window.LUNCBattle || !LUNCBattle.market) return;
+      const snap = await LUNCBattle.market.fetchSnapshot();
+      if (snap.truth !== LUNCBattle.DataTruth.LIVE || !snap.data) return;
+      const s = snap.data;
       try {
-        const r=await fetch(url,{cache:'no-store'}); if(!r.ok)throw new Error('HTTP '+r.status);
-        const s=await r.json(); if(!s||!s.market)throw new Error('Bad snapshot');
-        if(s.market.price>0){applySpot(s.market.price,SRC.BRIDGE);priceSource=SRC.BRIDGE;}
-        if(s.walls){if(s.walls.buyM>0)buyWall=s.walls.buyM;if(s.walls.sellM>0)sellWall=s.walls.sellM;if(s.walls.quality==='live')depthSource=SRC.BINANCE;}
-        if(s.ecosystem){if(s.ecosystem.chainTvlUsd)$('tvlValue').textContent=fmtUsd(s.ecosystem.chainTvlUsd);const pr=s.ecosystem.protocols||{};if(pr.terraport)$('tvlTerraport').textContent=fmtUsd(pr.terraport.tvlUsd);if(pr.garuda)$('tvlGaruda').textContent=fmtUsd(pr.garuda.tvlUsd);if(pr.juris)$('tvlJuris').textContent=fmtUsd(pr.juris.tvlUsd);}
+        if (s.market && s.market.price > 0) {
+          const pSrc = (s.market.source || s.source || '').toLowerCase();
+          const pKey = pSrc.includes('binance') ? SRC.BINANCE
+            : pSrc.includes('gecko') ? SRC.GECKO
+            : pSrc.includes('llama') ? SRC.LLAMA
+            : SRC.API;
+          applySpot(s.market.price, pKey);
+          priceSource = pKey;
+        }
+        if (s.book && s.book.bids && s.book.asks && s.market && s.market.price > 0) {
+          // Preserve truthful vendor from snapshot metadata — never assume Binance
+          const bookSrc = (s.book.source || s.source || 'api').toLowerCase();
+          const bookLabel = s.book.sourceLabel || s.sourceLabel
+            || (bookSrc.includes('binance') ? 'Binance'
+              : bookSrc.includes('gecko') ? 'CoinGecko'
+              : bookSrc.includes('llama') ? 'DefiLlama'
+              : bookSrc.includes('terra') ? 'Terra Classic RPC/API'
+              : 'Backend API');
+          const srcKey = bookSrc.includes('binance') ? 'binance' : 'api';
+          const st = LUNCBattle.market.updateFromBook(
+            s.market.price, s.book.bids, s.book.asks,
+            LUNCBattle.DataTruth.LIVE, srcKey, bookLabel
+          );
+          if (st.buyWallM > 0.01) buyWall = Math.max(0.25, Math.min(12, st.buyWallM));
+          if (st.sellWallM > 0.01) sellWall = Math.max(0.25, Math.min(12, st.sellWallM));
+          depthSource = srcKey === 'binance' ? SRC.BINANCE : SRC.API;
+          depthVendorLabel = bookLabel;
+          lastDepthTs = Date.now();
+          if (LUNCBattle.ui) {
+            LUNCBattle.ui.lastBookImbalance = st.imbalance || 0;
+            LUNCBattle.ui.lastBookTruth = (st.zones && st.zones.truth === LUNCBattle.DataTruth.PARTIAL)
+              ? LUNCBattle.DataTruth.PARTIAL : LUNCBattle.DataTruth.LIVE;
+            LUNCBattle.ui.lastZones = st.zones;
+          }
+          renderLiquidityHud(st.zones, bookLabel);
+        } else if (s.walls) {
+          if (s.walls.buyM > 0) buyWall = s.walls.buyM;
+          if (s.walls.sellM > 0) sellWall = s.walls.sellM;
+          const wSrc = (s.walls.source || s.source || '').toLowerCase();
+          const wLabel = s.walls.sourceLabel || s.sourceLabel
+            || (wSrc.includes('binance') ? 'Binance' : 'Backend API');
+          if (s.walls.quality === 'live') {
+            depthSource = wSrc.includes('binance') ? SRC.BINANCE : SRC.API;
+            depthVendorLabel = wLabel;
+          }
+          if (s.walls.zones) renderLiquidityHud(s.walls.zones, wLabel);
+        }
+        if (s.market && s.market.volume24h > 0) {
+          LUNCBattle.market.setVolume24h(s.market.volume24h, LUNCBattle.DataTruth.LIVE);
+          if (LUNCBattle.ui) {
+            LUNCBattle.ui.lastVolumeUsd = s.market.volume24h;
+            LUNCBattle.ui.lastVolumeTruth = LUNCBattle.DataTruth.LIVE;
+          }
+        }
+        if (s.ecosystem) {
+          if (s.ecosystem.chainTvlUsd) $('tvlValue').textContent = fmtUsd(s.ecosystem.chainTvlUsd);
+          const pr = s.ecosystem.protocols || {};
+          if (pr.terraport) $('tvlTerraport').textContent = fmtUsd(pr.terraport.tvlUsd);
+          if (pr.garuda) $('tvlGaruda').textContent = fmtUsd(pr.garuda.tvlUsd);
+          if (pr.juris) $('tvlJuris').textContent = fmtUsd(pr.juris.tvlUsd);
+        }
         updateStatusUI();
-      } catch(_) {}
+      } catch (e) { console.warn('[api snapshot]', e.message || e); }
     }
-    function startBridgePoll() { const u=bridgeUrl(); if(!u||bridgeTimer)return; pollBridge(u); bridgeTimer=setInterval(()=>pollBridge(u),3000); }
+    function startApiPoll() {
+      if (!window.LUNCBattle || !LUNCBattle.config.apiBase || apiTimer) return;
+      pollApiSnapshot();
+      apiTimer = setInterval(pollApiSnapshot, 3000);
+      pushFeed('HTTPS API bridge enabled (' + LUNCBattle.config.apiBase + ')', 'info');
+    }
+
+
 
     setInterval(()=>{
       if(Date.now()-lastPriceTs>50000&&priceSource!==SRC.SIM){priceSource=SRC.SIM;isLive=false;updateStatusUI();}
-      if(depthSource===SRC.BINANCE&&Date.now()-lastDepthTs>25000){depthSource=SRC.SIM;updateStatusUI();}
+      if((depthSource===SRC.BINANCE||depthSource===SRC.API)&&Date.now()-lastDepthTs>25000){
+        depthSource=SRC.SIM; depthVendorLabel='Unavailable';
+        const zel=document.getElementById('liquidityZones');
+        if(zel) zel.textContent='UNAVAILABLE — order book stale';
+        if(window.LUNCBattle&&LUNCBattle.ui){ LUNCBattle.ui.lastBookTruth=LUNCBattle.DataTruth.UNAVAILABLE; LUNCBattle.ui.lastZones=null; }
+        updateStatusUI();
+      }
     },3500);
 
     // -------------------- Battle simulation tied to market --------------------
@@ -624,11 +788,15 @@
 
     addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio||1,innerWidth<760?1.35:1.8));});
 
-    startPriceFeeds(); startContextFeeds(); startBridgePoll(); updateStatusUI();
+    updateStatusUI();
     pushFeed('LUNC Battlefield v7 · classic RTS rebuild','win');
     pushFeed('Market pressure moves formations and the contested front','info');
     pushFeed('Public build uses HTTPS-safe data feeds','info');
-
-    setInterval(function(){ if(window.LUNCBattle&&LUNCBattle.ui){ LUNCBattle.ui.lastMomentum=Math.max(-1,Math.min(1,momentum)); LUNCBattle.ui.lastMomentumTruth=(priceSource!==SRC.SIM)?LUNCBattle.DataTruth.LIVE:LUNCBattle.DataTruth.SIMULATED; LUNCBattle.ui.lastBookTruth=(depthSource===SRC.BINANCE)?LUNCBattle.DataTruth.LIVE:LUNCBattle.DataTruth.ESTIMATED; LUNCBattle.ui.lastBookImbalance=(buyWall+sellWall)>0?(buyWall-sellWall)/(buyWall+sellWall):0; } }, 2000);
     animate();
+    // Feeds after first frame so a price-helper fault cannot blank the RTS scene
+    try { startPriceFeeds(); } catch (e) { console.warn('[startPriceFeeds]', e); }
+    try { startContextFeeds(); } catch (e) { console.warn('[startContextFeeds]', e); }
+    try { startApiPoll(); } catch (e) { console.warn('[startApiPoll]', e); }
+
+    setInterval(function(){ if(window.LUNCBattle&&LUNCBattle.ui){ LUNCBattle.ui.lastMomentum=Math.max(-1,Math.min(1,momentum)); LUNCBattle.ui.lastMomentumTruth=(priceSource!==SRC.SIM)?LUNCBattle.DataTruth.LIVE:LUNCBattle.DataTruth.SIMULATED; if(depthSource!==SRC.BINANCE && depthSource!==SRC.API){ LUNCBattle.ui.lastBookTruth=LUNCBattle.DataTruth.ESTIMATED; LUNCBattle.ui.lastBookImbalance=(buyWall+sellWall)>0?(buyWall-sellWall)/(buyWall+sellWall):0; } if(typeof LUNCBattle.ui.tickStrength==='function') LUNCBattle.ui.tickStrength(); } }, 2000);
   })();

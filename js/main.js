@@ -1,4 +1,4 @@
-/* Boot — aux feeds + badge. Battlefield scene boots from battle-engine.js */
+/* Boot — fast strength tick; slow backend intel */
 (function (global) {
   'use strict';
   const LB = global.LUNCBattle;
@@ -10,8 +10,10 @@
     if (LB.config.apiBase) {
       console.info('[LUNCBattle] HTTPS API base', LB.config.apiBase);
     } else {
-      console.info('[LUNCBattle] No ?api= bridge — browser DefiLlama/CoinGecko/Binance fallbacks only; burns/whales/gov UNAVAILABLE');
+      console.info('[LUNCBattle] No ?api= — browser DefiLlama/CoinGecko/Binance fallbacks; burns/whales/gov/validators UNAVAILABLE');
     }
+    LB.ui.tickStrength();
+    setInterval(() => LB.ui.tickStrength(), 2000);
     LB.ui.refreshAuxFeeds();
     setInterval(() => LB.ui.refreshAuxFeeds(), 60000);
   }
