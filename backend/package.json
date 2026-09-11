@@ -1,0 +1,19 @@
+{
+  "name": "lunc-battlefield-backend",
+  "version": "7.1.0",
+  "private": true,
+  "type": "module",
+  "description": "LUNC Battlefield v7.1 Terra Intelligence Backend (Cloudflare Workers)",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "check": "node --check src/index.js && for f in src/lib/*.js src/providers/*.js src/routes/*.js tests/*.js; do node --check \"$f\" || exit 1; done",
+    "dev": "npx wrangler dev",
+    "deploy": "npx wrangler deploy"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "wrangler": "^3.80.0"
+  }
+}
