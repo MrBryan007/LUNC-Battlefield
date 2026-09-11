@@ -2,6 +2,8 @@
 
 ## Status
 
+**v8.5 done** — price territory mapping and contested frontline (markers, capture, liquidity defenses).
+
 **v8.4 done** — event-scaled combat effects with pooling (projectiles, impacts, liq/burn FX).
 
 **v8.3 done** — faction bases and RTS structures (Bull industrial vs Bear fortified).
@@ -22,7 +24,42 @@ All meshes are **original procedural Three.js r128** geometry. No third-party ga
 | `js/units.js` | Articulated unit builders, shared GEO/materials, formations, `tickUnit` / `setAnimState` |
 | `js/structures.js` | Faction bases: HQ, barracks, depot/hangar, arty, supply, radar, comms, towers, bunkers, walls |
 | `js/effects.js` | v8.4 pooled projectiles / particles / explosions / scorches / shockwaves + liq/burn hooks |
-| `js/battle-engine.js` | Wires terrain / environment / units / structures / effects; keeps market / Binance / strength paths |
+| `js/price-territory.js` | v8.5 price↔world X mapping, markers, contested frontline, liquidity defense props |
+| `js/battle-engine.js` | Wires terrain / environment / units / structures / effects / price-territory; keeps market / Binance / strength paths |
+
+## v8.5 price territory & frontline
+
+`LUNCBattle.priceTerritory.createApi({ THREE, scene, terrainHeight, mobile, pushFeed, DataTruth })` returns
+`{ priceToWorldX, worldXToPrice, getPriceStep, getVisiblePriceLevels, setToken, updateCurrentPrice, updateFrontline, updateLiquidityDefenses, checkCaptures, dispose, getFrontlineX, getDisplayedRange, version:'v8.5' }`.
+
+### Mapping
+- Contested strip world X ≈ **−28…+28** (bases remain ~±48)
+- Linear map: `displayedRangeLow→−28`, `displayedRangeHigh→+28` (soft clamp outside)
+- Dynamic range centered on current price from recent `priceHistory` min/max (+ buffer)
+- **Hysteresis:** recenter only when price exits the inner **70%** band — do not rebuild every tick
+
+### Price steps & markers
+- Step from token magnitude / decimals (LUNC ~1e-6 / 5e-7; USTC ~1e-5 / 5e-5; JURIS coarser)
+- Visible nice levels: desktop ~7–11, mobile ~4–6
+- Procedural posts/plaques + CanvasTexture/Sprite labels; ownership west=Bull / east=Bear / near=contested
+- Capture when price crosses level by **>0.35×step** (debounce ≥3s): `PRICE BREAKOUT · Bulls captured $x` / `PRICE BREAKDOWN · Bears reclaimed $x`
+
+### Frontline
+- Contested strip Group: trenches/berms, sandbags, smoke wisps, contested flags, shell holes on `terrainHeight`
+- `frontlineX` smooth-follows `priceToWorldX(price)` (lerp); armies sync via `getFrontlineX()`
+- Sparse Bull/Bear territory flags; contested mid wreck/crater accents — no bright floor paint
+
+### Liquidity defenses
+- From market zones (immediate/near/major); **skip UNAVAILABLE**
+- **PARTIAL** → smaller translucent/uncertain props (not authoritative fortresses)
+- LIVE/CALCULATED/PARTIAL only; never invent fortresses from ESTIMATED walls alone
+- Rebuild when zone totals change **>15%** or token changes
+- JURIS / no book → no fake live order-book defenses
+
+### Token switch
+`setToken` clears markers/defenses/capture state and rebuilds range from new base — no leftover labels.
+
+---
 
 ## v8.4 combat effects
 
@@ -146,8 +183,8 @@ Barrel elevates toward target; longer reload; holds rear ranks.
 | **8.1** | Terrain + environment |
 | **8.2** | Unit visual polish / formations / animations |
 | **8.3** | Base architecture refresh |
-| **8.4** | VFX / strikes / atmosphere (this release) |
-| 8.5 | Frontline / capture markers |
+| **8.4** | VFX / strikes / atmosphere |
+| **8.5** | Frontline / capture markers (this release) |
 | 8.6 | Lighting / post / camera |
 | 8.7 | Mobile perf pass |
 | 8.8 | Final art QA + docs |

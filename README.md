@@ -2,6 +2,8 @@
 
 Classic-RTS-inspired Terra Classic intelligence battlefield.
 
+**Build:** v8.5 — price territory mapping & contested frontline (see `docs/V8-GRAPHICS.md`).
+
 **Live site:** https://mrbryan007.github.io/LUNC-Battlefield/
 
 ## Architecture (Phase 1)

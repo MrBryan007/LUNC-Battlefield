@@ -3,7 +3,7 @@
 
     // =====================================================
     // LUNC ECOSYSTEM BATTLEFIELD v8 — RTS GRAPHICS OVERHAUL
-    // v8.1 terrain · v8.2 units/anim · v8.3 bases · v8.4 combat effects
+    // v8.1 terrain · v8.2 units/anim · v8.3 bases · v8.4 combat effects · v8.5 price territory
     // Original procedural art only. No third-party game assets.
     // =====================================================
 
@@ -165,17 +165,22 @@
       ? structuresApi.createFactionBase(1, 0xe4675f)
       : new THREE.Group();
 
-    // Soft frontier markers instead of a solid glowing wall.
-    const frontGroup=new THREE.Group(); scene.add(frontGroup);
-    const frontPosts=[];
-    const ropeMat=new THREE.LineBasicMaterial({color:0xc6a75f,transparent:true,opacity:.34});
-    for (let z=-28;z<=28;z+=7) {
-      const ty = terrainHeight(0, z);
-      const pole=new THREE.Mesh(new THREE.CylinderGeometry(.07,.1,1.6,7),woodMat); pole.position.set(0,ty+.8,z); pole.castShadow=true; frontGroup.add(pole); frontPosts.push(pole);
-      const flag=new THREE.Mesh(new THREE.PlaneGeometry(.8,.46),new THREE.MeshBasicMaterial({color:0xd4b46d,side:THREE.DoubleSide,transparent:true,opacity:.68})); flag.position.set(.38,ty+1.35,z); flag.rotation.y=Math.PI/2; frontGroup.add(flag);
+    // v8.5 — price territory mapping & contested frontline (replaces simple poles/rope)
+    const priceTerritoryApi = (window.LUNCBattle && LUNCBattle.priceTerritory)
+      ? LUNCBattle.priceTerritory.createApi({
+          THREE, scene, terrainHeight, mobile: mobileGfx, pushFeed,
+          DataTruth: (window.LUNCBattle && LUNCBattle.DataTruth) || null
+        })
+      : null;
+    if (!priceTerritoryApi) console.error('[LUNCBattle] price-territory.js failed to load');
+    else {
+      priceTerritoryApi.setToken({
+        symbol: current,
+        decimals: tokens[current].decimals,
+        base: tokens[current].base,
+        hasOrderBook: !!tokens[current].symbol
+      });
     }
-    const ropePts=[]; for(let z=-28;z<=28;z+=1) ropePts.push(new THREE.Vector3(0,terrainHeight(0,z)+.26,z));
-    const rope=new THREE.Line(new THREE.BufferGeometry().setFromPoints(ropePts),ropeMat); frontGroup.add(rope);
 
     // -------------------- Units / effects (extracted modules) --------------------
     const bulls=[], bears=[];
@@ -267,7 +272,7 @@
       const live = priceSource!==SRC.SIM;
       $('dataMode').textContent=live?('LIVE · '+priceLabel.toUpperCase()):'SIMULATION — price not live';
       $('dataMode').className=live?'live':'error';
-      $('agentStatus').textContent='Depth: '+depthLabel+' · build v8.4';
+      $('agentStatus').textContent='Depth: '+depthLabel+' · build v8.5';
       $('pair').textContent=tokens[current].name+' · '+priceLabel;
       if (window.LUNCBattle && LUNCBattle.ui) LUNCBattle.ui.lastDepthSourceLabel = depthLabel;
       updateWallLabels();
@@ -282,6 +287,19 @@
       priceHistory.push(price); if(priceHistory.length>48) priceHistory.shift();
       priceSource=source;
       isLive = source!==SRC.SIM;
+      if (priceTerritoryApi) {
+        const truth = source===SRC.SIM
+          ? ((window.LUNCBattle&&LUNCBattle.DataTruth&&LUNCBattle.DataTruth.SIMULATED)||'SIMULATED')
+          : ((window.LUNCBattle&&LUNCBattle.DataTruth&&LUNCBattle.DataTruth.LIVE)||'LIVE');
+        const label = source===SRC.GECKO?'CoinGecko':source===SRC.BINANCE?'Binance'
+          :source===SRC.LLAMA?'DefiLlama':source===SRC.API?'Backend API'
+          :source===SRC.BRIDGE?'Backend API':'Simulation';
+        priceTerritoryApi.updateCurrentPrice(price, { truth: truth, sourceLabel: label });
+        if (priceTerritoryApi.getDisplayedRange) {
+          const dr = priceTerritoryApi.getDisplayedRange();
+          if (dr && dr.low > 0 && dr.high > dr.low) { rangeLow = dr.low; rangeHigh = dr.high; }
+        }
+      }
     }
 
 
@@ -311,6 +329,18 @@
       depthSource=SRC.SIM; depthVendorLabel='Unavailable';
       bullLight.color.setHex(t.color);
       if (structuresApi && structuresApi.setAccentColor) structuresApi.setAccentColor(-1, t.color);
+      if (priceTerritoryApi) {
+        priceTerritoryApi.setToken({
+          symbol: sym,
+          decimals: t.decimals,
+          base: t.base,
+          hasOrderBook: !!t.symbol
+        });
+        if (priceTerritoryApi.getDisplayedRange) {
+          const dr = priceTerritoryApi.getDisplayedRange();
+          if (dr && dr.low > 0 && dr.high > dr.low) { rangeLow = dr.low; rangeHigh = dr.high; }
+        }
+      }
       document.querySelectorAll('.token-btn').forEach(b=>b.classList.toggle('active',b.dataset.token===sym));
       rebuildUnits(); pushFeed('Command switched to '+sym,'win');
       if(t.symbol) connectBinance(t.symbol,t.futures); else closeExchangeSockets();
@@ -408,6 +438,9 @@
           ? LUNCBattle.DataTruth.PARTIAL
           : LUNCBattle.DataTruth.LIVE;
         LUNCBattle.ui.lastZones = st.zones;
+      }
+      if (priceTerritoryApi && st.zones) {
+        priceTerritoryApi.updateLiquidityDefenses(st.zones, mid);
       }
       renderLiquidityHud(st.zones, sourceLabel);
     }
@@ -523,6 +556,7 @@
           const zel=document.getElementById('liquidityZones');
           if(zel && depthSource===SRC.SIM) zel.textContent='UNAVAILABLE — live order book disconnected';
           if(window.LUNCBattle&&LUNCBattle.ui){ LUNCBattle.ui.lastBookTruth=LUNCBattle.DataTruth.UNAVAILABLE; LUNCBattle.ui.lastZones=null; }
+          if (priceTerritoryApi) priceTerritoryApi.updateLiquidityDefenses(null, price);
           updateStatusUI(); scheduleReconnect(symbol,futuresSymbol);
         };
         spotWs.onerror=()=>{};
@@ -647,6 +681,9 @@
               ? LUNCBattle.DataTruth.PARTIAL : LUNCBattle.DataTruth.LIVE;
             LUNCBattle.ui.lastZones = st.zones;
           }
+          if (priceTerritoryApi && st.zones) {
+            priceTerritoryApi.updateLiquidityDefenses(st.zones, s.market.price);
+          }
           renderLiquidityHud(st.zones, bookLabel);
         } else if (s.walls) {
           if (s.walls.buyM > 0) buyWall = s.walls.buyM;
@@ -693,6 +730,7 @@
         const zel=document.getElementById('liquidityZones');
         if(zel) zel.textContent='UNAVAILABLE — order book stale';
         if(window.LUNCBattle&&LUNCBattle.ui){ LUNCBattle.ui.lastBookTruth=LUNCBattle.DataTruth.UNAVAILABLE; LUNCBattle.ui.lastZones=null; }
+        if (priceTerritoryApi) priceTerritoryApi.updateLiquidityDefenses(null, price);
         updateStatusUI();
       }
     },3500);
@@ -708,6 +746,17 @@
         price=Math.max(tokens[current].base*.7,Math.min(tokens[current].base*1.4,price));
         lastPriceTs=Date.now();
         if(Math.random()<.1){buyWall=Math.max(.6,Math.min(6,buyWall+(Math.random()-.5)*.35));sellWall=Math.max(.6,Math.min(6,sellWall+(Math.random()-.5)*.35));}
+      }
+
+      if (priceTerritoryApi) {
+        const truth = priceSource===SRC.SIM
+          ? ((window.LUNCBattle&&LUNCBattle.DataTruth&&LUNCBattle.DataTruth.SIMULATED)||'SIMULATED')
+          : ((window.LUNCBattle&&LUNCBattle.DataTruth&&LUNCBattle.DataTruth.LIVE)||'LIVE');
+        priceTerritoryApi.updateCurrentPrice(price, { truth: truth, sourceLabel: priceSource });
+        if (priceTerritoryApi.getDisplayedRange) {
+          const dr = priceTerritoryApi.getDisplayedRange();
+          if (dr && dr.low > 0 && dr.high > dr.low) { rangeLow = dr.low; rangeHigh = dr.high; }
+        }
       }
 
       if(price>rangeHigh) {
@@ -785,8 +834,13 @@
     function animate() {
       requestAnimationFrame(animate);
       const dt=Math.min(.04,clock.getDelta()); updateWASD(dt); controls.update();
-      const mid=(rangeLow+rangeHigh)/2, span=Math.max(rangeHigh-rangeLow,1e-12); targetX=THREE.MathUtils.clamp(((price-mid)/span)*28,-25,25);
-      frontGroup.position.x+=(targetX-frontGroup.position.x)*.07;
+      if (priceTerritoryApi) {
+        priceTerritoryApi.updateFrontline(dt);
+        targetX = priceTerritoryApi.getFrontlineX();
+      } else {
+        const mid=(rangeLow+rangeHigh)/2, span=Math.max(rangeHigh-rangeLow,1e-12);
+        targetX=THREE.MathUtils.clamp(((price-mid)/span)*28,-25,25);
+      }
 
       const now=performance.now()*.001;
       function moveArmy(arr,side) {
@@ -795,7 +849,11 @@
         const urgent = momAbs > 0.12;
         arr.forEach(u=>{
           const type=u.userData.type, rank=type===0?0:type===1?1:2;
-          const desired=targetX+side*(7.8+rank*6.2+Math.floor((u.userData.index||0)/(type===0?8:5))*1.6);
+          let desired=targetX+side*(7.8+rank*6.2+Math.floor((u.userData.index||0)/(type===0?8:5))*1.6);
+          // Keep staging: bulls west / bears east; infantry may only slightly overrun frontline
+          const maxOver = type===0 ? 2.2 : (type===1 ? 1.2 : 0.4);
+          if (side < 0) desired = Math.min(desired, targetX - 0.6 + maxOver);
+          else desired = Math.max(desired, targetX + 0.6 - maxOver);
           const dx=desired-u.position.x;
           // Speed from momentum urgency: stronger |momentum| → faster approach
           let rate;
@@ -847,7 +905,7 @@
     addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio||1,innerWidth<760?1.35:1.8));});
 
     updateStatusUI();
-    pushFeed('Battlefield v8.4 · combat effects','win');
+    pushFeed('Battlefield v8.5 · price territory & frontline','win');
     pushFeed('Market pressure moves formations and the contested front','info');
     pushFeed('Public build uses HTTPS-safe data feeds','info');
     animate();
