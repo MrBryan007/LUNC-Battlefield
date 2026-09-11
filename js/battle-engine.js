@@ -2,7 +2,8 @@
     'use strict';
 
     // =====================================================
-    // LUNC ECOSYSTEM BATTLEFIELD v7 — CLASSIC RTS REBUILD
+    // LUNC ECOSYSTEM BATTLEFIELD v8 — RTS GRAPHICS OVERHAUL
+    // v8.1 terrain + environment
     // Original procedural art only. No third-party game assets.
     // =====================================================
 
@@ -74,8 +75,8 @@
 
     // -------------------- Scene --------------------
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x07100b);
-    scene.fog = new THREE.Fog(0x0a130d, 52, 125);
+    scene.background = new THREE.Color(0x0c140e);
+    scene.fog = new THREE.Fog(0x121a12, 48, 132);
 
     const camera = new THREE.PerspectiveCamera(43, innerWidth / innerHeight, .1, 250);
     camera.position.set(0, 38, 48);
@@ -114,9 +115,9 @@
       if (keys.KeyD) { camera.position.addScaledVector(right, speed); controls.target.addScaledVector(right, speed); }
     }
 
-    scene.add(new THREE.HemisphereLight(0xcbd7bf, 0x10150f, .62));
-    const sun = new THREE.DirectionalLight(0xffe8bd, 1.35);
-    sun.position.set(-28, 48, 24);
+    scene.add(new THREE.HemisphereLight(0xd2dcc8, 0x1a1e14, .68));
+    const sun = new THREE.DirectionalLight(0xffe6c4, 1.28);
+    sun.position.set(-26, 50, 22);
     sun.castShadow = true;
     sun.shadow.mapSize.set(innerWidth < 760 ? 1024 : 2048, innerWidth < 760 ? 1024 : 2048);
     sun.shadow.camera.left = -62; sun.shadow.camera.right = 62; sun.shadow.camera.top = 44; sun.shadow.camera.bottom = -44;
@@ -127,61 +128,28 @@
     const bullLight = new THREE.PointLight(tokens[current].color, 1.3, 45); bullLight.position.set(-34, 7, 0); scene.add(bullLight);
     const bearLight = new THREE.PointLight(0xe4675f, 1.15, 45); bearLight.position.set(34, 7, 0); scene.add(bearLight);
 
-    function terrainHeight(x,z) {
-      const rolling = Math.sin(x*.075)*.55 + Math.cos(z*.105)*.42 + Math.sin((x+z)*.052)*.34;
-      const edge = Math.max(0, (Math.abs(z)-24)/14) * .8;
-      const centerFlatten = 1 - Math.exp(-(x*x)/(2*14*14));
-      return rolling * (.35 + .65*centerFlatten) + edge;
-    }
-
-    const terrainGeo = new THREE.PlaneGeometry(138, 82, 92, 58);
-    terrainGeo.rotateX(-Math.PI/2);
-    const p = terrainGeo.attributes.position;
-    const colors = [];
-    const cLow = new THREE.Color(0x263526), cMid = new THREE.Color(0x354632), cHi = new THREE.Color(0x4a5436);
-    for (let i=0;i<p.count;i++) {
-      const x=p.getX(i), z=p.getZ(i), h=terrainHeight(x,z);
-      p.setY(i,h);
-      const t = THREE.MathUtils.clamp((h+1)/3,0,1);
-      const c = (t<.55 ? cLow.clone().lerp(cMid,t/.55) : cMid.clone().lerp(cHi,(t-.55)/.45));
-      const sideTint = x < 0 ? new THREE.Color(0x0b2a1e) : new THREE.Color(0x2b1614);
-      c.lerp(sideTint, .045 + Math.min(.05,Math.abs(x)/1000));
-      colors.push(c.r,c.g,c.b);
-    }
-    terrainGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors,3));
-    terrainGeo.computeVertexNormals();
-    const ground = new THREE.Mesh(terrainGeo, new THREE.MeshStandardMaterial({ vertexColors:true, roughness:.98, metalness:0 }));
-    ground.receiveShadow = true; scene.add(ground);
-
-    // Worn central road / no-man's-land. No visible grid.
-    const road = new THREE.Mesh(new THREE.PlaneGeometry(14,72), new THREE.MeshStandardMaterial({ color:0x3c3529, roughness:1, transparent:true, opacity:.72 }));
-    road.rotation.x = -Math.PI/2; road.position.set(0,.035,0); road.receiveShadow=true; scene.add(road);
-    const roadEdgeMat = new THREE.MeshBasicMaterial({ color:0x7e6a43, transparent:true, opacity:.16 });
-    [-7,7].forEach(x=>{ const e=new THREE.Mesh(new THREE.PlaneGeometry(.16,70),roadEdgeMat); e.rotation.x=-Math.PI/2; e.position.set(x,.045,0); scene.add(e); });
-
-    const rockMat = new THREE.MeshStandardMaterial({ color:0x4a4b3d, roughness:.95 });
-    const shrubMat = new THREE.MeshStandardMaterial({ color:0x243b24, roughness:1 });
-    const trunkMat = new THREE.MeshStandardMaterial({ color:0x4b3827, roughness:1 });
-    function rand(seed) { const x=Math.sin(seed*999.1)*43758.5453; return x-Math.floor(x); }
-    for (let i=0;i<52;i++) {
-      const x=(rand(i+4)-.5)*124, z=(rand(i+80)-.5)*72;
-      if (Math.abs(x)<11 || (Math.abs(x)>44 && Math.abs(z)<19)) continue;
-      if (rand(i+160)>.47) {
-        const s=.28+rand(i+250)*.7;
-        const rock=new THREE.Mesh(new THREE.DodecahedronGeometry(s,0),rockMat);
-        rock.scale.set(1.35,.7+rand(i+340)*.45,1); rock.rotation.y=rand(i+400)*Math.PI;
-        rock.position.set(x,terrainHeight(x,z)+s*.38,z); rock.castShadow=true; rock.receiveShadow=true; scene.add(rock);
-      } else {
-        const tree=new THREE.Group();
-        const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.09,.13,.7,6),trunkMat); trunk.position.y=.35;
-        const crown=new THREE.Mesh(new THREE.ConeGeometry(.42,.95,7),shrubMat); crown.position.y=.95;
-        tree.add(trunk,crown); tree.position.set(x,terrainHeight(x,z),z); tree.scale.setScalar(.72+rand(i+510)*.65); tree.rotation.y=rand(i+610)*Math.PI;
-        trunk.castShadow=crown.castShadow=true; scene.add(tree);
-      }
-    }
-
     function mat(color, rough=.72, metal=.08, emissive=0x000000, intensity=0) {
       return new THREE.MeshStandardMaterial({ color, roughness:rough, metalness:metal, emissive, emissiveIntensity:intensity });
+    }
+
+    // v8.1 — modular terrain + environment (procedural, no GridHelper)
+    const mobileGfx = innerWidth < 760;
+    const terrainApi = (window.LUNCBattle && LUNCBattle.terrain)
+      ? LUNCBattle.terrain.createTerrain({ THREE, scene, mobile: mobileGfx })
+      : null;
+    if (!terrainApi) console.error('[LUNCBattle] terrain.js failed to load');
+    const terrainHeight = terrainApi
+      ? terrainApi.terrainHeight
+      : function (x, z) { return Math.sin(x * .075) * .4 + Math.cos(z * .1) * .3; };
+    const ground = terrainApi ? terrainApi.ground : null;
+
+    const envApi = (window.LUNCBattle && LUNCBattle.environment)
+      ? LUNCBattle.environment.createEnvironment({ THREE, scene, terrainHeight, mobile: mobileGfx, mat })
+      : null;
+    if (!envApi) console.error('[LUNCBattle] environment.js failed to load');
+    if (envApi && envApi.fog) {
+      scene.background = new THREE.Color(envApi.fog.background != null ? envApi.fog.background : 0x0c140e);
+      scene.fog = new THREE.Fog(envApi.fog.fogColor, envApi.fog.fogNear, envApi.fog.fogFar);
     }
     const stoneMat=mat(0x4e5446,.92,.02), darkMat=mat(0x18211a,.72,.18), woodMat=mat(0x493625,.9,.01), goldMat=mat(0xc8a85f,.5,.24);
 
@@ -205,7 +173,10 @@
         const top=new THREE.Mesh(new THREE.ConeGeometry(1.35,1.25,8),darkMat); top.position.set(x-side*1.2,4.1,z); top.castShadow=true; g.add(top);
         const lamp=new THREE.PointLight(color,.65,12); lamp.position.set(x-side*1.2,4.7,z); g.add(lamp);
       });
-      g.userData={side,color}; scene.add(g); return g;
+      g.userData={side,color};
+      // Settle keep onto terrain height at gate x
+      g.position.y = terrainHeight(x, 0);
+      scene.add(g); return g;
     }
     const bullBase=createBase(-1,tokens[current].color), bearBase=createBase(1,0xe4675f);
 
@@ -214,10 +185,11 @@
     const frontPosts=[];
     const ropeMat=new THREE.LineBasicMaterial({color:0xc6a75f,transparent:true,opacity:.34});
     for (let z=-28;z<=28;z+=7) {
-      const pole=new THREE.Mesh(new THREE.CylinderGeometry(.07,.1,1.6,7),woodMat); pole.position.set(0,.8,z); pole.castShadow=true; frontGroup.add(pole); frontPosts.push(pole);
-      const flag=new THREE.Mesh(new THREE.PlaneGeometry(.8,.46),new THREE.MeshBasicMaterial({color:0xd4b46d,side:THREE.DoubleSide,transparent:true,opacity:.68})); flag.position.set(.38,1.35,z); flag.rotation.y=Math.PI/2; frontGroup.add(flag);
+      const ty = terrainHeight(0, z);
+      const pole=new THREE.Mesh(new THREE.CylinderGeometry(.07,.1,1.6,7),woodMat); pole.position.set(0,ty+.8,z); pole.castShadow=true; frontGroup.add(pole); frontPosts.push(pole);
+      const flag=new THREE.Mesh(new THREE.PlaneGeometry(.8,.46),new THREE.MeshBasicMaterial({color:0xd4b46d,side:THREE.DoubleSide,transparent:true,opacity:.68})); flag.position.set(.38,ty+1.35,z); flag.rotation.y=Math.PI/2; frontGroup.add(flag);
     }
-    const ropePts=[]; for(let z=-28;z<=28;z+=1) ropePts.push(new THREE.Vector3(0,.26,z));
+    const ropePts=[]; for(let z=-28;z<=28;z+=1) ropePts.push(new THREE.Vector3(0,terrainHeight(0,z)+.26,z));
     const rope=new THREE.Line(new THREE.BufferGeometry().setFromPoints(ropePts),ropeMat); frontGroup.add(rope);
 
     // -------------------- Units / effects (extracted modules) --------------------
@@ -783,13 +755,14 @@
       }
       if(cameraShake>.01){camera.position.x+=(Math.random()-.5)*cameraShake*.14;camera.position.y+=(Math.random()-.5)*cameraShake*.08;cameraShake*=.9;}
       bullLight.intensity=1.1+Math.sin(now*1.3)*.16; bearLight.intensity=1.05+Math.cos(now*1.25)*.14;
+      if (envApi && typeof envApi.update === 'function') envApi.update(dt, now);
       renderer.render(scene,camera);
     }
 
     addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio||1,innerWidth<760?1.35:1.8));});
 
     updateStatusUI();
-    pushFeed('LUNC Battlefield v7 · classic RTS rebuild','win');
+    pushFeed('Battlefield v8.1 · terrain & environment overhaul','win');
     pushFeed('Market pressure moves formations and the contested front','info');
     pushFeed('Public build uses HTTPS-safe data feeds','info');
     animate();

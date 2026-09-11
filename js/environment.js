@@ -1,0 +1,471 @@
+/* LUNC Battlefield v8.1 — battlefield environment props (original procedural) */
+(function (global) {
+  'use strict';
+
+  function seededRand(seed) {
+    const x = Math.sin(seed * 999.11) * 43758.5453123;
+    return x - Math.floor(x);
+  }
+
+  function blockedSpot(x, z) {
+    // Central road strip |x|<5 or base keep zones |x|>42 && |z|<14
+    if (Math.abs(x) < 5) return true;
+    if (Math.abs(x) > 42 && Math.abs(z) < 14) return true;
+    return false;
+  }
+
+  function createEnvironment(opts) {
+    const THREE = opts.THREE;
+    const scene = opts.scene;
+    const terrainHeight = opts.terrainHeight;
+    const mobile = !!opts.mobile;
+    const matFn = opts.mat || function (color, rough, metal) {
+      return new THREE.MeshStandardMaterial({
+        color: color,
+        roughness: rough == null ? 0.9 : rough,
+        metalness: metal == null ? 0.05 : metal
+      });
+    };
+
+    const scale = mobile ? 0.55 : 1;
+    const group = new THREE.Group();
+    group.name = 'environment-v81';
+
+    const rockMat = matFn(0x4a4b3d, 0.95, 0.02);
+    const rockMatB = matFn(0x5c5e4f, 0.92, 0.03);
+    const trunkMat = matFn(0x4b3827, 1, 0.01);
+    const deadTrunkMat = matFn(0x3a3228, 0.98, 0.02);
+    const foliageMat = matFn(0x2a4528, 1, 0);
+    const foliageMatB = matFn(0x355534, 0.98, 0);
+    const bushMat = matFn(0x243b24, 1, 0);
+    const rubbleMat = matFn(0x55564a, 0.94, 0.04);
+    const woodMat = matFn(0x493625, 0.9, 0.01);
+    const sandbagMat = matFn(0x6a5a3e, 0.98, 0.02);
+    const crateMat = matFn(0x5a442e, 0.88, 0.04);
+    const scorchedMat = new THREE.MeshStandardMaterial({
+      color: 0x141210,
+      roughness: 1,
+      transparent: true,
+      opacity: 0.45,
+      depthWrite: false
+    });
+    const smokeMat = new THREE.MeshBasicMaterial({
+      color: 0x8a8678,
+      transparent: true,
+      opacity: 0.14,
+      depthWrite: false
+    });
+
+    const counts = {
+      rocks: Math.round(42 * scale),
+      trees: Math.round(28 * scale),
+      deadTrees: Math.round(12 * scale),
+      bushes: Math.round(36 * scale),
+      ruins: Math.round(8 * scale),
+      barricades: Math.round(10 * scale),
+      fences: Math.round(16 * scale),
+      equipment: Math.round(8 * scale),
+      scorched: Math.round(10 * scale),
+      smoke: mobile ? 3 : 6
+    };
+
+    function placeY(x, z, lift) {
+      return terrainHeight(x, z) + (lift || 0);
+    }
+
+    function tryPos(seed, xSpan, zSpan) {
+      for (let attempt = 0; attempt < 8; attempt++) {
+        const x = (seededRand(seed + attempt * 17) - 0.5) * xSpan;
+        const z = (seededRand(seed + attempt * 31 + 3) - 0.5) * zSpan;
+        if (!blockedSpot(x, z)) return { x: x, z: z };
+      }
+      return null;
+    }
+
+    // ---- Rocks (denser on hills) ----
+    let rockPlaced = 0;
+    for (let i = 0; i < counts.rocks * 2 && rockPlaced < counts.rocks; i++) {
+      const p = tryPos(i + 40, 124, 72);
+      if (!p) continue;
+      const h = terrainHeight(p.x, p.z);
+      // Prefer hills
+      const hillBias = seededRand(i + 120);
+      if (h < 0.35 && hillBias > 0.35) continue;
+      const useIcosa = seededRand(i + 200) > 0.55;
+      const s = 0.22 + seededRand(i + 250) * 0.75;
+      const geo = useIcosa
+        ? new THREE.IcosahedronGeometry(s, 0)
+        : new THREE.DodecahedronGeometry(s, 0);
+      const rock = new THREE.Mesh(geo, seededRand(i + 280) > 0.5 ? rockMat : rockMatB);
+      rock.scale.set(1.25 + seededRand(i + 300) * 0.4, 0.65 + seededRand(i + 320) * 0.5, 1.05);
+      rock.rotation.set(seededRand(i + 340) * 0.4, seededRand(i + 360) * Math.PI, seededRand(i + 380) * 0.3);
+      rock.position.set(p.x, placeY(p.x, p.z, s * 0.35), p.z);
+      rock.castShadow = true;
+      rock.receiveShadow = true;
+      group.add(rock);
+      rockPlaced++;
+    }
+
+    // ---- Living trees (trunk + 2–3 foliage blobs) ----
+    let treePlaced = 0;
+    for (let i = 0; i < counts.trees * 2 && treePlaced < counts.trees; i++) {
+      const p = tryPos(i + 500, 118, 68);
+      if (!p) continue;
+      if (Math.abs(p.x) < 10) continue;
+      const tree = new THREE.Group();
+      const trunkH = 0.85 + seededRand(i + 520) * 0.55;
+      const trunk = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.08, 0.14, trunkH, 6),
+        trunkMat
+      );
+      trunk.position.y = trunkH * 0.5;
+      trunk.castShadow = true;
+      tree.add(trunk);
+
+      const blobCount = 2 + (seededRand(i + 540) > 0.45 ? 1 : 0);
+      for (let b = 0; b < blobCount; b++) {
+        const br = 0.32 + seededRand(i * 3 + b + 560) * 0.28;
+        const blob = new THREE.Mesh(
+          new THREE.SphereGeometry(br, 6, 5),
+          seededRand(i + b + 580) > 0.5 ? foliageMat : foliageMatB
+        );
+        blob.position.set(
+          (seededRand(i + b + 600) - 0.5) * 0.35,
+          trunkH * 0.75 + b * 0.28 + seededRand(i + b + 620) * 0.15,
+          (seededRand(i + b + 640) - 0.5) * 0.35
+        );
+        blob.scale.set(1.15, 0.85 + seededRand(i + b + 660) * 0.35, 1.1);
+        blob.castShadow = true;
+        tree.add(blob);
+      }
+      const sc = 0.75 + seededRand(i + 680) * 0.7;
+      tree.scale.setScalar(sc);
+      tree.rotation.y = seededRand(i + 700) * Math.PI;
+      tree.position.set(p.x, placeY(p.x, p.z, 0), p.z);
+      group.add(tree);
+      treePlaced++;
+    }
+
+    // ---- Dead trees (bare branching cylinders) ----
+    let deadPlaced = 0;
+    for (let i = 0; i < counts.deadTrees * 2 && deadPlaced < counts.deadTrees; i++) {
+      const p = tryPos(i + 900, 110, 64);
+      if (!p) continue;
+      const dead = new THREE.Group();
+      const th = 1.1 + seededRand(i + 920) * 0.7;
+      const trunk = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.06, 0.11, th, 5),
+        deadTrunkMat
+      );
+      trunk.position.y = th * 0.5;
+      trunk.castShadow = true;
+      dead.add(trunk);
+      const branches = 2 + Math.floor(seededRand(i + 940) * 3);
+      for (let b = 0; b < branches; b++) {
+        const bl = 0.35 + seededRand(i + b + 960) * 0.45;
+        const branch = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.025, 0.04, bl, 4),
+          deadTrunkMat
+        );
+        branch.position.set(0, th * (0.45 + seededRand(i + b + 980) * 0.4), 0);
+        branch.rotation.z = (seededRand(i + b + 1000) - 0.5) * 1.4;
+        branch.rotation.y = seededRand(i + b + 1020) * Math.PI * 2;
+        branch.translateY(bl * 0.35);
+        branch.castShadow = !mobile;
+        dead.add(branch);
+      }
+      dead.scale.setScalar(0.7 + seededRand(i + 1040) * 0.55);
+      dead.rotation.y = seededRand(i + 1060) * Math.PI;
+      dead.position.set(p.x, placeY(p.x, p.z, 0), p.z);
+      group.add(dead);
+      deadPlaced++;
+    }
+
+    // ---- Bushes / shrubs ----
+    let bushPlaced = 0;
+    for (let i = 0; i < counts.bushes * 2 && bushPlaced < counts.bushes; i++) {
+      const p = tryPos(i + 1200, 120, 70);
+      if (!p) continue;
+      const bush = new THREE.Group();
+      const n = 2 + Math.floor(seededRand(i + 1220) * 2);
+      for (let b = 0; b < n; b++) {
+        const r = 0.22 + seededRand(i + b + 1240) * 0.22;
+        const m = new THREE.Mesh(new THREE.SphereGeometry(r, 5, 4), bushMat);
+        m.position.set(
+          (seededRand(i + b + 1260) - 0.5) * 0.35,
+          r * 0.55,
+          (seededRand(i + b + 1280) - 0.5) * 0.35
+        );
+        m.scale.y = 0.7;
+        if (!mobile) m.castShadow = true;
+        bush.add(m);
+      }
+      bush.position.set(p.x, placeY(p.x, p.z, 0), p.z);
+      bush.scale.setScalar(0.8 + seededRand(i + 1300) * 0.6);
+      group.add(bush);
+      bushPlaced++;
+    }
+
+    // ---- Ruined wall fragments / rubble near midfield flanks ----
+    let ruinPlaced = 0;
+    for (let i = 0; i < counts.ruins * 3 && ruinPlaced < counts.ruins; i++) {
+      const flank = seededRand(i + 1400) > 0.5 ? 1 : -1;
+      const x = flank * (14 + seededRand(i + 1420) * 18);
+      const z = (seededRand(i + 1440) - 0.5) * 52;
+      if (blockedSpot(x, z) || Math.abs(x) < 8) continue;
+      const ruin = new THREE.Group();
+      const w = 1.2 + seededRand(i + 1460) * 1.8;
+      const h = 0.55 + seededRand(i + 1480) * 0.9;
+      const wall = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.35), rubbleMat);
+      wall.position.y = h * 0.5;
+      wall.rotation.y = (seededRand(i + 1500) - 0.5) * 0.6;
+      wall.castShadow = true;
+      wall.receiveShadow = true;
+      ruin.add(wall);
+      // Rubble pile
+      for (let r = 0; r < 3; r++) {
+        const chunk = new THREE.Mesh(
+          new THREE.DodecahedronGeometry(0.12 + seededRand(i + r + 1520) * 0.18, 0),
+          rubbleMat
+        );
+        chunk.position.set(
+          (seededRand(i + r + 1540) - 0.5) * w,
+          0.1,
+          0.3 + seededRand(i + r + 1560) * 0.4
+        );
+        chunk.castShadow = !mobile;
+        ruin.add(chunk);
+      }
+      ruin.position.set(x, placeY(x, z, 0), z);
+      group.add(ruin);
+      ruinPlaced++;
+    }
+
+    // ---- Wooden barricades / sandbag mounds near frontline trenches ----
+    let barPlaced = 0;
+    for (let i = 0; i < counts.barricades * 2 && barPlaced < counts.barricades; i++) {
+      const side = seededRand(i + 1600) > 0.5 ? 1 : -1;
+      const x = side * (3.2 + seededRand(i + 1620) * 3.2); // near trenches ±3..±6
+      const z = (seededRand(i + 1640) - 0.5) * 48;
+      if (Math.abs(x) < 2.5 || Math.abs(z) < 2) continue;
+      if (Math.abs(x) > 42 && Math.abs(z) < 14) continue;
+      const bag = new THREE.Group();
+      if (seededRand(i + 1660) > 0.4) {
+        // Sandbag-like elongated mounds (BoxGeometry — r128-safe)
+        const mound = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.45, 0.55), sandbagMat);
+        mound.position.y = 0.28;
+        mound.castShadow = true;
+        mound.receiveShadow = true;
+        bag.add(mound);
+        const mound2 = new THREE.Mesh(new THREE.BoxGeometry(1.35, 0.38, 0.48), sandbagMat);
+        mound2.position.set(0.05, 0.55, 0.02);
+        mound2.rotation.y = 0.12;
+        mound2.castShadow = true;
+        mound2.receiveShadow = true;
+        bag.add(mound2);
+      } else {
+        // Wooden barricade
+        for (let pl = 0; pl < 3; pl++) {
+          const plank = new THREE.Mesh(
+            new THREE.BoxGeometry(1.5, 0.12, 0.22),
+            woodMat
+          );
+          plank.position.set(0, 0.25 + pl * 0.22, 0);
+          plank.rotation.z = (seededRand(i + pl + 1680) - 0.5) * 0.15;
+          plank.castShadow = true;
+          bag.add(plank);
+        }
+        const postL = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 0.9, 5), woodMat);
+        const postR = postL.clone();
+        postL.position.set(-0.7, 0.45, 0);
+        postR.position.set(0.7, 0.45, 0);
+        bag.add(postL, postR);
+      }
+      bag.rotation.y = Math.PI / 2 + (seededRand(i + 1700) - 0.5) * 0.35;
+      bag.position.set(x, placeY(x, z, 0), z);
+      group.add(bag);
+      barPlaced++;
+    }
+
+    // ---- Fence posts (sparse) ----
+    let fencePlaced = 0;
+    for (let i = 0; i < counts.fences * 2 && fencePlaced < counts.fences; i++) {
+      const p = tryPos(i + 1800, 100, 60);
+      if (!p) continue;
+      if (Math.abs(p.x) < 12) continue;
+      const post = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.05, 0.07, 0.95, 5),
+        woodMat
+      );
+      post.position.set(p.x, placeY(p.x, p.z, 0.48), p.z);
+      post.castShadow = !mobile;
+      group.add(post);
+      // Occasional short rail
+      if (seededRand(i + 1820) > 0.55) {
+        const rail = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.06, 0.08), woodMat);
+        rail.position.set(p.x + 0.5, placeY(p.x, p.z, 0.55), p.z);
+        rail.castShadow = !mobile;
+        group.add(rail);
+      }
+      fencePlaced++;
+    }
+
+    // ---- Abandoned equipment: cart / wheel / crate stacks ----
+    let eqPlaced = 0;
+    for (let i = 0; i < counts.equipment * 2 && eqPlaced < counts.equipment; i++) {
+      const p = tryPos(i + 2000, 96, 56);
+      if (!p) continue;
+      if (Math.abs(p.x) < 14) continue;
+      const eq = new THREE.Group();
+      const kind = Math.floor(seededRand(i + 2020) * 3);
+      if (kind === 0) {
+        // Wrecked cart silhouette
+        const bed = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.18, 0.85), woodMat);
+        bed.position.y = 0.45;
+        bed.rotation.z = 0.18;
+        eq.add(bed);
+        const wheel = new THREE.Mesh(
+          new THREE.TorusGeometry(0.32, 0.06, 6, 12),
+          matFn(0x3a342c, 0.9, 0.08)
+        );
+        wheel.position.set(0.5, 0.32, 0.5);
+        wheel.rotation.y = Math.PI / 2;
+        eq.add(wheel);
+        const wheel2 = wheel.clone();
+        wheel2.position.set(-0.35, 0.12, -0.4);
+        wheel2.rotation.z = 0.9;
+        eq.add(wheel2);
+      } else if (kind === 1) {
+        // Broken wheel alone
+        const wheel = new THREE.Mesh(
+          new THREE.TorusGeometry(0.38, 0.07, 6, 14),
+          matFn(0x3a342c, 0.9, 0.08)
+        );
+        wheel.rotation.x = Math.PI / 2 + 0.3;
+        wheel.position.y = 0.08;
+        eq.add(wheel);
+        const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.04, 0.04), woodMat);
+        spoke.position.y = 0.1;
+        eq.add(spoke);
+      } else {
+        // Crate stack
+        for (let c = 0; c < 2 + Math.floor(seededRand(i + 2040) * 2); c++) {
+          const crate = new THREE.Mesh(
+            new THREE.BoxGeometry(0.55, 0.4, 0.5),
+            crateMat
+          );
+          crate.position.set(
+            (seededRand(i + c + 2060) - 0.5) * 0.25,
+            0.2 + c * 0.42,
+            (seededRand(i + c + 2080) - 0.5) * 0.2
+          );
+          crate.rotation.y = seededRand(i + c + 2100) * 0.4;
+          crate.castShadow = true;
+          crate.receiveShadow = true;
+          eq.add(crate);
+        }
+      }
+      eq.traverse(function (o) {
+        if (o.isMesh) {
+          o.castShadow = true;
+          o.receiveShadow = true;
+        }
+      });
+      eq.rotation.y = seededRand(i + 2120) * Math.PI;
+      eq.position.set(p.x, placeY(p.x, p.z, 0), p.z);
+      group.add(eq);
+      eqPlaced++;
+    }
+
+    // ---- Scorched ground discs near random crater-like spots ----
+    let scorchPlaced = 0;
+    for (let i = 0; i < counts.scorched * 2 && scorchPlaced < counts.scorched; i++) {
+      const p = tryPos(i + 2200, 108, 62);
+      if (!p) continue;
+      if (Math.abs(p.x) < 10) continue;
+      const r = 1.2 + seededRand(i + 2220) * 2.2;
+      const disc = new THREE.Mesh(new THREE.CircleGeometry(r, 10), scorchedMat);
+      disc.rotation.x = -Math.PI / 2;
+      disc.position.set(p.x, placeY(p.x, p.z, 0.05), p.z);
+      group.add(disc);
+      scorchPlaced++;
+    }
+
+    // ---- Distant subtle smoke puffs ----
+    const smokePuffs = [];
+    let smokePlaced = 0;
+    for (let i = 0; i < counts.smoke * 3 && smokePlaced < counts.smoke; i++) {
+      const p = tryPos(i + 2400, 100, 58);
+      if (!p) continue;
+      if (Math.abs(p.x) < 16) continue;
+      const s = 1.2 + seededRand(i + 2420) * 1.8;
+      const puff = new THREE.Mesh(new THREE.SphereGeometry(s, 8, 6), smokeMat.clone());
+      puff.position.set(p.x, placeY(p.x, p.z, 1.5 + seededRand(i + 2440) * 2), p.z);
+      puff.scale.y = 0.7;
+      puff.userData.phase = seededRand(i + 2460) * Math.PI * 2;
+      puff.userData.baseOpacity = 0.1 + seededRand(i + 2480) * 0.08;
+      group.add(puff);
+      smokePuffs.push(puff);
+      smokePlaced++;
+    }
+
+    scene.add(group);
+
+    const fog = {
+      fogColor: 0x121a12,
+      fogNear: 48,
+      fogFar: 132,
+      background: 0x0c140e
+    };
+
+    function update(dt, now) {
+      for (let i = 0; i < smokePuffs.length; i++) {
+        const p = smokePuffs[i];
+        const o = p.userData.baseOpacity * (0.75 + 0.25 * Math.sin(now * 0.35 + p.userData.phase));
+        p.material.opacity = o;
+        p.position.y += Math.sin(now * 0.2 + p.userData.phase) * 0.002;
+      }
+    }
+
+    function dispose() {
+      group.traverse(function (obj) {
+        if (obj.geometry) obj.geometry.dispose();
+        if (obj.material) {
+          if (Array.isArray(obj.material)) obj.material.forEach(function (m) { m.dispose(); });
+          else obj.material.dispose();
+        }
+      });
+      scene.remove(group);
+    }
+
+    return {
+      group: group,
+      dispose: dispose,
+      update: update,
+      fog: fog,
+      counts: {
+        desktop: {
+          rocks: 42, trees: 28, deadTrees: 12, bushes: 36,
+          ruins: 8, barricades: 10, fences: 16, equipment: 8,
+          scorched: 10, smoke: 6
+        },
+        mobile: {
+          rocks: Math.round(42 * 0.55), trees: Math.round(28 * 0.55),
+          deadTrees: Math.round(12 * 0.55), bushes: Math.round(36 * 0.55),
+          ruins: Math.round(8 * 0.55), barricades: Math.round(10 * 0.55),
+          fences: Math.round(16 * 0.55), equipment: Math.round(8 * 0.55),
+          scorched: Math.round(10 * 0.55), smoke: 3
+        },
+        placed: {
+          rocks: rockPlaced, trees: treePlaced, deadTrees: deadPlaced,
+          bushes: bushPlaced, ruins: ruinPlaced, barricades: barPlaced,
+          fences: fencePlaced, equipment: eqPlaced, scorched: scorchPlaced,
+          smoke: smokePlaced
+        }
+      }
+    };
+  }
+
+  global.LUNCBattle = global.LUNCBattle || {};
+  global.LUNCBattle.environment = { createEnvironment: createEnvironment };
+})(window);

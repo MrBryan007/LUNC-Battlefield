@@ -1,4 +1,4 @@
-/* LUNC Battlefield v7 — shared config (GitHub Pages safe) */
+/* LUNC Battlefield v8 — shared config (GitHub Pages safe) */
 (function (global) {
   'use strict';
   const DataTruth = Object.freeze({
@@ -56,8 +56,8 @@
   };
 
   const config = {
-    BUILD: 'v7',
-    TITLE: 'LUNC Ecosystem Battlefield v7',
+    BUILD: 'v8.1',
+    TITLE: 'LUNC Ecosystem Battlefield v8',
     DataTruth,
     tokens,
     apiBase: resolveApiBase(),
