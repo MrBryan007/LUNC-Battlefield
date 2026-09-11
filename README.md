@@ -45,9 +45,7 @@ Set a permanent API:
 
 `https://mrbryan007.github.io/LUNC-Battlefield/?api=https://your-bridge.example`
 
-Optional legacy snapshot bridge (localhost or HTTPS only):
-
-`?bridge=https://your-bridge.example/snapshot`
+Primary architecture is `?api=https://your-bridge.example` (uses `/snapshot` and other routes). Legacy `?bridge=` HTTPS URLs are mapped onto `api` when possible; localhost bridges are not used on GitHub Pages.
 
 Expected future routes: `/snapshot`, `/burns`, `/whales`, `/governance/proposals`, `/governance/validators`.
 
@@ -60,3 +58,7 @@ Expected future routes: `/snapshot`, `/burns`, `/whales`, `/governance/proposals
 ## Local note
 
 Simulated burn flares in the war feed (if shown) are labeled and are **not** chain burns.
+
+## Liquidity zones
+
+When Binance depth (or API book) is live, Immediate 0–0.5%, Near 0.5–1%, Major 1–3%, and Deep 3–5% bid/ask notionals drive army walls and the Liquidity zones panel. Without a book, walls stay ESTIMATED.

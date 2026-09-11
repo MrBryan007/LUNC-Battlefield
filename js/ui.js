@@ -1,13 +1,12 @@
-/* HUD helpers — Battle Strength Score scaffold + intel panels */
+/* HUD helpers — Battle Strength (fast) + intel panels (slow) */
 (function (global) {
   'use strict';
   const LB = global.LUNCBattle;
   const DT = LB.DataTruth;
 
   function computeBattleStrength(input) {
-    // input fields optional; missing → ignored with UNAVAILABLE
     const parts = [];
-    let bull = 50, bear = 50;
+    let bull = 50;
     function add(name, truth, bullDelta) {
       parts.push({ name, truth, bullDelta: bullDelta || 0 });
       if (truth === DT.LIVE || truth === DT.CALCULATED || truth === DT.ESTIMATED) {
@@ -31,7 +30,7 @@
     } else add('liquidations', DT.UNAVAILABLE, 0);
 
     bull = Math.max(0, Math.min(100, Math.round(bull)));
-    bear = 100 - bull;
+    const bear = 100 - bull;
     const advantage = bull === bear ? 'EVEN' : (bull > bear ? 'BULLS' : 'BEARS');
     return { bull, bear, advantage, parts, truth: DT.CALCULATED };
   }
@@ -44,6 +43,20 @@
     set('burnsStatus', burns.truth + (burns.reason ? ' — ' + burns.reason : (burns.events && burns.events.length ? ' · ' + burns.events.length + ' events' : '')));
     set('whalesStatus', whales.truth + (whales.reason ? ' — ' + whales.reason : (whales.events && whales.events.length ? ' · ' + whales.events.length + ' events' : '')));
     set('govStatus', gov.truth + (gov.reason ? ' — ' + gov.reason : (gov.proposals && gov.proposals.length ? ' · ' + gov.proposals.length + ' proposals' : '')));
+    const v = gov.validators || [];
+    if (!v.length) {
+      set('validatorsStatus', (gov.truth === DT.LIVE ? DT.UNAVAILABLE : gov.truth) + ' — ' + (gov.reason || 'No validator payload yet'));
+    } else {
+      set('validatorsStatus', DT.LIVE + ' · ' + v.length + ' validators');
+      const list = document.getElementById('validatorsList');
+      if (list) {
+        list.innerHTML = v.slice(0, 8).map(val => {
+          const name = val.name || val.moniker || val.operator_address || 'validator';
+          const power = val.votingPower != null ? val.votingPower : (val.tokens != null ? val.tokens : '—');
+          return '<div class="row"><span>' + name + '</span><strong>' + power + '</strong></div>';
+        }).join('');
+      }
+    }
   }
 
   function renderBattleStrength(score) {
@@ -61,24 +74,47 @@
     }
   }
 
+  function tickStrength() {
+    const burns = LB.burns.getLatest();
+    const whales = LB.whales.getLatest();
+    let whaleBias = null, whaleTruth = DT.UNAVAILABLE;
+    if (burns && burns.truth === DT.LIVE && burns.events && burns.events.length) {
+      /* burns are supply-negative / bullish bias small */
+    }
+    if (whales && whales.truth === DT.LIVE && whales.events && whales.events.length) {
+      whaleTruth = DT.LIVE;
+      whaleBias = 0;
+      whales.events.slice(0, 10).forEach(ev => {
+        const c = (ev.classification || '').toLowerCase();
+        if (c.includes('buy') || c.includes('withdraw')) whaleBias += 0.15;
+        if (c.includes('sell') || c.includes('deposit')) whaleBias -= 0.15;
+      });
+      whaleBias = Math.max(-1, Math.min(1, whaleBias));
+    }
+    const score = computeBattleStrength({
+      momentum: LB.ui.lastMomentum,
+      momentumTruth: LB.ui.lastMomentumTruth,
+      bookImbalance: LB.ui.lastBookImbalance,
+      bookTruth: LB.ui.lastBookTruth,
+      whaleBias,
+      whaleTruth,
+      burnBias: null,
+      burnTruth: (burns && burns.truth) || DT.UNAVAILABLE,
+      liqBias: null,
+      liqTruth: DT.UNAVAILABLE
+    });
+    renderBattleStrength(score);
+  }
+
   async function refreshAuxFeeds() {
     await Promise.all([
       LB.burns.refresh(),
       LB.whales.refresh(),
-      LB.governance.refreshProposals()
+      LB.governance.refreshProposals(),
+      LB.governance.refreshValidators()
     ]);
     renderIntelPanels();
-    // Strength uses mostly UNAVAILABLE until feeds exist; momentum filled by engine via LB.ui.lastMomentum
-    const score = computeBattleStrength({
-      momentum: LB.ui && LB.ui.lastMomentum,
-      momentumTruth: LB.ui && LB.ui.lastMomentumTruth,
-      bookImbalance: LB.ui && LB.ui.lastBookImbalance,
-      bookTruth: LB.ui && LB.ui.lastBookTruth,
-      whaleBias: null, whaleTruth: DT.UNAVAILABLE,
-      burnBias: null, burnTruth: DT.UNAVAILABLE,
-      liqBias: null, liqTruth: DT.UNAVAILABLE
-    });
-    renderBattleStrength(score);
+    tickStrength();
   }
 
   LB.ui = {
@@ -86,9 +122,11 @@
     renderIntelPanels,
     renderBattleStrength,
     refreshAuxFeeds,
+    tickStrength,
     lastMomentum: 0,
     lastMomentumTruth: DT.UNAVAILABLE,
     lastBookImbalance: 0,
-    lastBookTruth: DT.UNAVAILABLE
+    lastBookTruth: DT.UNAVAILABLE,
+    lastZones: null
   };
 })(window);

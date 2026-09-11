@@ -218,78 +218,29 @@
     const ropePts=[]; for(let z=-28;z<=28;z+=1) ropePts.push(new THREE.Vector3(0,.26,z));
     const rope=new THREE.Line(new THREE.BufferGeometry().setFromPoints(ropePts),ropeMat); frontGroup.add(rope);
 
-    // -------------------- Units --------------------
+    // -------------------- Units / effects (extracted modules) --------------------
     const bulls=[], bears=[];
     const projectilePool=[], particlePool=[];
 
-    function setShadow(mesh, cast=true) { mesh.castShadow=cast; mesh.receiveShadow=true; return mesh; }
-    function cylinderBetween(radius,length,colorMat,axis='z') {
-      const m=new THREE.Mesh(new THREE.CylinderGeometry(radius,radius,length,7),colorMat);
-      if(axis==='z') m.rotation.x=Math.PI/2; else if(axis==='x') m.rotation.z=Math.PI/2;
-      return m;
+    const unitsApi = (window.LUNCBattle && LUNCBattle.units)
+      ? LUNCBattle.units.createApi({ THREE, scene, terrainHeight, mat })
+      : null;
+    const effectsApi = (window.LUNCBattle && LUNCBattle.effects)
+      ? LUNCBattle.effects.createApi({
+          THREE, scene, terrainHeight, projectilePool, particlePool,
+          onShake: (amp, power) => { cameraShake = Math.min(1.1, cameraShake + amp * power); }
+        })
+      : null;
+    if (!unitsApi || !effectsApi) {
+      console.error('[LUNCBattle] units.js / effects.js failed to load');
     }
 
-    function createInfantry(color, side) {
-      const g=new THREE.Group();
-      const armor=mat(color,.58,.16,color,.08), cloth=mat(0x202922,.9,.02), skin=mat(0xcda77e,.9,0), steel=mat(0x343e38,.42,.38);
-      const torso=setShadow(new THREE.Mesh(new THREE.CylinderGeometry(.22,.31,.65,7),armor)); torso.position.y=.78;
-      const head=setShadow(new THREE.Mesh(new THREE.SphereGeometry(.17,8,6),skin)); head.position.y=1.23;
-      const helm=setShadow(new THREE.Mesh(new THREE.SphereGeometry(.19,8,5,0,Math.PI*2,0,Math.PI/2),steel)); helm.position.y=1.27;
-      const leg1=setShadow(cylinderBetween(.075,.52,cloth,'y')); leg1.position.set(-.12,.32,0);
-      const leg2=leg1.clone(); leg2.position.x=.12;
-      const arm1=setShadow(cylinderBetween(.065,.48,armor,'y')); arm1.position.set(-.30,.76,0); arm1.rotation.z=-.26;
-      const arm2=arm1.clone(); arm2.position.x=.30; arm2.rotation.z=.26;
-      const rifle=setShadow(cylinderBetween(.045,.72,steel,'z')); rifle.position.set(side*.34,.76,side*.16); rifle.rotation.y=Math.PI/2;
-      g.add(torso,head,helm,leg1,leg2,arm1,arm2,rifle);
-      g.scale.setScalar(.92); g.userData={type:0,side,phase:Math.random()*Math.PI*2,weapon:rifle,shot:Math.random()*3}; return g;
-    }
+    function createUnit(color, side, type) { return unitsApi.createUnit(color, side, type); }
+    function formationSlots(count, side, type) { return unitsApi.formationSlots(count, side, type); }
+    function disposeArmy(arr) { unitsApi.disposeArmy(arr); }
+    function launchStrike(fromX,toX,z,color,power=1) { effectsApi.launchStrike(fromX,toX,z,color,power); }
+    function createExplosion(x,z,color,power=1,isBurn=false) { effectsApi.createExplosion(x,z,color,power,isBurn); }
 
-    function createArmor(color,side) {
-      const g=new THREE.Group();
-      const armor=mat(color,.52,.26,color,.08), steel=mat(0x222b27,.5,.42), track=mat(0x111713,.78,.16);
-      const hull=setShadow(new THREE.Mesh(new THREE.DodecahedronGeometry(.7,0),armor)); hull.scale.set(1.35,.48,.9); hull.position.y=.58;
-      const turret=setShadow(new THREE.Mesh(new THREE.CylinderGeometry(.34,.46,.38,8),armor)); turret.position.y=.94;
-      const barrel=setShadow(cylinderBetween(.065,1.2,steel,'x')); barrel.position.set(side*.68,1.02,0);
-      const wheelMat=track;
-      [-.45,0,.45].forEach(dx=>[-.45,.45].forEach(z=>{ const w=setShadow(new THREE.Mesh(new THREE.CylinderGeometry(.18,.18,.12,8),wheelMat)); w.rotation.x=Math.PI/2; w.position.set(dx,.28,z); g.add(w); }));
-      g.add(hull,turret,barrel); g.userData={type:1,side,phase:Math.random()*Math.PI*2,weapon:barrel,shot:Math.random()*4}; return g;
-    }
-
-    function createArtillery(color,side) {
-      const g=new THREE.Group();
-      const armor=mat(color,.6,.19,color,.06), steel=mat(0x2d3731,.46,.38), base=mat(0x171e19,.8,.12);
-      const platform=setShadow(new THREE.Mesh(new THREE.CylinderGeometry(.55,.7,.28,8),base)); platform.position.y=.28;
-      const housing=setShadow(new THREE.Mesh(new THREE.CylinderGeometry(.32,.43,.64,7),armor)); housing.position.y=.67;
-      const barrel=setShadow(cylinderBetween(.095,1.55,steel,'x')); barrel.position.set(side*.78,1.0,0); barrel.rotation.z=-side*.16;
-      const stabilizer1=setShadow(cylinderBetween(.07,.9,base,'z')); stabilizer1.position.set(-.28,.16,.35);
-      const stabilizer2=stabilizer1.clone(); stabilizer2.position.z=-.35;
-      g.add(platform,housing,barrel,stabilizer1,stabilizer2); g.userData={type:2,side,phase:Math.random()*Math.PI*2,weapon:barrel,shot:Math.random()*5}; return g;
-    }
-
-    function createUnit(color, side, type) {
-      const g=type===0?createInfantry(color,side):type===1?createArmor(color,side):createArtillery(color,side);
-      const shadow=new THREE.Mesh(new THREE.CircleGeometry(type===1?.62:.38,14),new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:.18,depthWrite:false}));
-      shadow.rotation.x=-Math.PI/2; shadow.position.y=.025; g.add(shadow);
-      g.rotation.y = side<0 ? Math.PI/2 : -Math.PI/2;
-      scene.add(g); return g;
-    }
-
-    function formationSlots(count,side,type) {
-      const slots=[];
-      const cols=type===0?8:5;
-      const spacingZ=type===0?2.1:3.35;
-      const spacingX=type===0?1.8:3.2;
-      const back=type===0?8.6:type===1?15:21;
-      for(let i=0;i<count;i++) {
-        const row=Math.floor(i/cols), col=i%cols;
-        const z=(col-(cols-1)/2)*spacingZ + (row%2?spacingZ*.5:0);
-        const x=side*(back+row*spacingX);
-        slots.push({x,z});
-      }
-      return slots;
-    }
-
-    function disposeArmy(arr) { arr.forEach(u=>scene.remove(u)); arr.length=0; }
     function rebuildUnits() {
       disposeArmy(bulls); disposeArmy(bears);
       const mobile=innerWidth<760;
@@ -300,43 +251,11 @@
         art: Math.min(maxArt,Math.max(2,Math.round(1+wall*.72)))
       });
       const bc=counts(buyWall), rc=counts(sellWall);
-      function spawn(side,color,c,list) {
-        [[0,c.inf],[1,c.armor],[2,c.art]].forEach(([type,n])=>{
-          const slots=formationSlots(n,side,type);
-          slots.forEach((s,i)=>{ const u=createUnit(color,side,type); u.position.set(s.x,terrainHeight(s.x,s.z),s.z); u.userData.home=s; u.userData.index=i; list.push(u); });
-        });
-      }
-      spawn(-1,tokens[current].color,bc,bulls); spawn(1,0xe4675f,rc,bears);
+      unitsApi.spawnFormation(-1, tokens[current].color, bc, bulls);
+      unitsApi.spawnFormation(1, 0xe4675f, rc, bears);
       lastRebuild=Date.now();
     }
     rebuildUnits();
-
-    function launchStrike(fromX,toX,z,color,power=1) {
-      const matGlow=new THREE.MeshBasicMaterial({color});
-      const bolt=new THREE.Mesh(new THREE.SphereGeometry(.11+.04*Math.min(power,2),7,6),matGlow);
-      bolt.position.set(fromX,1.1+Math.random()*1.2,z);
-      bolt.userData={tx:toX,speed:13+power*5,life:2.2,color,power,prev:bolt.position.clone()};
-      scene.add(bolt); projectilePool.push(bolt);
-    }
-
-    function createExplosion(x,z,color,power=1,isBurn=false) {
-      const count=Math.floor((isBurn?24:14)*Math.min(2.2,power));
-      const palette=isBurn?[0xffdc72,0xf59e0b,0xe66526]:[color,0xf2c66d,0xd96f42];
-      for(let i=0;i<count;i++) {
-        const sphere=new THREE.Mesh(new THREE.SphereGeometry(.12+Math.random()*.18*power,6,5),new THREE.MeshBasicMaterial({color:palette[i%palette.length],transparent:true,opacity:.9}));
-        sphere.position.set(x+(Math.random()-.5)*1.2,terrainHeight(x,z)+.25+Math.random()*.55,z+(Math.random()-.5)*1.2);
-        sphere.userData={vx:(Math.random()-.5)*3.2*power,vy:1.3+Math.random()*3.4*power,vz:(Math.random()-.5)*3.2*power,life:.45+Math.random()*.55,smoke:false};
-        scene.add(sphere); particlePool.push(sphere);
-      }
-      for(let i=0;i<Math.max(2,Math.round(power*3));i++) {
-        const smoke=new THREE.Mesh(new THREE.SphereGeometry(.26+Math.random()*.25,7,6),new THREE.MeshBasicMaterial({color:0x3b4039,transparent:true,opacity:.3,depthWrite:false}));
-        smoke.position.set(x+(Math.random()-.5)*.7,terrainHeight(x,z)+.6,z+(Math.random()-.5)*.7);
-        smoke.userData={vx:(Math.random()-.5)*.35,vy:.45+Math.random()*.55,vz:(Math.random()-.5)*.35,life:1.4+Math.random()*.7,smoke:true};
-        scene.add(smoke); particlePool.push(smoke);
-      }
-      const light=new THREE.PointLight(isBurn?0xffc247:color,isBurn?4.8:3.2,18); light.position.set(x,3.2,z); scene.add(light); setTimeout(()=>scene.remove(light),180);
-      cameraShake=Math.min(1.1,cameraShake+(isBurn?.35:.2)*power);
-    }
 
     function showVictory(bull) {
       const el=$('victoryFlash'); el.className=bull?'show':'show bear'; setTimeout(()=>el.className='',430); playVictory(bull);
@@ -449,11 +368,33 @@
       tick(); setInterval(tick,60000);
     }
 
-    function calcWalls() {
-      let bid=0, ask=0;
-      Object.keys(localBids).map(Number).sort((a,b)=>b-a).slice(0,12).forEach(p=>bid+=p*(localBids[p]||0));
-      Object.keys(localAsks).map(Number).sort((a,b)=>a-b).slice(0,12).forEach(p=>ask+=p*(localAsks[p]||0));
-      return {buy:bid/1e6,sell:ask/1e6};
+    function applyLiveBook(mid) {
+      if (!(mid > 0) || !window.LUNCBattle || !LUNCBattle.market) return;
+      const st = LUNCBattle.market.updateFromMaps(mid, localBids, localAsks, LUNCBattle.DataTruth.LIVE, 'binance');
+      if (st.buyWallM != null && st.buyWallM > 0.01) buyWall = Math.max(0.25, Math.min(12, st.buyWallM));
+      if (st.sellWallM != null && st.sellWallM > 0.01) sellWall = Math.max(0.25, Math.min(12, st.sellWallM));
+      if (LUNCBattle.ui) {
+        LUNCBattle.ui.lastBookImbalance = st.imbalance || 0;
+        LUNCBattle.ui.lastBookTruth = LUNCBattle.DataTruth.LIVE;
+        LUNCBattle.ui.lastZones = st.zones;
+      }
+      renderLiquidityHud(st.zones);
+    }
+
+    function renderLiquidityHud(zones) {
+      const el = document.getElementById('liquidityZones');
+      if (!el) return;
+      if (!zones || zones.truth === 'UNAVAILABLE') {
+        el.textContent = 'UNAVAILABLE — no live order book';
+        return;
+      }
+      const fmt = u => u >= 1e6 ? '$'+(u/1e6).toFixed(2)+'M' : '$'+(u/1e3).toFixed(0)+'K';
+      const row = (side) => (zones[side] || []).map(z =>
+        z.label.replace(' defense','').replace(' wall','') + ' ' + fmt(z.usd)
+      ).join(' · ');
+      el.innerHTML = '<div class="micro"><span class="qual live">(live zones)</span></div>'
+        + '<div class="micro">Bid: ' + row('bids') + '</div>'
+        + '<div class="micro">Ask: ' + row('asks') + '</div>';
     }
 
     function connectBinance(symbol,futuresSymbol=null) {
@@ -472,7 +413,8 @@
               localBids={}; localAsks={};
               msg.bids.forEach(l=>{const p=+l[0],q=+l[1];if(q>0)localBids[p]=q;});
               msg.asks.forEach(l=>{const p=+l[0],q=+l[1];if(q>0)localAsks[p]=q;});
-              const w=calcWalls(); if(w.buy>.01)buyWall=w.buy;if(w.sell>.01)sellWall=w.sell;
+              const midPx = price > 0 ? price : ((Object.keys(localBids).length && Object.keys(localAsks).length) ? (Math.max(...Object.keys(localBids).map(Number))+Math.min(...Object.keys(localAsks).map(Number)))/2 : 0);
+              applyLiveBook(midPx || price);
               lastDepthTs=Date.now(); depthSource=SRC.BINANCE;
             }
             updateStatusUI();
@@ -515,26 +457,54 @@
       if(tokens[current].symbol) connectBinance(tokens[current].symbol,tokens[current].futures);
     }
 
-    // Local bridge is intentionally disabled on public GitHub Pages. Enable only on localhost,
-    // or pass ?bridge=https://your-bridge.example/snapshot if a HTTPS bridge is deployed.
-    let bridgeTimer=null;
-    function bridgeUrl() {
-      const q=new URLSearchParams(location.search).get('bridge');
-      if(q && /^https:\/\//i.test(q)) return q;
-      if(location.hostname==='localhost'||location.hostname==='127.0.0.1') return 'http://127.0.0.1:8787/snapshot';
-      return null;
-    }
-    async function pollBridge(url) {
+    // Primary market bridge: HTTPS ?api=…/snapshot (no localhost on Pages)
+    let apiTimer = null;
+    async function pollApiSnapshot() {
+      if (!window.LUNCBattle || !LUNCBattle.market) return;
+      const snap = await LUNCBattle.market.fetchSnapshot();
+      if (snap.truth !== LUNCBattle.DataTruth.LIVE || !snap.data) return;
+      const s = snap.data;
       try {
-        const r=await fetch(url,{cache:'no-store'}); if(!r.ok)throw new Error('HTTP '+r.status);
-        const s=await r.json(); if(!s||!s.market)throw new Error('Bad snapshot');
-        if(s.market.price>0){applySpot(s.market.price,SRC.BRIDGE);priceSource=SRC.BRIDGE;}
-        if(s.walls){if(s.walls.buyM>0)buyWall=s.walls.buyM;if(s.walls.sellM>0)sellWall=s.walls.sellM;if(s.walls.quality==='live')depthSource=SRC.BINANCE;}
-        if(s.ecosystem){if(s.ecosystem.chainTvlUsd)$('tvlValue').textContent=fmtUsd(s.ecosystem.chainTvlUsd);const pr=s.ecosystem.protocols||{};if(pr.terraport)$('tvlTerraport').textContent=fmtUsd(pr.terraport.tvlUsd);if(pr.garuda)$('tvlGaruda').textContent=fmtUsd(pr.garuda.tvlUsd);if(pr.juris)$('tvlJuris').textContent=fmtUsd(pr.juris.tvlUsd);}
+        if (s.market && s.market.price > 0) {
+          applySpot(s.market.price, SRC.BRIDGE);
+          priceSource = SRC.BRIDGE;
+        }
+        if (s.book && s.book.bids && s.book.asks && s.market && s.market.price > 0) {
+          const st = LUNCBattle.market.updateFromBook(s.market.price, s.book.bids, s.book.asks, LUNCBattle.DataTruth.LIVE, 'api');
+          if (st.buyWallM > 0.01) buyWall = Math.max(0.25, Math.min(12, st.buyWallM));
+          if (st.sellWallM > 0.01) sellWall = Math.max(0.25, Math.min(12, st.sellWallM));
+          depthSource = SRC.BINANCE; // live book quality from API
+          lastDepthTs = Date.now();
+          if (LUNCBattle.ui) {
+            LUNCBattle.ui.lastBookImbalance = st.imbalance || 0;
+            LUNCBattle.ui.lastBookTruth = LUNCBattle.DataTruth.LIVE;
+            LUNCBattle.ui.lastZones = st.zones;
+          }
+          renderLiquidityHud(st.zones);
+        } else if (s.walls) {
+          if (s.walls.buyM > 0) buyWall = s.walls.buyM;
+          if (s.walls.sellM > 0) sellWall = s.walls.sellM;
+          if (s.walls.quality === 'live') depthSource = SRC.BINANCE;
+          if (s.walls.zones) renderLiquidityHud(s.walls.zones);
+        }
+        if (s.ecosystem) {
+          if (s.ecosystem.chainTvlUsd) $('tvlValue').textContent = fmtUsd(s.ecosystem.chainTvlUsd);
+          const pr = s.ecosystem.protocols || {};
+          if (pr.terraport) $('tvlTerraport').textContent = fmtUsd(pr.terraport.tvlUsd);
+          if (pr.garuda) $('tvlGaruda').textContent = fmtUsd(pr.garuda.tvlUsd);
+          if (pr.juris) $('tvlJuris').textContent = fmtUsd(pr.juris.tvlUsd);
+        }
         updateStatusUI();
-      } catch(_) {}
+      } catch (e) { console.warn('[api snapshot]', e.message || e); }
     }
-    function startBridgePoll() { const u=bridgeUrl(); if(!u||bridgeTimer)return; pollBridge(u); bridgeTimer=setInterval(()=>pollBridge(u),3000); }
+    function startApiPoll() {
+      if (!window.LUNCBattle || !LUNCBattle.config.apiBase || apiTimer) return;
+      pollApiSnapshot();
+      apiTimer = setInterval(pollApiSnapshot, 3000);
+      pushFeed('HTTPS API bridge enabled (' + LUNCBattle.config.apiBase + ')', 'info');
+    }
+
+
 
     setInterval(()=>{
       if(Date.now()-lastPriceTs>50000&&priceSource!==SRC.SIM){priceSource=SRC.SIM;isLive=false;updateStatusUI();}
@@ -624,11 +594,11 @@
 
     addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio||1,innerWidth<760?1.35:1.8));});
 
-    startPriceFeeds(); startContextFeeds(); startBridgePoll(); updateStatusUI();
+    startPriceFeeds(); startContextFeeds(); startApiPoll(); updateStatusUI();
     pushFeed('LUNC Battlefield v7 · classic RTS rebuild','win');
     pushFeed('Market pressure moves formations and the contested front','info');
     pushFeed('Public build uses HTTPS-safe data feeds','info');
 
-    setInterval(function(){ if(window.LUNCBattle&&LUNCBattle.ui){ LUNCBattle.ui.lastMomentum=Math.max(-1,Math.min(1,momentum)); LUNCBattle.ui.lastMomentumTruth=(priceSource!==SRC.SIM)?LUNCBattle.DataTruth.LIVE:LUNCBattle.DataTruth.SIMULATED; LUNCBattle.ui.lastBookTruth=(depthSource===SRC.BINANCE)?LUNCBattle.DataTruth.LIVE:LUNCBattle.DataTruth.ESTIMATED; LUNCBattle.ui.lastBookImbalance=(buyWall+sellWall)>0?(buyWall-sellWall)/(buyWall+sellWall):0; } }, 2000);
+    setInterval(function(){ if(window.LUNCBattle&&LUNCBattle.ui){ LUNCBattle.ui.lastMomentum=Math.max(-1,Math.min(1,momentum)); LUNCBattle.ui.lastMomentumTruth=(priceSource!==SRC.SIM)?LUNCBattle.DataTruth.LIVE:LUNCBattle.DataTruth.SIMULATED; if(depthSource!==SRC.BINANCE){ LUNCBattle.ui.lastBookTruth=LUNCBattle.DataTruth.ESTIMATED; LUNCBattle.ui.lastBookImbalance=(buyWall+sellWall)>0?(buyWall-sellWall)/(buyWall+sellWall):0; } if(typeof LUNCBattle.ui.tickStrength==='function') LUNCBattle.ui.tickStrength(); } }, 2000);
     animate();
   })();
