@@ -1,0 +1,39 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Syntax-check frontend JS
+        run: |
+          set -e
+          for f in js/*.js; do
+            echo "node --check $f"
+            node --check "$f"
+          done
+
+      - name: Syntax-check backend JS
+        working-directory: backend
+        run: |
+          set -e
+          node --check src/index.js
+          for f in src/lib/*.js src/providers/*.js src/routes/*.js tests/*.js; do
+            echo "node --check $f"
+            node --check "$f"
+          done
+
+      - name: Backend unit/smoke tests
+        working-directory: backend
+        env:
+          OFFLINE: '1'
+        run: npm test
