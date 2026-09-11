@@ -3,7 +3,7 @@
 
     // =====================================================
     // LUNC ECOSYSTEM BATTLEFIELD v8 — RTS GRAPHICS OVERHAUL
-    // v8.1 terrain + environment
+    // v8.1 terrain + environment · v8.2 articulated units + anim
     // Original procedural art only. No third-party game assets.
     // =====================================================
 
@@ -710,14 +710,24 @@
 
     function maybeFire(u,enemyColor,dt) {
       u.userData.shot-=dt;
-      if(u.userData.shot>0) return;
+      if(u.userData.shot>0) return false;
       const front=Math.abs(u.position.x-targetX);
       const base=u.userData.type===2?3.7:u.userData.type===1?2.5:1.7;
       u.userData.shot=base+Math.random()*base*1.8;
       if(front<24 && Math.random()<.42) {
         const side=u.userData.side, to=targetX+side*(Math.random()*5-2.5), z=u.position.z+(Math.random()-.5)*4;
         launchStrike(u.position.x+side*-1.0,to,z,side<0?tokens[current].color:0xe4675f,u.userData.type===2?1.1:.55);
+        if (unitsApi && unitsApi.setAnimState) {
+          unitsApi.setAnimState(u, (window.LUNCBattle && LUNCBattle.animations && LUNCBattle.animations.STATES.FIRE) || 'FIRE', performance.now()*.001);
+        } else {
+          u.userData.animState = 'FIRE';
+          u.userData.fireUntil = performance.now()*.001 + (u.userData.type===2?0.28:0.18);
+          u.userData.reloadUntil = u.userData.fireUntil + (u.userData.type===2?1.6:0.7);
+          u.userData.recoil = 1;
+        }
+        return true;
       }
+      return false;
     }
 
     // -------------------- Animation --------------------
@@ -730,14 +740,35 @@
 
       const now=performance.now()*.001;
       function moveArmy(arr,side) {
+        const momAbs = Math.abs(momentum);
+        const contested = momAbs < 0.055;
+        const urgent = momAbs > 0.12;
         arr.forEach(u=>{
           const type=u.userData.type, rank=type===0?0:type===1?1:2;
           const desired=targetX+side*(7.8+rank*6.2+Math.floor((u.userData.index||0)/(type===0?8:5))*1.6);
-          const dx=desired-u.position.x; u.position.x+=dx*Math.min(1,dt*(type===0?1.45:.85));
-          const baseY=terrainHeight(u.position.x,u.position.z);
-          u.position.y=baseY+(type===0?Math.abs(Math.sin(now*3.1+u.userData.phase))*.035:0);
-          if(type===0) u.rotation.z=Math.sin(now*3.3+u.userData.phase)*.025;
-          maybeFire(u,side<0?0xe4675f:tokens[current].color,dt);
+          const dx=desired-u.position.x;
+          // Speed from momentum urgency: stronger |momentum| → faster approach
+          let rate;
+          if (type === 0) rate = urgent ? 2.1 : contested ? 0.55 : 1.35;
+          else if (type === 1) rate = urgent ? 0.95 : contested ? 0.35 : 0.7;
+          else rate = contested ? 0.12 : 0.28; // arty mostly holds rear
+          // Near desired + contested → idle more (slow crawl)
+          if (contested && Math.abs(dx) < 1.2) rate *= 0.25;
+          const step = dx * Math.min(1, dt * rate);
+          const prevX = u.position.x;
+          u.position.x += step;
+          const speed = Math.abs(step) / Math.max(dt, 1e-4);
+          u.userData.speed = speed;
+          u.userData.velX = (u.position.x - prevX) / Math.max(dt, 1e-4);
+          // Feet on ground; infantry may add tiny root bob from limb anim
+          const baseY = terrainHeight(u.position.x, u.position.z);
+          u.position.y = baseY + (u.userData.rootBob || 0);
+          // Orient toward enemy frontline (±x)
+          u.userData.facing = side < 0 ? Math.PI / 2 : -Math.PI / 2;
+          maybeFire(u, side<0?0xe4675f:tokens[current].color, dt);
+          if (unitsApi && unitsApi.tickUnit) {
+            unitsApi.tickUnit(u, dt, now, { momentum: momentum, targetX: targetX, mobile: mobileGfx });
+          }
         });
       }
       moveArmy(bulls,-1); moveArmy(bears,1);
@@ -762,7 +793,7 @@
     addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio||1,innerWidth<760?1.35:1.8));});
 
     updateStatusUI();
-    pushFeed('Battlefield v8.1 · terrain & environment overhaul','win');
+    pushFeed('Battlefield v8.2 · articulated units','win');
     pushFeed('Market pressure moves formations and the contested front','info');
     pushFeed('Public build uses HTTPS-safe data feeds','info');
     animate();

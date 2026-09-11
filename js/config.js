@@ -56,7 +56,7 @@
   };
 
   const config = {
-    BUILD: 'v8.1',
+    BUILD: 'v8.2',
     TITLE: 'LUNC Ecosystem Battlefield v8',
     DataTruth,
     tokens,
