@@ -1,4 +1,4 @@
-/* LUNC Battlefield v7 — shared config (GitHub Pages safe) */
+/* LUNC Battlefield v7.1 — shared config (GitHub Pages safe) */
 (function (global) {
   'use strict';
   const DataTruth = Object.freeze({
@@ -17,11 +17,36 @@
     } catch (_) { return null; }
   }
 
+  /**
+   * apiBase may be:
+   *   https://worker.example
+   *   https://worker.example/api
+   * Worker dual-mounts /api/* AND bare /snapshot,/burns,/whales,/governance/...
+   * Normalize trailing /api so `apiBase + '/burns'` and `apiBase + '/snapshot'` work
+   * whether the user passed a root or an /api suffix.
+   */
+  function normalizeApiBase(raw) {
+    const cleaned = httpsOnly(raw);
+    if (!cleaned) return null;
+    try {
+      const u = new URL(cleaned);
+      // Strip trailing /api so joins like base+'/burns' hit Worker bare mount
+      // (Worker also serves /api/burns — either style is fine after normalize).
+      if (u.pathname === '/api' || u.pathname === '/api/') {
+        u.pathname = '';
+        return u.toString().replace(/\/$/, '');
+      }
+      return cleaned;
+    } catch (_) {
+      return cleaned;
+    }
+  }
+
   function resolveApiBase() {
     const q = new URLSearchParams(location.search).get('api');
-    if (q) return httpsOnly(q);
+    if (q) return normalizeApiBase(q);
     if (typeof global.LUNC_API_BASE === 'string' && global.LUNC_API_BASE) {
-      return httpsOnly(global.LUNC_API_BASE);
+      return normalizeApiBase(global.LUNC_API_BASE);
     }
     const bridge = new URLSearchParams(location.search).get('bridge');
     if (bridge && /^https:\/\//i.test(bridge)) {
@@ -29,9 +54,9 @@
         const u = new URL(bridge);
         if (u.pathname.endsWith('/snapshot')) {
           u.pathname = u.pathname.replace(/\/snapshot\/?$/, '');
-          return httpsOnly(u.toString());
+          return normalizeApiBase(u.toString());
         }
-        return httpsOnly(bridge.replace(/\/$/, ''));
+        return normalizeApiBase(bridge.replace(/\/$/, ''));
       } catch (_) {}
     }
     return null;
@@ -56,8 +81,8 @@
   };
 
   const config = {
-    BUILD: 'v7',
-    TITLE: 'LUNC Ecosystem Battlefield v7',
+    BUILD: 'v7.1',
+    TITLE: 'LUNC Ecosystem Battlefield v7.1',
     DataTruth,
     tokens,
     apiBase: resolveApiBase(),
