@@ -3,7 +3,7 @@
 
     // =====================================================
     // LUNC ECOSYSTEM BATTLEFIELD v8 — RTS GRAPHICS OVERHAUL
-    // v8.1 terrain + environment · v8.2 articulated units + anim
+    // v8.1 terrain · v8.2 units/anim · v8.3 faction bases & structures
     // Original procedural art only. No third-party game assets.
     // =====================================================
 
@@ -151,34 +151,19 @@
       scene.background = new THREE.Color(envApi.fog.background != null ? envApi.fog.background : 0x0c140e);
       scene.fog = new THREE.Fog(envApi.fog.fogColor, envApi.fog.fogNear, envApi.fog.fogFar);
     }
-    const stoneMat=mat(0x4e5446,.92,.02), darkMat=mat(0x18211a,.72,.18), woodMat=mat(0x493625,.9,.01), goldMat=mat(0xc8a85f,.5,.24);
+    const woodMat=mat(0x493625,.9,.01);
 
-    function addWall(group,x,z,w,d,sideMat) {
-      const wall=new THREE.Mesh(new THREE.BoxGeometry(w,1.05,d),sideMat); wall.position.set(x,.56,z); wall.castShadow=wall.receiveShadow=true; group.add(wall);
-      for (let i=-1;i<=1;i+=2) { const cap=new THREE.Mesh(new THREE.CylinderGeometry(.32,.38,1.4,8),stoneMat); cap.position.set(x+i*w*.47,.7,z); cap.castShadow=true; group.add(cap); }
-    }
-
-    function createBase(side,color) {
-      const g=new THREE.Group();
-      const accent=mat(color,.48,.22,color,.12);
-      const x=side*48;
-      const keep=new THREE.Mesh(new THREE.CylinderGeometry(3.1,3.75,3.8,8),stoneMat); keep.position.set(x,1.9,0); keep.castShadow=keep.receiveShadow=true; g.add(keep);
-      const roof=new THREE.Mesh(new THREE.ConeGeometry(3.45,2.1,8),darkMat); roof.position.set(x,4.75,0); roof.castShadow=true; g.add(roof);
-      const core=new THREE.Mesh(new THREE.CylinderGeometry(.72,.95,2.1,10),accent); core.position.set(x,4.0,0); core.castShadow=true; g.add(core);
-      const banner=new THREE.Mesh(new THREE.PlaneGeometry(1.6,2.2),new THREE.MeshStandardMaterial({color,roughness:.8,side:THREE.DoubleSide})); banner.position.set(x-side*3.82,3.15,0); banner.rotation.y=side<0?Math.PI/2:-Math.PI/2; g.add(banner);
-      addWall(g,x-side*1.4,-7,8,.65,stoneMat); addWall(g,x-side*1.4,7,8,.65,stoneMat);
-      const towerZ=[-11,11];
-      towerZ.forEach(z=>{
-        const t=new THREE.Mesh(new THREE.CylinderGeometry(1.0,1.25,3.5,8),stoneMat); t.position.set(x-side*1.2,1.75,z); t.castShadow=t.receiveShadow=true; g.add(t);
-        const top=new THREE.Mesh(new THREE.ConeGeometry(1.35,1.25,8),darkMat); top.position.set(x-side*1.2,4.1,z); top.castShadow=true; g.add(top);
-        const lamp=new THREE.PointLight(color,.65,12); lamp.position.set(x-side*1.2,4.7,z); g.add(lamp);
-      });
-      g.userData={side,color};
-      // Settle keep onto terrain height at gate x
-      g.position.y = terrainHeight(x, 0);
-      scene.add(g); return g;
-    }
-    const bullBase=createBase(-1,tokens[current].color), bearBase=createBase(1,0xe4675f);
+    // v8.3 — faction bases & structures (procedural, no GridHelper)
+    const structuresApi = (window.LUNCBattle && LUNCBattle.structures)
+      ? LUNCBattle.structures.createApi({ THREE, scene, terrainHeight, mat, mobile: mobileGfx })
+      : null;
+    if (!structuresApi) console.error('[LUNCBattle] structures.js failed to load');
+    const bullBase = structuresApi
+      ? structuresApi.createFactionBase(-1, tokens[current].color)
+      : new THREE.Group();
+    const bearBase = structuresApi
+      ? structuresApi.createFactionBase(1, 0xe4675f)
+      : new THREE.Group();
 
     // Soft frontier markers instead of a solid glowing wall.
     const frontGroup=new THREE.Group(); scene.add(frontGroup);
@@ -261,7 +246,7 @@
       const live = priceSource!==SRC.SIM;
       $('dataMode').textContent=live?('LIVE · '+priceLabel.toUpperCase()):'SIMULATION — price not live';
       $('dataMode').className=live?'live':'error';
-      $('agentStatus').textContent='Depth: '+depthLabel+' · build v7';
+      $('agentStatus').textContent='Depth: '+depthLabel+' · build v8.3';
       $('pair').textContent=tokens[current].name+' · '+priceLabel;
       if (window.LUNCBattle && LUNCBattle.ui) LUNCBattle.ui.lastDepthSourceLabel = depthLabel;
       updateWallLabels();
@@ -304,6 +289,7 @@
       priceSource=SRC.SIM; isLive=false; lastPriceTs=Date.now();
       depthSource=SRC.SIM; depthVendorLabel='Unavailable';
       bullLight.color.setHex(t.color);
+      if (structuresApi && structuresApi.setAccentColor) structuresApi.setAccentColor(-1, t.color);
       document.querySelectorAll('.token-btn').forEach(b=>b.classList.toggle('active',b.dataset.token===sym));
       rebuildUnits(); pushFeed('Command switched to '+sym,'win');
       if(t.symbol) connectBinance(t.symbol,t.futures); else closeExchangeSockets();
@@ -760,15 +746,14 @@
           const speed = Math.abs(step) / Math.max(dt, 1e-4);
           u.userData.speed = speed;
           u.userData.velX = (u.position.x - prevX) / Math.max(dt, 1e-4);
-          // Feet on ground; infantry may add tiny root bob from limb anim
-          const baseY = terrainHeight(u.position.x, u.position.z);
-          u.position.y = baseY + (u.userData.rootBob || 0);
           // Orient toward enemy frontline (±x)
           u.userData.facing = side < 0 ? Math.PI / 2 : -Math.PI / 2;
           maybeFire(u, side<0?0xe4675f:tokens[current].color, dt);
           if (unitsApi && unitsApi.tickUnit) {
             unitsApi.tickUnit(u, dt, now, { momentum: momentum, targetX: targetX, mobile: mobileGfx });
           }
+          // v8.3: apply rootBob after tickUnit so infantry bob is same-frame
+          u.position.y = terrainHeight(u.position.x, u.position.z) + (u.userData.rootBob || 0);
         });
       }
       moveArmy(bulls,-1); moveArmy(bears,1);
@@ -787,13 +772,14 @@
       if(cameraShake>.01){camera.position.x+=(Math.random()-.5)*cameraShake*.14;camera.position.y+=(Math.random()-.5)*cameraShake*.08;cameraShake*=.9;}
       bullLight.intensity=1.1+Math.sin(now*1.3)*.16; bearLight.intensity=1.05+Math.cos(now*1.25)*.14;
       if (envApi && typeof envApi.update === 'function') envApi.update(dt, now);
+      if (structuresApi && typeof structuresApi.updateStructures === 'function') structuresApi.updateStructures(dt, now);
       renderer.render(scene,camera);
     }
 
     addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio||1,innerWidth<760?1.35:1.8));});
 
     updateStatusUI();
-    pushFeed('Battlefield v8.2 · articulated units','win');
+    pushFeed('Battlefield v8.3 · faction bases & structures','win');
     pushFeed('Market pressure moves formations and the contested front','info');
     pushFeed('Public build uses HTTPS-safe data feeds','info');
     animate();
