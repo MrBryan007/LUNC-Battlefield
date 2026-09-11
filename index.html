@@ -71,10 +71,27 @@
     #victoryFlash.bear { background: radial-gradient(circle at center, rgba(248,113,113,0.22), transparent 70%); }
     #victoryFlash.show { opacity: 1; }
 
+    #dataLegend {
+      position: absolute; bottom: 40px; left: 12px; z-index: 40;
+      background: rgba(0,0,0,0.78); padding: 6px 10px; border-radius: 10px;
+      font-size: 9.5px; color: #94a3b8; border: 1px solid rgba(255,255,255,0.06);
+      line-height: 1.45; max-width: 280px;
+    }
+    #dataLegend strong { color: #e5e7eb; font-weight: 600; }
+    #dataLegend .tag-live { color: #34d399; }
+    #dataLegend .tag-est { color: #fbbf24; }
+    #dataLegend .tag-sim { color: #f87171; }
+    #dataLegend .tag-calc { color: #67e8f9; }
+    #dataLegend .tag-na { color: #64748b; }
+    .wall-label .qual { font-weight: 600; letter-spacing: 0.2px; }
+    .wall-label .qual.live { color: #34d399; }
+    .wall-label .qual.est { color: #fbbf24; }
+
     @media (max-width: 900px) {
       #leftPanel { display: none; }
       #rightPanel { width: 240px; max-height: 300px; top: 100px; }
       .price-big { font-size: 20px; }
+      #dataLegend { max-width: 200px; font-size: 9px; bottom: 36px; }
     }
   </style>
 </head>
@@ -98,11 +115,11 @@
       <div class="pressure contested" id="pressure">—</div>
     </div>
     <div class="walls">
-      <div><div class="wall-label">Buy Wall</div><strong id="buyWall">$—</strong></div>
-      <div><div class="wall-label">Sell Wall</div><strong id="sellWall">$—</strong></div>
-      <div><div class="wall-label">Terra Classic TVL</div><strong id="tvlValue" style="color:#67e8f9;">$—</strong></div>
-      <div><div class="wall-label">CMC MCap</div><strong id="cmcMcap" style="color:#a78bfa;">$—</strong></div>
-      <div><div class="wall-label">CMC Rank</div><strong id="cmcRank" style="color:#fbbf24;">—</strong></div>
+      <div><div class="wall-label" id="buyWallLabel">Buy Wall <span class="qual est">(est.)</span></div><strong id="buyWall">$—</strong></div>
+      <div><div class="wall-label" id="sellWallLabel">Sell Wall <span class="qual est">(est.)</span></div><strong id="sellWall">$—</strong></div>
+      <div><div class="wall-label">Terra Classic TVL <span class="qual live">(live)</span></div><strong id="tvlValue" style="color:#67e8f9;">$—</strong></div>
+      <div><div class="wall-label">CoinGecko MCap <span class="qual live">(live)</span></div><strong id="cmcMcap" style="color:#a78bfa;">$—</strong></div>
+      <div><div class="wall-label">CoinGecko Rank <span class="qual live">(live)</span></div><strong id="cmcRank" style="color:#fbbf24;">—</strong></div>
     </div>
   </div>
 
@@ -131,7 +148,8 @@
       </div>
     </div>
     <div style="margin-top:10px; font-size:10px; opacity:0.55;">
-      DefiLlama · CoinGecko · Binance
+      Prices: DefiLlama → CoinGecko · Depth: Binance if open<br>
+      Walls without Binance = estimated, not live book
     </div>
   </div>
 
@@ -141,6 +159,14 @@
   </div>
 
   <div id="hint">WASD move • Drag orbit • Scroll zoom</div>
+  <div id="dataLegend">
+    <strong>Data truth</strong><br>
+    <span class="tag-live">LIVE</span> = API/stream &nbsp;·&nbsp;
+    <span class="tag-est">ESTIMATED</span> = calculated guess<br>
+    <span class="tag-calc">CALCULATED</span> = derived math &nbsp;·&nbsp;
+    <span class="tag-sim">SIM</span> = demo only<br>
+    <span class="tag-na">UNAVAILABLE</span> = feed down / not wired
+  </div>
   <div id="dataMode">CONNECTING…</div>
   <div id="agentStatus" style="position:absolute;bottom:40px;right:12px;z-index:40;background:rgba(0,0,0,0.75);padding:4px 11px;border-radius:18px;font-size:10px;color:#94a3b8;border:1px solid rgba(255,255,255,0.06);max-width:220px;text-align:right;"></div>
 
@@ -572,19 +598,31 @@
       }
     }
 
+    function updateWallLabels() {
+      const liveDepth = depthSource === SRC.BINANCE;
+      const mark = liveDepth
+        ? '<span class="qual live">(live)</span>'
+        : '<span class="qual est">(est.)</span>';
+      const buyL = document.getElementById("buyWallLabel");
+      const sellL = document.getElementById("sellWallLabel");
+      if (buyL) buyL.innerHTML = "Buy Wall " + mark;
+      if (sellL) sellL.innerHTML = "Sell Wall " + mark;
+    }
+
     function updateStatusUI() {
       const priceLabel = priceSource === SRC.GECKO ? "CoinGecko"
                        : priceSource === SRC.BINANCE ? "Binance"
                        : priceSource === SRC.LLAMA ? "DefiLlama"
                        : "Sim";
-      const depthLabel = depthSource === SRC.BINANCE ? "Binance depth"
-                       : "Est. walls";
+      const depthLabel = depthSource === SRC.BINANCE ? "Binance depth (LIVE)"
+                       : "Est. walls (NOT live order book)";
       const ok = priceSource !== SRC.SIM;
       setStatus(
-        ok ? ("PRICE · " + priceLabel.toUpperCase()) : "SIMULATION",
+        ok ? ("PRICE · " + priceLabel.toUpperCase()) : "SIMULATION — price not live",
         "Depth: " + depthLabel,
         ok
       );
+      updateWallLabels();
     }
 
     function applySpot(next, source) {
@@ -820,7 +858,7 @@
       } catch(e) {}
     }
 
-    async function fetchCMC() {
+    async function fetchGeckoMarkets() {
       const t = tokens[current];
       if (!t || !t.gecko) return;
       try {
@@ -846,7 +884,7 @@
         fetchProtocolTvl("terraport", "tvlTerraport");
         fetchProtocolTvl("garudadefi", "tvlGaruda");
         fetchProtocolTvl("juris-protocol", "tvlJuris");
-        fetchCMC();
+        fetchGeckoMarkets();
       };
       tick();
       setInterval(tick, 55000);
@@ -1089,7 +1127,8 @@
       renderer.setSize(innerWidth, innerHeight);
     });
 
-    pushFeed("Prices: DefiLlama, then CoinGecko. Depth: Binance if the stream opens.", "info");
+    pushFeed("Prices: DefiLlama, then CoinGecko (LIVE when connected).", "info");
+    pushFeed("Walls are ESTIMATED unless Binance depth is live. Sim burns ≠ chain burns.", "info");
     pushFeed("Click anywhere to enable sound", "info");
   </script>
 </body>
