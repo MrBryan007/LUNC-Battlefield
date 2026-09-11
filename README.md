@@ -1,26 +1,37 @@
-# LUNC Ecosystem Battlefield
-
-RTS-style 3D market battlefield for Terra Luna Classic (v6).
+# LUNC Ecosystem Battlefield v6
 
 **Live site:** https://mrbryan007.github.io/LUNC-Battlefield/
 
-## Data truth
 
-| Metric | Source | Mode |
-| --- | --- | --- |
-| LUNC / USTC / JURIS price | DefiLlama → CoinGecko; Binance spot when the WS opens | **LIVE** when connected, else **SIM** |
-| Buy / sell walls | Binance depth when connected | **LIVE**; otherwise **ESTIMATED** (not a real order book) |
-| Liquidations | Binance futures forceOrder | **LIVE** when stream opens — LUNC uses `1000LUNCUSDT`, USTC uses `USTCUSDT` |
-| Chain / protocol TVL | DefiLlama | **LIVE** |
-| Market cap / rank | CoinGecko | **LIVE** |
-| Burn flares in the feed | Local demo effect | **SIM** — not on-chain burns |
+A classic-RTS-inspired visual rebuild of the LUNC Ecosystem Battlefield.
 
-## Local data bridge
+## What changed
 
-The optional snapshot bridge at `http://127.0.0.1:8787/snapshot` is **disabled on GitHub Pages**. It only runs on `localhost` / `127.0.0.1`, or when you pass an HTTPS URL: `?bridge=https://your-bridge.example/snapshot`.
+- Removed the visible grid/Tetris-like battlefield presentation.
+- Rebuilt terrain with procedural elevation and vertex coloring.
+- Added original fortified bases, watchtowers, banners, rocks, shrubs and a worn central combat lane.
+- Rebuilt infantry, armor and artillery from rounded/low-poly primitives instead of box-heavy units.
+- Armies now deploy in formations and advance with the live market front.
+- Replaced the giant glowing battle wall with a softer movable frontier of posts/flags.
+- Rebuilt explosions with spherical fire/smoke particles rather than cubes.
+- Added shadows, fog, RTS camera limits, atmospheric lighting and a more era-appropriate command HUD.
+- Renamed misleading `CMC MCap` / `CMC Rank` labels to `Market cap` / `Market rank` because the data source is CoinGecko.
+- Public GitHub Pages no longer polls `http://127.0.0.1:8787`. Local bridge polling runs only on localhost, or from an explicit HTTPS `?bridge=` URL.
+- Binance spot depth remains optional; the app falls back gracefully to DefiLlama/CoinGecko and estimated walls.
+- Binance USD-M liquidation stream uses the raw `/ws/<symbol>@forceOrder` form, with the actual `1000LUNCUSDT` futures contract for LUNC and `USTCUSDT` for USTC.
 
-## Controls
+## Deploy
 
-WASD move · drag orbit · scroll zoom. Token bar: LUNC / USTC / JURIS.
+Replace the repository's existing `index.html` with this `index.html` and commit to `main`. GitHub Pages should redeploy automatically if Pages is already configured for the branch.
 
-Original classic-RTS battlefield feel (terrain, bases, units, fog, frontline) — no copyrighted game assets.
+## Optional bridge
+
+On localhost, the page looks for:
+
+`http://127.0.0.1:8787/snapshot`
+
+For a public HTTPS bridge, open the page with:
+
+`?bridge=https://your-domain.example/snapshot`
+
+Only use a trusted bridge that returns the expected snapshot shape.
