@@ -35,3 +35,8 @@ For a public HTTPS bridge, open the page with:
 `?bridge=https://your-domain.example/snapshot`
 
 Only use a trusted bridge that returns the expected snapshot shape.
+
+
+## Data truth legend (on-page)
+
+The HUD marks buy/sell walls as **(live)** only when Binance depth is connected; otherwise **(est.)**. Market cap/rank are labeled CoinGecko. A LIVE / ESTIMATED / CALCULATED / SIM / UNAVAILABLE legend sits on the page.
