@@ -159,7 +159,8 @@
     limit = limit || (LB.config.binanceRestDepthLimit || 1000);
     if (!symbol) return { truth: DT.UNAVAILABLE, reason: 'No symbol' };
     try {
-      const u = 'https://api.binance.com/api/v3/depth?symbol=' + encodeURIComponent(symbol.toUpperCase()) + '&limit=' + limit;
+      const base = (LB.config.binanceRestBase || 'https://data-api.binance.vision').replace(/\/$/, '');
+      const u = base + '/api/v3/depth?symbol=' + encodeURIComponent(symbol.toUpperCase()) + '&limit=' + limit;
       const r = await fetch(u, { cache: 'no-store' });
       if (!r.ok) throw new Error('HTTP ' + r.status);
       const data = await r.json();

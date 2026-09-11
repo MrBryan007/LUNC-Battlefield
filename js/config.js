@@ -39,12 +39,12 @@
 
   const tokens = {
     LUNC: {
-      name: 'LUNC/USDT', base: 0.00005346, color: 0x49d39a, hasBurns: true, decimals: 8,
+      name: 'LUNC/USDT', base: 0.00005122, color: 0x49d39a, hasBurns: true, decimals: 8,
       symbol: 'luncusdt', futures: '1000luncusdt', gecko: 'terra-luna',
       battlefield: 'war'
     },
     USTC: {
-      name: 'USTC/USDT', base: 0.005579, color: 0x56b9d1, hasBurns: false, decimals: 5,
+      name: 'USTC/USDT', base: 0.00514, color: 0x56b9d1, hasBurns: false, decimals: 5,
       symbol: 'ustcusdt', futures: 'ustcusdt', gecko: 'terrausd',
       battlefield: 'repeg', objective: 1.0
     },
@@ -75,7 +75,9 @@
       { min: 1e9, label: 'massive battlefield event' }
     ],
     // Prefer deeper REST snapshot; WS only refreshes near market
-    binanceRestDepthLimit: 1000
+    binanceRestDepthLimit: 1000,
+    // api.binance.com often 451 in restricted regions; vision mirrors public market data
+    binanceRestBase: 'https://data-api.binance.vision'
   };
 
   global.LUNCBattle = global.LUNCBattle || {};

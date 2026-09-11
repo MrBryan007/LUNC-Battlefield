@@ -7,8 +7,8 @@
     // =====================================================
 
     const tokens = {
-      LUNC:  { name: 'LUNC/USDT', base: 0.00005346, color: 0x49d39a, hasBurns: true,  decimals: 8, symbol: 'luncusdt', futures: '1000luncusdt', gecko: 'terra-luna' },
-      USTC:  { name: 'USTC/USDT', base: 0.005579,   color: 0x56b9d1, hasBurns: false, decimals: 5, symbol: 'ustcusdt', futures: 'ustcusdt', gecko: 'terrausd' },
+      LUNC:  { name: 'LUNC/USDT', base: 0.00005122, color: 0x49d39a, hasBurns: true,  decimals: 8, symbol: 'luncusdt', futures: '1000luncusdt', gecko: 'terra-luna' },
+      USTC:  { name: 'USTC/USDT', base: 0.00514,    color: 0x56b9d1, hasBurns: false, decimals: 5, symbol: 'ustcusdt', futures: 'ustcusdt', gecko: 'terrausd' },
       JURIS: { name: 'JURIS',     base: 0.00000245, color: 0xa791dc, hasBurns: false, decimals: 8, symbol: null, futures: null, gecko: 'juris-protocol' }
     };
 
@@ -297,19 +297,26 @@
 
     function applySpot(next,source) {
       if(!(next>0)) return;
+      // Prefer live exchange ticks; allow Llama/Gecko to refresh when Binance is stale or absent
+      const binanceFresh = priceSource===SRC.BINANCE && (Date.now()-lastPriceTs) < 15000;
+      if (binanceFresh && source!==SRC.BINANCE) return;
       lastPrice=price; price=next; lastPriceTs=Date.now();
       priceHistory.push(price); if(priceHistory.length>48) priceHistory.shift();
-      if(priceSource!==SRC.BINANCE || source===SRC.BINANCE) priceSource=source;
-      isLive=true;
+      priceSource=source;
+      isLive = source!==SRC.SIM;
     }
 
-    function setToken(sym) {
+        function setToken(sym) {
       current=sym; const t=tokens[sym];
       price=t.base; lastPrice=price; rangeLow=price*.92; rangeHigh=price*1.08; priceHistory=[]; momentum=0;
+      priceSource=SRC.SIM; isLive=false; lastPriceTs=Date.now();
+      depthSource=SRC.SIM; depthVendorLabel='Unavailable';
       bullLight.color.setHex(t.color);
       document.querySelectorAll('.token-btn').forEach(b=>b.classList.toggle('active',b.dataset.token===sym));
       rebuildUnits(); pushFeed('Command switched to '+sym,'win');
       if(t.symbol) connectBinance(t.symbol,t.futures); else closeExchangeSockets();
+      // Immediate multi-source refresh so USTC/LUNC don't sit on stale base
+      fetchBinanceRestPrice(t.symbol);
       fetchLlama(); fetchGecko(); fetchMarketContext(); updateStatusUI();
     }
     document.querySelectorAll('.token-btn').forEach(btn=>btn.addEventListener('click',()=>setToken(btn.dataset.token)));
@@ -559,9 +566,17 @@
     }
 
     function startPriceFeeds() {
+      const t0 = tokens[current];
+      fetchBinanceRestPrice(t0.symbol);
       fetchLlama(); fetchGecko();
-      geckoTimer=setInterval(()=>{fetchLlama();fetchGecko();},22000);
-      if(tokens[current].symbol) connectBinance(tokens[current].symbol,tokens[current].futures);
+      geckoTimer=setInterval(()=>{
+        const t = tokens[current];
+        // Poll vision REST so USTC/LUNC stay accurate when WS is 451-blocked
+        fetchBinanceRestPrice(t.symbol);
+        fetchLlama();
+        fetchGecko();
+      },8000);
+      if(t0.symbol) connectBinance(t0.symbol,t0.futures);
     }
 
     // Primary market bridge: HTTPS ?api=…/snapshot (no localhost on Pages)
