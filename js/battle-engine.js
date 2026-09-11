@@ -306,7 +306,7 @@
       isLive = source!==SRC.SIM;
     }
 
-        function setToken(sym) {
+    function setToken(sym) {
       current=sym; const t=tokens[sym];
       price=t.base; lastPrice=price; rangeLow=price*.92; rangeHigh=price*1.08; priceHistory=[]; momentum=0;
       priceSource=SRC.SIM; isLive=false; lastPriceTs=Date.now();
@@ -332,6 +332,31 @@
       if(reconnectTimer){clearTimeout(reconnectTimer);reconnectTimer=null;}
       depthSource=SRC.SIM; depthVendorLabel='Unavailable';
       if(restDepthTimer){clearInterval(restDepthTimer);restDepthTimer=null;}
+    }
+
+    function binanceRestBase() {
+      const b = (window.LUNCBattle && LUNCBattle.config && LUNCBattle.config.binanceRestBase)
+        || 'https://data-api.binance.vision';
+      return String(b).replace(/\/$/, '');
+    }
+
+    async function fetchBinanceRestPrice(symbol) {
+      if (!symbol) return false;
+      try {
+        const u = binanceRestBase() + '/api/v3/ticker/bookTicker?symbol=' + encodeURIComponent(String(symbol).toUpperCase());
+        const r = await fetch(u, { cache: 'no-store' });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const d = await r.json();
+        const bid = +d.bidPrice, ask = +d.askPrice;
+        const mid = (bid > 0 && ask > 0) ? (bid + ask) / 2 : +d.price;
+        if (!(mid > 0)) throw new Error('No price');
+        applySpot(mid, SRC.BINANCE);
+        updateStatusUI();
+        return true;
+      } catch (e) {
+        console.warn('[Binance REST price]', e.message || e);
+        return false;
+      }
     }
 
     async function fetchLlama() {
@@ -511,7 +536,15 @@
             updateStatusUI();
           } catch(_) {}
         };
-        spotWs.onclose=()=>{ if(depthSource===SRC.BINANCE){ depthSource=SRC.SIM; depthVendorLabel='Unavailable'; } if(priceSource===SRC.BINANCE)priceSource=SRC.GECKO; updateStatusUI(); scheduleReconnect(symbol,futuresSymbol); };
+        spotWs.onclose=()=>{
+          if(depthSource===SRC.BINANCE){ depthSource=SRC.SIM; depthVendorLabel='Unavailable'; }
+          if(priceSource===SRC.BINANCE) priceSource=SRC.GECKO;
+          // Don't leave a stale LIVE·Binance zones badge when the book socket dies
+          const zel=document.getElementById('liquidityZones');
+          if(zel && depthSource===SRC.SIM) zel.textContent='UNAVAILABLE — live order book disconnected';
+          if(window.LUNCBattle&&LUNCBattle.ui){ LUNCBattle.ui.lastBookTruth=LUNCBattle.DataTruth.UNAVAILABLE; LUNCBattle.ui.lastZones=null; }
+          updateStatusUI(); scheduleReconnect(symbol,futuresSymbol);
+        };
         spotWs.onerror=()=>{};
       } catch(_) { scheduleReconnect(symbol,futuresSymbol); }
 
@@ -662,7 +695,13 @@
 
     setInterval(()=>{
       if(Date.now()-lastPriceTs>50000&&priceSource!==SRC.SIM){priceSource=SRC.SIM;isLive=false;updateStatusUI();}
-      if((depthSource===SRC.BINANCE||depthSource===SRC.API)&&Date.now()-lastDepthTs>25000){depthSource=SRC.SIM;depthVendorLabel='Unavailable';updateStatusUI();}
+      if((depthSource===SRC.BINANCE||depthSource===SRC.API)&&Date.now()-lastDepthTs>25000){
+        depthSource=SRC.SIM; depthVendorLabel='Unavailable';
+        const zel=document.getElementById('liquidityZones');
+        if(zel) zel.textContent='UNAVAILABLE — order book stale';
+        if(window.LUNCBattle&&LUNCBattle.ui){ LUNCBattle.ui.lastBookTruth=LUNCBattle.DataTruth.UNAVAILABLE; LUNCBattle.ui.lastZones=null; }
+        updateStatusUI();
+      }
     },3500);
 
     // -------------------- Battle simulation tied to market --------------------
@@ -748,7 +787,10 @@
 
     addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio||1,innerWidth<760?1.35:1.8));});
 
-    startPriceFeeds(); startContextFeeds(); startApiPoll(); updateStatusUI();
+    try { startPriceFeeds(); } catch (e) { console.warn('[startPriceFeeds]', e); }
+    try { startContextFeeds(); } catch (e) { console.warn('[startContextFeeds]', e); }
+    try { startApiPoll(); } catch (e) { console.warn('[startApiPoll]', e); }
+    updateStatusUI();
     pushFeed('LUNC Battlefield v7 · classic RTS rebuild','win');
     pushFeed('Market pressure moves formations and the contested front','info');
     pushFeed('Public build uses HTTPS-safe data feeds','info');
