@@ -1,42 +1,62 @@
-# LUNC Ecosystem Battlefield v6
+# LUNC Ecosystem Battlefield v7 — Live War Engine
+
+Classic-RTS-inspired Terra Classic intelligence battlefield.
 
 **Live site:** https://mrbryan007.github.io/LUNC-Battlefield/
 
+## Architecture (Phase 1)
 
-A classic-RTS-inspired visual rebuild of the LUNC Ecosystem Battlefield.
+```
+index.html
+css/battlefield.css
+js/config.js
+js/main.js
+js/market.js
+js/terra.js
+js/governance.js
+js/burns.js
+js/whales.js
+js/battle-engine.js
+js/units.js
+js/effects.js
+js/ui.js
+```
 
-## What changed
+v6 RTS visuals are preserved in `battle-engine.js`. `units.js` / `effects.js` are API stubs for further extraction.
 
-- Removed the visible grid/Tetris-like battlefield presentation.
-- Rebuilt terrain with procedural elevation and vertex coloring.
-- Added original fortified bases, watchtowers, banners, rocks, shrubs and a worn central combat lane.
-- Rebuilt infantry, armor and artillery from rounded/low-poly primitives instead of box-heavy units.
-- Armies now deploy in formations and advance with the live market front.
-- Replaced the giant glowing battle wall with a softer movable frontier of posts/flags.
-- Rebuilt explosions with spherical fire/smoke particles rather than cubes.
-- Added shadows, fog, RTS camera limits, atmospheric lighting and a more era-appropriate command HUD.
-- Renamed misleading `CMC MCap` / `CMC Rank` labels to `Market cap` / `Market rank` because the data source is CoinGecko.
-- Public GitHub Pages no longer polls `http://127.0.0.1:8787`. Local bridge polling runs only on localhost, or from an explicit HTTPS `?bridge=` URL.
-- Binance spot depth remains optional; the app falls back gracefully to DefiLlama/CoinGecko and estimated walls.
-- Binance USD-M liquidation stream uses the raw `/ws/<symbol>@forceOrder` form, with the actual `1000LUNCUSDT` futures contract for LUNC and `USTCUSDT` for USTC.
+## Data truth
 
-## Deploy
+Every metric/event is tagged **LIVE / CALCULATED / ESTIMATED / SIMULATED / UNAVAILABLE**.
 
-Replace the repository's existing `index.html` with this `index.html` and commit to `main`. GitHub Pages should redeploy automatically if Pages is already configured for the branch.
+| Feed | Status without HTTPS API |
+| --- | --- |
+| Prices (DefiLlama → CoinGecko; Binance spot if WS opens) | LIVE when connected |
+| Buy/sell walls | LIVE with Binance depth; else ESTIMATED |
+| Liquidations | LIVE on Binance futures (`1000LUNCUSDT` / `USTCUSDT`) |
+| TVL | LIVE via DefiLlama |
+| Burns / whales / governance / validators | **UNAVAILABLE** until `?api=` bridge exists |
+| Battle Strength Score | CALCULATED from available inputs only |
 
-## Optional bridge
+## HTTPS data bridge (Phase 2)
 
-On localhost, the page looks for:
+Public Pages must not use localhost.
 
-`http://127.0.0.1:8787/snapshot`
+Set a permanent API:
 
-For a public HTTPS bridge, open the page with:
+`https://mrbryan007.github.io/LUNC-Battlefield/?api=https://your-bridge.example`
 
-`?bridge=https://your-domain.example/snapshot`
+Optional legacy snapshot bridge (localhost or HTTPS only):
 
-Only use a trusted bridge that returns the expected snapshot shape.
+`?bridge=https://your-bridge.example/snapshot`
 
+Expected future routes: `/snapshot`, `/burns`, `/whales`, `/governance/proposals`, `/governance/validators`.
 
-## Data truth legend (on-page)
+## Token battlefields
 
-The HUD marks buy/sell walls as **(live)** only when Binance depth is connected; otherwise **(est.)**. Market cap/rank are labeled CoinGecko. A LIVE / ESTIMATED / CALCULATED / SIM / UNAVAILABLE legend sits on the page.
+- **LUNC** — main war map (burns, validators, gov, whales, book)
+- **USTC** — recovery/repeg toward $1 (no fake peg data)
+- **JURIS** — protocol/TVL focus (no Binance book/liqs)
+
+## Local note
+
+Simulated burn flares in the war feed (if shown) are labeled and are **not** chain burns.
