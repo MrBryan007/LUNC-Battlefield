@@ -155,6 +155,29 @@
 
   function getState() { return state; }
 
+  async function fetchBinanceSpotPrice(symbol) {
+    if (!symbol) return { truth: DT.UNAVAILABLE, reason: 'No symbol' };
+    try {
+      const base = (LB.config.binanceRestBase || 'https://data-api.binance.vision').replace(/\/$/, '');
+      const u = base + '/api/v3/ticker/bookTicker?symbol=' + encodeURIComponent(String(symbol).toUpperCase());
+      const r = await fetch(u, { cache: 'no-store' });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const data = await r.json();
+      const bid = +data.bidPrice, ask = +data.askPrice;
+      const mid = (bid > 0 && ask > 0) ? (bid + ask) / 2 : +data.price;
+      if (!(mid > 0)) throw new Error('No price');
+      return {
+        truth: DT.LIVE,
+        source: 'binance',
+        sourceLabel: 'Binance',
+        mid, bid, ask,
+        symbol: String(symbol).toUpperCase()
+      };
+    } catch (e) {
+      return { truth: DT.UNAVAILABLE, reason: String(e.message || e) };
+    }
+  }
+
   async function fetchBinanceRestDepth(symbol, limit) {
     limit = limit || (LB.config.binanceRestDepthLimit || 1000);
     if (!symbol) return { truth: DT.UNAVAILABLE, reason: 'No symbol' };
@@ -200,6 +223,7 @@
     getState,
     fetchSnapshot,
     fetchBridgeSnapshot: fetchSnapshot,
-    fetchBinanceRestDepth
+    fetchBinanceRestDepth,
+    fetchBinanceSpotPrice
   };
 })(window);
