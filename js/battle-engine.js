@@ -3,7 +3,7 @@
 
     // =====================================================
     // LUNC ECOSYSTEM BATTLEFIELD v8 — RTS GRAPHICS OVERHAUL
-    // v8.1 terrain · v8.2 units/anim · v8.3 faction bases & structures
+    // v8.1 terrain · v8.2 units/anim · v8.3 bases · v8.4 combat effects
     // Original procedural art only. No third-party game assets.
     // =====================================================
 
@@ -187,7 +187,13 @@
     const effectsApi = (window.LUNCBattle && LUNCBattle.effects)
       ? LUNCBattle.effects.createApi({
           THREE, scene, terrainHeight, projectilePool, particlePool,
-          onShake: (amp, power) => { cameraShake = Math.min(1.1, cameraShake + amp * power); }
+          mobile: mobileGfx,
+          structuresApi: structuresApi,
+          onShake: (amp, power) => {
+            // Tier caps: small≈0, tank≈0.15, large≈0.35, massive≈0.55
+            const add = Math.min(0.55, (amp || 0) * Math.min(1.35, power || 1));
+            cameraShake = Math.min(0.7, cameraShake + add);
+          }
         })
       : null;
     if (!unitsApi || !effectsApi) {
@@ -199,6 +205,21 @@
     function disposeArmy(arr) { unitsApi.disposeArmy(arr); }
     function launchStrike(fromX,toX,z,color,power=1) { effectsApi.launchStrike(fromX,toX,z,color,power); }
     function createExplosion(x,z,color,power=1,isBurn=false) { effectsApi.createExplosion(x,z,color,power,isBurn); }
+    function muzzleWorld(u) {
+      const off = u.userData && u.userData.muzzleOffset;
+      if (off && u.localToWorld) {
+        const v = off.clone();
+        u.updateMatrixWorld(true);
+        u.localToWorld(v);
+        return v;
+      }
+      const side = u.userData.side || -1;
+      return new THREE.Vector3(
+        u.position.x + side * -1.0,
+        u.position.y + 1.1,
+        u.position.z
+      );
+    }
 
     function rebuildUnits() {
       disposeArmy(bulls); disposeArmy(bears);
@@ -246,7 +267,7 @@
       const live = priceSource!==SRC.SIM;
       $('dataMode').textContent=live?('LIVE · '+priceLabel.toUpperCase()):'SIMULATION — price not live';
       $('dataMode').className=live?'live':'error';
-      $('agentStatus').textContent='Depth: '+depthLabel+' · build v8.3';
+      $('agentStatus').textContent='Depth: '+depthLabel+' · build v8.4';
       $('pair').textContent=tokens[current].name+' · '+priceLabel;
       if (window.LUNCBattle && LUNCBattle.ui) LUNCBattle.ui.lastDepthSourceLabel = depthLabel;
       updateWallLabels();
@@ -520,7 +541,7 @@
             const side=(o.S||'').toUpperCase();
             const sym=(o.s||futuresSymbol||'').toUpperCase();
             const ts = o.T || Date.now();
-            const power=Math.min(2.5,.7+usd/500000), zz=(Math.random()-.5)*14;
+            const zz=(Math.random()-.5)*14;
             const entry = (window.LUNCBattle && LUNCBattle.ui && LUNCBattle.ui.recordLiquidation)
               ? LUNCBattle.ui.recordLiquidation({
                   symbol: sym, side, amount, usd, timestamp: ts,
@@ -531,15 +552,28 @@
             if(side==='SELL') {
               // Longs liquidated → forced sells → bearish pressure on bulls
               pushFeed('LIVE LIQ · '+sym+' · LONG · qty '+amount+' · ~'+fmtUsd(usd)+' · '+when+' · Binance Futures','loss');
-              launchStrike(targetX+12,targetX-6,zz,0xe4675f,power);
-              createExplosion(targetX-6.5,zz,0xe4675f,power);
               buyWall=Math.max(.25,buyWall*.93);
             } else {
               // Shorts liquidated → forced buys → bullish pressure on bears
               pushFeed('LIVE LIQ · '+sym+' · SHORT · qty '+amount+' · ~'+fmtUsd(usd)+' · '+when+' · Binance Futures','liq');
-              launchStrike(targetX-12,targetX+6,zz,tokens[current].color,power);
-              createExplosion(targetX+6.5,zz,tokens[current].color,power);
               sellWall=Math.max(.25,sellWall*.93);
+            }
+            if (effectsApi && effectsApi.playLiquidationFX) {
+              effectsApi.playLiquidationFX({
+                side: side,
+                usd: usd,
+                classification: entry.classification,
+                targetX: targetX,
+                z: zz,
+                bullColor: tokens[current].color,
+                bearColor: 0xe4675f
+              });
+            } else if (side==='SELL') {
+              launchStrike(targetX+12,targetX-6,zz,0xe4675f,Math.min(2.5,.7+usd/500000));
+              createExplosion(targetX-6.5,zz,0xe4675f,Math.min(2.5,.7+usd/500000));
+            } else {
+              launchStrike(targetX-12,targetX+6,zz,tokens[current].color,Math.min(2.5,.7+usd/500000));
+              createExplosion(targetX+6.5,zz,tokens[current].color,Math.min(2.5,.7+usd/500000));
             }
             playLiq();
             if (window.LUNCBattle && LUNCBattle.ui && typeof LUNCBattle.ui.tickStrength==='function') {
@@ -690,7 +724,20 @@
       $('buyWall').textContent='$'+buyWall.toFixed(2)+'M'; $('sellWall').textContent='$'+sellWall.toFixed(2)+'M';
 
       if(Date.now()-lastRebuild>7000 && Math.random()<.17) rebuildUnits();
-      if(!isLive&&t.hasBurns&&Math.random()<.055){pushFeed('Simulated burn flare · not a chain event','burn');createExplosion(targetX+(Math.random()-.5)*8,(Math.random()-.5)*14,0xffbf47,1.2,true);playBurn();}
+      if(!isLive&&t.hasBurns&&Math.random()<.055){
+        pushFeed('Simulated burn flare · not a chain event','burn');
+        if (effectsApi && effectsApi.playBurnFX) {
+          effectsApi.playBurnFX({
+            amountLunc: 1e6,
+            truth: (window.LUNCBattle && LUNCBattle.DataTruth && LUNCBattle.DataTruth.SIMULATED) || 'SIMULATED',
+            x: targetX+(Math.random()-.5)*8,
+            z: (Math.random()-.5)*14
+          });
+        } else {
+          createExplosion(targetX+(Math.random()-.5)*8,(Math.random()-.5)*14,0xffbf47,1.2,true);
+        }
+        playBurn();
+      }
     }
     setInterval(updateBattleLogic,760);
 
@@ -701,8 +748,25 @@
       const base=u.userData.type===2?3.7:u.userData.type===1?2.5:1.7;
       u.userData.shot=base+Math.random()*base*1.8;
       if(front<24 && Math.random()<.42) {
-        const side=u.userData.side, to=targetX+side*(Math.random()*5-2.5), z=u.position.z+(Math.random()-.5)*4;
-        launchStrike(u.position.x+side*-1.0,to,z,side<0?tokens[current].color:0xe4675f,u.userData.type===2?1.1:.55);
+        const side=u.userData.side;
+        const toX=targetX+side*(Math.random()*5-2.5);
+        const z=u.position.z+(Math.random()-.5)*4;
+        const kind = u.userData.type===2 ? 'arty' : (u.userData.type===1 ? 'shell' : 'tracer');
+        const power = u.userData.type===2 ? 1.1 : (u.userData.type===1 ? 0.85 : 0.55);
+        const color = side<0 ? tokens[current].color : 0xe4675f;
+        const muz = muzzleWorld(u);
+        if (effectsApi && effectsApi.fireWeapon) {
+          effectsApi.fireWeapon({
+            from: { x: muz.x, y: muz.y, z: muz.z },
+            to: { x: toX, y: terrainHeight(toX, z) + 0.35, z: z },
+            kind: kind,
+            color: color,
+            power: power,
+            side: side
+          });
+        } else {
+          launchStrike(u.position.x+side*-1.0,toX,z,color,power);
+        }
         if (unitsApi && unitsApi.setAnimState) {
           unitsApi.setAnimState(u, (window.LUNCBattle && LUNCBattle.animations && LUNCBattle.animations.STATES.FIRE) || 'FIRE', performance.now()*.001);
         } else {
@@ -758,16 +822,20 @@
       }
       moveArmy(bulls,-1); moveArmy(bears,1);
 
-      for(let i=projectilePool.length-1;i>=0;i--){
-        const b=projectilePool[i],dx=b.userData.tx-b.position.x,step=Math.sign(dx)*b.userData.speed*dt;
-        b.position.x+=Math.abs(step)>Math.abs(dx)?dx:step; b.position.y+=Math.sin(now*10+i)*.015; b.userData.life-=dt;
-        if(Math.abs(dx)<.25||b.userData.life<=0){createExplosion(b.position.x,b.position.z,b.userData.color,b.userData.power*.75);scene.remove(b);projectilePool.splice(i,1);}
-      }
-      for(let i=particlePool.length-1;i>=0;i--){
-        const q=particlePool[i]; q.userData.life-=dt; q.position.x+=q.userData.vx*dt; q.position.y+=q.userData.vy*dt; q.position.z+=q.userData.vz*dt;
-        if(!q.userData.smoke) q.userData.vy-=5.1*dt; else q.scale.multiplyScalar(1+dt*.45);
-        q.material.opacity=Math.max(0,q.userData.smoke?q.userData.life*.19:q.userData.life*1.2);
-        if(q.userData.life<=0){scene.remove(q);particlePool.splice(i,1);}
+      if (effectsApi && typeof effectsApi.tick === 'function') {
+        effectsApi.tick(dt, now);
+      } else {
+        for(let i=projectilePool.length-1;i>=0;i--){
+          const b=projectilePool[i],dx=b.userData.tx-b.position.x,step=Math.sign(dx)*b.userData.speed*dt;
+          b.position.x+=Math.abs(step)>Math.abs(dx)?dx:step; b.position.y+=Math.sin(now*10+i)*.015; b.userData.life-=dt;
+          if(Math.abs(dx)<.25||b.userData.life<=0){createExplosion(b.position.x,b.position.z,b.userData.color,b.userData.power*.75);scene.remove(b);projectilePool.splice(i,1);}
+        }
+        for(let i=particlePool.length-1;i>=0;i--){
+          const q=particlePool[i]; q.userData.life-=dt; q.position.x+=q.userData.vx*dt; q.position.y+=q.userData.vy*dt; q.position.z+=q.userData.vz*dt;
+          if(!q.userData.smoke) q.userData.vy-=5.1*dt; else q.scale.multiplyScalar(1+dt*.45);
+          q.material.opacity=Math.max(0,q.userData.smoke?q.userData.life*.19:q.userData.life*1.2);
+          if(q.userData.life<=0){scene.remove(q);particlePool.splice(i,1);}
+        }
       }
       if(cameraShake>.01){camera.position.x+=(Math.random()-.5)*cameraShake*.14;camera.position.y+=(Math.random()-.5)*cameraShake*.08;cameraShake*=.9;}
       bullLight.intensity=1.1+Math.sin(now*1.3)*.16; bearLight.intensity=1.05+Math.cos(now*1.25)*.14;
@@ -779,7 +847,7 @@
     addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio||1,innerWidth<760?1.35:1.8));});
 
     updateStatusUI();
-    pushFeed('Battlefield v8.3 · faction bases & structures','win');
+    pushFeed('Battlefield v8.4 · combat effects','win');
     pushFeed('Market pressure moves formations and the contested front','info');
     pushFeed('Public build uses HTTPS-safe data feeds','info');
     animate();

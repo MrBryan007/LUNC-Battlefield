@@ -814,11 +814,16 @@
       ownedMats.forEach(function (m) { if (m && m.dispose) m.dispose(); });
     }
 
+    function getBuildings() {
+      return buildings;
+    }
+
     return {
       createFactionBase: createFactionBase,
       updateStructures: updateStructures,
       setDamageState: setDamageState,
       getCommandCenter: getCommandCenter,
+      getBuildings: getBuildings,
       setAccentColor: setAccentColor,
       dispose: dispose,
       version: 'v8.3'
