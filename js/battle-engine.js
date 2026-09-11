@@ -12,7 +12,7 @@
       JURIS: { name: 'JURIS',     base: 0.00000245, color: 0xa791dc, hasBurns: false, decimals: 8, symbol: null, futures: null, gecko: 'juris-protocol' }
     };
 
-    const SRC = { GECKO: 'coingecko', BINANCE: 'binance', LLAMA: 'llama', SIM: 'sim', BRIDGE: 'bridge' };
+    const SRC = { GECKO: 'coingecko', BINANCE: 'binance', LLAMA: 'llama', SIM: 'sim', BRIDGE: 'bridge', API: 'api', UNKNOWN: 'unknown' };
     let current = 'LUNC';
     let price = tokens[current].base;
     let lastPrice = price;
@@ -26,9 +26,11 @@
     let isLive = false;
     let priceHistory = [];
     let priceSource = SRC.SIM;
-    let depthSource = SRC.SIM;
+    let depthSource = SRC.SIM; // SIM | BINANCE | API
+    let depthVendorLabel = 'Unavailable'; // truthful UI label
     let lastPriceTs = Date.now();
     let lastDepthTs = 0;
+    let restDepthTimer = null;
     let cameraShake = 0;
     let audioCtx = null;
 
@@ -263,7 +265,7 @@
 
     // -------------------- UI / token switching --------------------
     function updateWallLabels() {
-      const liveDepth = depthSource===SRC.BINANCE;
+      const liveDepth = depthSource===SRC.BINANCE || depthSource===SRC.API;
       const mark = liveDepth
         ? '<span class="qual live">(live)</span>'
         : '<span class="qual est">(est.)</span>';
@@ -274,13 +276,22 @@
     }
 
     function updateStatusUI() {
-      const priceLabel = priceSource===SRC.GECKO?'CoinGecko':priceSource===SRC.BINANCE?'Binance':priceSource===SRC.LLAMA?'DefiLlama':priceSource===SRC.BRIDGE?'Bridge':'Simulation';
-      const depthLabel = depthSource===SRC.BINANCE?'Binance depth (LIVE)':'Estimated walls (NOT live order book)';
+      const priceLabel = priceSource===SRC.GECKO?'CoinGecko'
+        :priceSource===SRC.BINANCE?'Binance'
+        :priceSource===SRC.LLAMA?'DefiLlama'
+        :priceSource===SRC.API?'Backend API'
+        :priceSource===SRC.BRIDGE?'Backend API'
+        :'Simulation';
+      let depthLabel;
+      if (depthSource===SRC.BINANCE) depthLabel = 'Binance depth (LIVE)';
+      else if (depthSource===SRC.API) depthLabel = (depthVendorLabel || 'Backend API') + ' depth (LIVE)';
+      else depthLabel = 'Estimated walls (NOT live order book)';
       const live = priceSource!==SRC.SIM;
       $('dataMode').textContent=live?('LIVE · '+priceLabel.toUpperCase()):'SIMULATION — price not live';
       $('dataMode').className=live?'live':'error';
       $('agentStatus').textContent='Depth: '+depthLabel+' · build v7';
       $('pair').textContent=tokens[current].name+' · '+priceLabel;
+      if (window.LUNCBattle && LUNCBattle.ui) LUNCBattle.ui.lastDepthSourceLabel = depthLabel;
       updateWallLabels();
     }
 
@@ -312,7 +323,8 @@
       if(spotWs){try{spotWs.onclose=null;spotWs.close();}catch(_){} spotWs=null;}
       if(futWs){try{futWs.onclose=null;futWs.close();}catch(_){} futWs=null;}
       if(reconnectTimer){clearTimeout(reconnectTimer);reconnectTimer=null;}
-      depthSource=SRC.SIM;
+      depthSource=SRC.SIM; depthVendorLabel='Unavailable';
+      if(restDepthTimer){clearInterval(restDepthTimer);restDepthTimer=null;}
     }
 
     async function fetchLlama() {
@@ -335,9 +347,18 @@
         const d=await r.json(), coin=d[t.gecko]; if(!coin||!(coin.usd>0)) throw new Error('No price');
         applySpot(coin.usd,SRC.GECKO);
         if(coin.usd_market_cap>0) $('marketCap').textContent=fmtUsd(coin.usd_market_cap);
-        if(depthSource!==SRC.BINANCE) {
+        if (coin.usd_24h_vol > 0 && window.LUNCBattle && LUNCBattle.market) {
+          LUNCBattle.market.setVolume24h(coin.usd_24h_vol, LUNCBattle.DataTruth.LIVE);
+          if (LUNCBattle.ui) {
+            LUNCBattle.ui.lastVolumeUsd = coin.usd_24h_vol;
+            LUNCBattle.ui.lastVolumeTruth = LUNCBattle.DataTruth.LIVE;
+          }
+        }
+        // Estimated walls only when no live book — clearly ESTIMATED, never labeled Binance
+        if(depthSource!==SRC.BINANCE && depthSource!==SRC.API) {
           const vol=coin.usd_24h_vol||5e6, base=Math.max(.7,Math.min(5,vol/3.5e6));
           buyWall=base*(.92+Math.random()*.18); sellWall=base*(.90+Math.random()*.2);
+          depthVendorLabel = 'Estimated (CoinGecko vol proxy)';
         }
         updateStatusUI(); return true;
       } catch(e){ console.warn('[CoinGecko]',e.message||e); return false; }
@@ -368,41 +389,99 @@
       tick(); setInterval(tick,60000);
     }
 
-    function applyLiveBook(mid) {
+    function applyLiveBook(mid, sourceName, sourceLabel) {
       if (!(mid > 0) || !window.LUNCBattle || !LUNCBattle.market) return;
-      const st = LUNCBattle.market.updateFromMaps(mid, localBids, localAsks, LUNCBattle.DataTruth.LIVE, 'binance');
+      sourceName = sourceName || 'binance';
+      sourceLabel = sourceLabel || (sourceName === 'binance' ? 'Binance' : sourceName === 'api' ? 'Backend API' : 'Unknown');
+      const st = LUNCBattle.market.updateFromMaps(mid, localBids, localAsks, LUNCBattle.DataTruth.LIVE, sourceName, sourceLabel);
       if (st.buyWallM != null && st.buyWallM > 0.01) buyWall = Math.max(0.25, Math.min(12, st.buyWallM));
       if (st.sellWallM != null && st.sellWallM > 0.01) sellWall = Math.max(0.25, Math.min(12, st.sellWallM));
       if (LUNCBattle.ui) {
         LUNCBattle.ui.lastBookImbalance = st.imbalance || 0;
-        LUNCBattle.ui.lastBookTruth = LUNCBattle.DataTruth.LIVE;
+        LUNCBattle.ui.lastBookTruth = (st.zones && st.zones.truth === LUNCBattle.DataTruth.PARTIAL)
+          ? LUNCBattle.DataTruth.PARTIAL
+          : LUNCBattle.DataTruth.LIVE;
         LUNCBattle.ui.lastZones = st.zones;
       }
-      renderLiquidityHud(st.zones);
+      renderLiquidityHud(st.zones, sourceLabel);
     }
 
-    function renderLiquidityHud(zones) {
+    function renderLiquidityHud(zones, sourceLabel) {
       const el = document.getElementById('liquidityZones');
       if (!el) return;
       if (!zones || zones.truth === 'UNAVAILABLE') {
         el.textContent = 'UNAVAILABLE — no live order book';
         return;
       }
-      const fmt = u => u >= 1e6 ? '$'+(u/1e6).toFixed(2)+'M' : '$'+(u/1e3).toFixed(0)+'K';
-      const row = (side) => (zones[side] || []).map(z =>
-        z.label.replace(' defense','').replace(' wall','') + ' ' + fmt(z.usd)
-      ).join(' · ');
-      el.innerHTML = '<div class="micro"><span class="qual live">(live zones)</span></div>'
+      const fmt = u => {
+        if (u == null) return '—';
+        return u >= 1e6 ? '$'+(u/1e6).toFixed(2)+'M' : '$'+(u/1e3).toFixed(0)+'K';
+      };
+      const cell = z => {
+        const name = z.label.replace(' defense','').replace(' wall','').replace(' liquidity','');
+        if (z.truth === 'UNAVAILABLE') return name + ' UNAVAILABLE';
+        if (z.truth === 'PARTIAL') return name + ' ' + fmt(z.usd) + ' PARTIAL';
+        return name + ' ' + fmt(z.usd);
+      };
+      const row = (side) => (zones[side] || []).map(cell).join(' · ');
+      const cover = 'bid≤' + (zones.maxBidPct||0).toFixed(2) + '% · ask≤' + (zones.maxAskPct||0).toFixed(2) + '%';
+      const src = sourceLabel || zones.sourceLabel || 'Unknown';
+      const badge = zones.truth === 'PARTIAL'
+        ? '<span class="qual est">(PARTIAL · ' + src + ')</span>'
+        : '<span class="qual live">(LIVE · ' + src + ')</span>';
+      el.innerHTML = '<div class="micro">' + badge + ' · coverage ' + cover + '</div>'
         + '<div class="micro">Bid: ' + row('bids') + '</div>'
         + '<div class="micro">Ask: ' + row('asks') + '</div>';
     }
 
+    /** Merge depth20 snapshot into a deeper local book without wiping far levels. */
+    function mergeDepth20IntoLocal(bids, asks) {
+      if (!bids.length || !asks.length) return;
+      const bidPrices = bids.map(l => +l[0]).filter(p => p > 0);
+      const askPrices = asks.map(l => +l[0]).filter(p => p > 0);
+      if (!bidPrices.length || !askPrices.length) return;
+      const minBid = Math.min(...bidPrices);
+      const maxAsk = Math.max(...askPrices);
+      // Drop stale near-side levels inside the WS window, keep deeper REST levels
+      Object.keys(localBids).forEach(k => { if (+k >= minBid) delete localBids[k]; });
+      Object.keys(localAsks).forEach(k => { if (+k <= maxAsk) delete localAsks[k]; });
+      bids.forEach(l => { const p=+l[0], q=+l[1]; if (p>0) { if (q>0) localBids[p]=q; else delete localBids[p]; } });
+      asks.forEach(l => { const p=+l[0], q=+l[1]; if (p>0) { if (q>0) localAsks[p]=q; else delete localAsks[p]; } });
+    }
+
+    async function seedBinanceRestDepth(symbol) {
+      if (!symbol || !window.LUNCBattle || !LUNCBattle.market) return;
+      const snap = await LUNCBattle.market.fetchBinanceRestDepth(symbol, LUNCBattle.config.binanceRestDepthLimit || 1000);
+      if (snap.truth !== LUNCBattle.DataTruth.LIVE) {
+        console.warn('[Binance REST depth]', snap.reason || 'unavailable');
+        return;
+      }
+      localBids = {}; localAsks = {};
+      (snap.bids || []).forEach(l => { const p=+l[0], q=+l[1]; if (p>0 && q>0) localBids[p]=q; });
+      (snap.asks || []).forEach(l => { const p=+l[0], q=+l[1]; if (p>0 && q>0) localAsks[p]=q; });
+      const midPx = price > 0 ? price : 0;
+      if (midPx > 0) {
+        depthSource = SRC.BINANCE;
+        depthVendorLabel = 'Binance';
+        lastDepthTs = Date.now();
+        applyLiveBook(midPx, 'binance', 'Binance');
+        updateStatusUI();
+      }
+    }
+
     function connectBinance(symbol,futuresSymbol=null) {
       if(!symbol) return; closeExchangeSockets(); localBids={}; localAsks={};
+      // Seed deep book via REST, then keep near market fresh via WS depth20
+      seedBinanceRestDepth(symbol);
+      if (restDepthTimer) clearInterval(restDepthTimer);
+      restDepthTimer = setInterval(() => {
+        if (tokens[current].symbol === symbol) seedBinanceRestDepth(symbol);
+      }, 20000);
+
       const streams=symbol+'@bookTicker/'+symbol+'@depth20@100ms';
       try {
         spotWs=new WebSocket('wss://stream.binance.com:9443/stream?streams='+streams);
-        spotWs.onopen=()=>{ reconnectAttempts=0; depthSource=SRC.BINANCE; updateStatusUI(); pushFeed('Binance order book connected','win'); };
+        spotWs.onopen=()=>{ reconnectAttempts=0; depthSource=SRC.BINANCE; depthVendorLabel='Binance'; updateStatusUI(); pushFeed('Binance order book connected','win'); };
         spotWs.onmessage=evt=>{
           try {
             const raw=JSON.parse(evt.data), msg=raw.data||raw;
@@ -410,35 +489,63 @@
               const bid=+msg.b,ask=+msg.a; if(bid>0&&ask>0) applySpot((bid+ask)/2,SRC.BINANCE);
             }
             if(Array.isArray(msg.bids)&&Array.isArray(msg.asks)) {
-              localBids={}; localAsks={};
-              msg.bids.forEach(l=>{const p=+l[0],q=+l[1];if(q>0)localBids[p]=q;});
-              msg.asks.forEach(l=>{const p=+l[0],q=+l[1];if(q>0)localAsks[p]=q;});
+              if (Object.keys(localBids).length === 0 && Object.keys(localAsks).length === 0) {
+                // No REST seed yet — use depth20 alone (will mark deep bands PARTIAL/UNAVAILABLE)
+                localBids={}; localAsks={};
+                msg.bids.forEach(l=>{const p=+l[0],q=+l[1];if(q>0)localBids[p]=q;});
+                msg.asks.forEach(l=>{const p=+l[0],q=+l[1];if(q>0)localAsks[p]=q;});
+              } else {
+                mergeDepth20IntoLocal(msg.bids, msg.asks);
+              }
               const midPx = price > 0 ? price : ((Object.keys(localBids).length && Object.keys(localAsks).length) ? (Math.max(...Object.keys(localBids).map(Number))+Math.min(...Object.keys(localAsks).map(Number)))/2 : 0);
-              applyLiveBook(midPx || price);
-              lastDepthTs=Date.now(); depthSource=SRC.BINANCE;
+              applyLiveBook(midPx || price, 'binance', 'Binance');
+              lastDepthTs=Date.now(); depthSource=SRC.BINANCE; depthVendorLabel='Binance';
             }
             updateStatusUI();
           } catch(_) {}
         };
-        spotWs.onclose=()=>{ depthSource=SRC.SIM; if(priceSource===SRC.BINANCE)priceSource=SRC.GECKO; updateStatusUI(); scheduleReconnect(symbol,futuresSymbol); };
+        spotWs.onclose=()=>{ if(depthSource===SRC.BINANCE){ depthSource=SRC.SIM; depthVendorLabel='Unavailable'; } if(priceSource===SRC.BINANCE)priceSource=SRC.GECKO; updateStatusUI(); scheduleReconnect(symbol,futuresSymbol); };
         spotWs.onerror=()=>{};
       } catch(_) { scheduleReconnect(symbol,futuresSymbol); }
 
-      // USD-M public liquidation stream. Failure is non-fatal; the battlefield keeps running.
+      // USD-M public liquidation stream → strength score + War Room + battlefield FX
       try {
         if(!futuresSymbol) return;
         futWs=new WebSocket('wss://fstream.binance.com/ws/'+futuresSymbol+'@forceOrder');
         futWs.onmessage=evt=>{
           try {
             const raw=JSON.parse(evt.data),o=(raw.data||raw).o||raw; if(!o||o.q==null) return;
-            const usd=parseFloat(o.q)*parseFloat(o.p||o.ap||0); if(!(usd>=800)) return;
-            const side=(o.S||'').toUpperCase(), power=Math.min(2.5,.7+usd/500000), zz=(Math.random()-.5)*14;
+            const amount=parseFloat(o.q);
+            const px=parseFloat(o.p||o.ap||0);
+            const usd=amount*px; if(!(usd>=800)) return;
+            const side=(o.S||'').toUpperCase();
+            const sym=(o.s||futuresSymbol||'').toUpperCase();
+            const ts = o.T || Date.now();
+            const power=Math.min(2.5,.7+usd/500000), zz=(Math.random()-.5)*14;
+            const entry = (window.LUNCBattle && LUNCBattle.ui && LUNCBattle.ui.recordLiquidation)
+              ? LUNCBattle.ui.recordLiquidation({
+                  symbol: sym, side, amount, usd, timestamp: ts,
+                  source: 'Binance Futures'
+                })
+              : { classification: side==='SELL'?'LONG_LIQ':'SHORT_LIQ' };
+            const when = new Date(ts).toISOString().slice(11,19) + 'Z';
             if(side==='SELL') {
-              pushFeed('Long liquidation · '+fmtUsd(usd)+' · Bulls hit','loss'); launchStrike(targetX+12,targetX-6,zz,0xe4675f,power); createExplosion(targetX-6.5,zz,0xe4675f,power); buyWall=Math.max(.25,buyWall*.93);
+              // Longs liquidated → forced sells → bearish pressure on bulls
+              pushFeed('LIVE LIQ · '+sym+' · LONG · qty '+amount+' · ~'+fmtUsd(usd)+' · '+when+' · Binance Futures','loss');
+              launchStrike(targetX+12,targetX-6,zz,0xe4675f,power);
+              createExplosion(targetX-6.5,zz,0xe4675f,power);
+              buyWall=Math.max(.25,buyWall*.93);
             } else {
-              pushFeed('Short liquidation · '+fmtUsd(usd)+' · Bears hit','liq'); launchStrike(targetX-12,targetX+6,zz,tokens[current].color,power); createExplosion(targetX+6.5,zz,tokens[current].color,power); sellWall=Math.max(.25,sellWall*.93);
+              // Shorts liquidated → forced buys → bullish pressure on bears
+              pushFeed('LIVE LIQ · '+sym+' · SHORT · qty '+amount+' · ~'+fmtUsd(usd)+' · '+when+' · Binance Futures','liq');
+              launchStrike(targetX-12,targetX+6,zz,tokens[current].color,power);
+              createExplosion(targetX+6.5,zz,tokens[current].color,power);
+              sellWall=Math.max(.25,sellWall*.93);
             }
             playLiq();
+            if (window.LUNCBattle && LUNCBattle.ui && typeof LUNCBattle.ui.tickStrength==='function') {
+              LUNCBattle.ui.tickStrength();
+            }
           } catch(_) {}
         };
       } catch(_) {}
@@ -466,26 +573,58 @@
       const s = snap.data;
       try {
         if (s.market && s.market.price > 0) {
-          applySpot(s.market.price, SRC.BRIDGE);
-          priceSource = SRC.BRIDGE;
+          const pSrc = (s.market.source || s.source || '').toLowerCase();
+          const pKey = pSrc.includes('binance') ? SRC.BINANCE
+            : pSrc.includes('gecko') ? SRC.GECKO
+            : pSrc.includes('llama') ? SRC.LLAMA
+            : SRC.API;
+          applySpot(s.market.price, pKey);
+          priceSource = pKey;
         }
         if (s.book && s.book.bids && s.book.asks && s.market && s.market.price > 0) {
-          const st = LUNCBattle.market.updateFromBook(s.market.price, s.book.bids, s.book.asks, LUNCBattle.DataTruth.LIVE, 'api');
+          // Preserve truthful vendor from snapshot metadata — never assume Binance
+          const bookSrc = (s.book.source || s.source || 'api').toLowerCase();
+          const bookLabel = s.book.sourceLabel || s.sourceLabel
+            || (bookSrc.includes('binance') ? 'Binance'
+              : bookSrc.includes('gecko') ? 'CoinGecko'
+              : bookSrc.includes('llama') ? 'DefiLlama'
+              : bookSrc.includes('terra') ? 'Terra Classic RPC/API'
+              : 'Backend API');
+          const srcKey = bookSrc.includes('binance') ? 'binance' : 'api';
+          const st = LUNCBattle.market.updateFromBook(
+            s.market.price, s.book.bids, s.book.asks,
+            LUNCBattle.DataTruth.LIVE, srcKey, bookLabel
+          );
           if (st.buyWallM > 0.01) buyWall = Math.max(0.25, Math.min(12, st.buyWallM));
           if (st.sellWallM > 0.01) sellWall = Math.max(0.25, Math.min(12, st.sellWallM));
-          depthSource = SRC.BINANCE; // live book quality from API
+          depthSource = srcKey === 'binance' ? SRC.BINANCE : SRC.API;
+          depthVendorLabel = bookLabel;
           lastDepthTs = Date.now();
           if (LUNCBattle.ui) {
             LUNCBattle.ui.lastBookImbalance = st.imbalance || 0;
-            LUNCBattle.ui.lastBookTruth = LUNCBattle.DataTruth.LIVE;
+            LUNCBattle.ui.lastBookTruth = (st.zones && st.zones.truth === LUNCBattle.DataTruth.PARTIAL)
+              ? LUNCBattle.DataTruth.PARTIAL : LUNCBattle.DataTruth.LIVE;
             LUNCBattle.ui.lastZones = st.zones;
           }
-          renderLiquidityHud(st.zones);
+          renderLiquidityHud(st.zones, bookLabel);
         } else if (s.walls) {
           if (s.walls.buyM > 0) buyWall = s.walls.buyM;
           if (s.walls.sellM > 0) sellWall = s.walls.sellM;
-          if (s.walls.quality === 'live') depthSource = SRC.BINANCE;
-          if (s.walls.zones) renderLiquidityHud(s.walls.zones);
+          const wSrc = (s.walls.source || s.source || '').toLowerCase();
+          const wLabel = s.walls.sourceLabel || s.sourceLabel
+            || (wSrc.includes('binance') ? 'Binance' : 'Backend API');
+          if (s.walls.quality === 'live') {
+            depthSource = wSrc.includes('binance') ? SRC.BINANCE : SRC.API;
+            depthVendorLabel = wLabel;
+          }
+          if (s.walls.zones) renderLiquidityHud(s.walls.zones, wLabel);
+        }
+        if (s.market && s.market.volume24h > 0) {
+          LUNCBattle.market.setVolume24h(s.market.volume24h, LUNCBattle.DataTruth.LIVE);
+          if (LUNCBattle.ui) {
+            LUNCBattle.ui.lastVolumeUsd = s.market.volume24h;
+            LUNCBattle.ui.lastVolumeTruth = LUNCBattle.DataTruth.LIVE;
+          }
         }
         if (s.ecosystem) {
           if (s.ecosystem.chainTvlUsd) $('tvlValue').textContent = fmtUsd(s.ecosystem.chainTvlUsd);
@@ -508,7 +647,7 @@
 
     setInterval(()=>{
       if(Date.now()-lastPriceTs>50000&&priceSource!==SRC.SIM){priceSource=SRC.SIM;isLive=false;updateStatusUI();}
-      if(depthSource===SRC.BINANCE&&Date.now()-lastDepthTs>25000){depthSource=SRC.SIM;updateStatusUI();}
+      if((depthSource===SRC.BINANCE||depthSource===SRC.API)&&Date.now()-lastDepthTs>25000){depthSource=SRC.SIM;depthVendorLabel='Unavailable';updateStatusUI();}
     },3500);
 
     // -------------------- Battle simulation tied to market --------------------
@@ -599,6 +738,6 @@
     pushFeed('Market pressure moves formations and the contested front','info');
     pushFeed('Public build uses HTTPS-safe data feeds','info');
 
-    setInterval(function(){ if(window.LUNCBattle&&LUNCBattle.ui){ LUNCBattle.ui.lastMomentum=Math.max(-1,Math.min(1,momentum)); LUNCBattle.ui.lastMomentumTruth=(priceSource!==SRC.SIM)?LUNCBattle.DataTruth.LIVE:LUNCBattle.DataTruth.SIMULATED; if(depthSource!==SRC.BINANCE){ LUNCBattle.ui.lastBookTruth=LUNCBattle.DataTruth.ESTIMATED; LUNCBattle.ui.lastBookImbalance=(buyWall+sellWall)>0?(buyWall-sellWall)/(buyWall+sellWall):0; } if(typeof LUNCBattle.ui.tickStrength==='function') LUNCBattle.ui.tickStrength(); } }, 2000);
+    setInterval(function(){ if(window.LUNCBattle&&LUNCBattle.ui){ LUNCBattle.ui.lastMomentum=Math.max(-1,Math.min(1,momentum)); LUNCBattle.ui.lastMomentumTruth=(priceSource!==SRC.SIM)?LUNCBattle.DataTruth.LIVE:LUNCBattle.DataTruth.SIMULATED; if(depthSource!==SRC.BINANCE && depthSource!==SRC.API){ LUNCBattle.ui.lastBookTruth=LUNCBattle.DataTruth.ESTIMATED; LUNCBattle.ui.lastBookImbalance=(buyWall+sellWall)>0?(buyWall-sellWall)/(buyWall+sellWall):0; } if(typeof LUNCBattle.ui.tickStrength==='function') LUNCBattle.ui.tickStrength(); } }, 2000);
     animate();
   })();

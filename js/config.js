@@ -6,7 +6,8 @@
     CALCULATED: 'CALCULATED',
     ESTIMATED: 'ESTIMATED',
     SIMULATED: 'SIMULATED',
-    UNAVAILABLE: 'UNAVAILABLE'
+    UNAVAILABLE: 'UNAVAILABLE',
+    PARTIAL: 'PARTIAL'
   });
 
   function httpsOnly(url) {
@@ -22,7 +23,6 @@
     if (typeof global.LUNC_API_BASE === 'string' && global.LUNC_API_BASE) {
       return httpsOnly(global.LUNC_API_BASE);
     }
-    // Legacy ?bridge=https://…/snapshot → treat parent as api base when possible
     const bridge = new URLSearchParams(location.search).get('bridge');
     if (bridge && /^https:\/\//i.test(bridge)) {
       try {
@@ -73,7 +73,9 @@
       { min: 1e7, label: 'bombardment' },
       { min: 1e8, label: 'major burn event' },
       { min: 1e9, label: 'massive battlefield event' }
-    ]
+    ],
+    // Prefer deeper REST snapshot; WS only refreshes near market
+    binanceRestDepthLimit: 1000
   };
 
   global.LUNCBattle = global.LUNCBattle || {};
