@@ -1,4 +1,4 @@
-/* LUNC Battlefield v8.1 — procedural terrain (original meshes only) */
+/* LUNC Battlefield v9.2 — procedural terrain (registry MeshStandardMaterials) */
 (function (global) {
   'use strict';
 
@@ -218,12 +218,16 @@
     terrainGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
     terrainGeo.computeVertexNormals();
 
-    const groundMat = new THREE.MeshStandardMaterial({
-      vertexColors: true,
-      roughness: 0.97,
-      metalness: 0,
-      flatShading: false
-    });
+    const Mats = (global.LUNCBattle && LUNCBattle.materials) || null;
+    if (Mats && Mats.init) Mats.init(THREE);
+    const groundMat = Mats
+      ? Mats.get('terrain.ground')
+      : new THREE.MeshStandardMaterial({
+          vertexColors: true,
+          roughness: 0.97,
+          metalness: 0,
+          flatShading: false
+        });
     const ground = new THREE.Mesh(terrainGeo, groundMat);
     ground.receiveShadow = true;
     ground.castShadow = false;
@@ -231,14 +235,16 @@
     group.add(ground);
 
     // Subtle secondary dirt patches (thin offset planes) — few draw calls
-    const patchMat = new THREE.MeshStandardMaterial({
-      color: 0x4a3c2c,
-      roughness: 1,
-      metalness: 0,
-      transparent: true,
-      opacity: 0.42,
-      depthWrite: false
-    });
+    const patchMat = Mats
+      ? Mats.get('terrain.dirtPatch')
+      : new THREE.MeshStandardMaterial({
+          color: 0x4a3c2c,
+          roughness: 1,
+          metalness: 0,
+          transparent: true,
+          opacity: 0.42,
+          depthWrite: false
+        });
     let patchCount = mobile ? 5 : 9;
     try {
       if (global.LUNCBattle && LUNCBattle.quality && LUNCBattle.quality.getDensityScale) {
@@ -263,14 +269,16 @@
     }
 
     // Soft road tint overlay (not a neon strip)
-    const roadMat = new THREE.MeshStandardMaterial({
-      color: 0x3a3226,
-      roughness: 1,
-      metalness: 0,
-      transparent: true,
-      opacity: 0.38,
-      depthWrite: false
-    });
+    const roadMat = Mats
+      ? Mats.get('terrain.road')
+      : new THREE.MeshStandardMaterial({
+          color: 0x3a3226,
+          roughness: 1,
+          metalness: 0,
+          transparent: true,
+          opacity: 0.38,
+          depthWrite: false
+        });
     const road = new THREE.Mesh(new THREE.PlaneGeometry(12.5, 74), roadMat);
     road.rotation.x = -Math.PI / 2;
     road.position.set(0, 0.03, 0);
@@ -283,8 +291,12 @@
       group.traverse(function (obj) {
         if (obj.geometry) obj.geometry.dispose();
         if (obj.material) {
-          if (Array.isArray(obj.material)) obj.material.forEach(function (m) { m.dispose(); });
-          else obj.material.dispose();
+          var mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+          mats.forEach(function (m) {
+            if (!m) return;
+            if (Mats && Mats.isShared && Mats.isShared(m)) return;
+            if (m.dispose) m.dispose();
+          });
         }
       });
       scene.remove(group);

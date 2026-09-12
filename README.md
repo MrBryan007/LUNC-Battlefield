@@ -4,7 +4,7 @@ Classic-RTS-inspired Terra Classic intelligence battlefield.
 
 **Build (main / live):** v8.x — RTS Command HUD + War Room (see `docs/V8-GRAPHICS.md`).
 
-**v9 (feature branch only):** `feat/v9-next-gen-renderer` — v9.1 renderer abstraction + WebGPU readiness. Default remains WebGL (Three r128). See `docs/V9-RENDERER.md`. Not merged to main; live Pages stays on v8 until an explicit merge.
+**v9 (feature branch only):** `feat/v9-next-gen-renderer` — v9.2 PBR materials + lighting foundation (on top of v9.1 renderer abstraction). Default remains WebGL (Three r128). See `docs/V9-GRAPHICS.md` and `docs/V9-RENDERER.md`. Not merged to main; live Pages stays on v8 until an explicit merge.
 
 **Live site:** https://mrbryan007.github.io/LUNC-Battlefield/
 
@@ -15,7 +15,8 @@ index.html
 css/battlefield.css
 js/config.js
 js/quality.js
-js/renderer.js  # v9.1 feature branch
+js/renderer.js  # v9.1+ feature branch
+js/materials.js # v9.2 PBR registry
 js/main.js
 js/market.js
 js/terra.js

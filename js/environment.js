@@ -1,4 +1,4 @@
-/* LUNC Battlefield v8.1 — battlefield environment props (original procedural) */
+/* LUNC Battlefield v9.2 — battlefield environment props (materials registry) */
 (function (global) {
   'use strict';
 
@@ -19,7 +19,9 @@
     const scene = opts.scene;
     const terrainHeight = opts.terrainHeight;
     const mobile = !!opts.mobile;
-    const matFn = opts.mat || function (color, rough, metal) {
+    const Mats = (global.LUNCBattle && LUNCBattle.materials) || null;
+    if (Mats && Mats.init) Mats.init(THREE);
+    const matFn = opts.mat || (Mats && Mats.mat) || function (color, rough, metal) {
       return new THREE.MeshStandardMaterial({
         color: color,
         roughness: rough == null ? 0.9 : rough,
@@ -53,30 +55,40 @@
     const group = new THREE.Group();
     group.name = 'environment-v81';
 
-    const rockMat = matFn(0x4a4b3d, 0.95, 0.02);
-    const rockMatB = matFn(0x5c5e4f, 0.92, 0.03);
-    const trunkMat = matFn(0x4b3827, 1, 0.01);
-    const deadTrunkMat = matFn(0x3a3228, 0.98, 0.02);
-    const foliageMat = matFn(0x2a4528, 1, 0);
-    const foliageMatB = matFn(0x355534, 0.98, 0);
-    const bushMat = matFn(0x243b24, 1, 0);
-    const rubbleMat = matFn(0x55564a, 0.94, 0.04);
-    const woodMat = matFn(0x493625, 0.9, 0.01);
-    const sandbagMat = matFn(0x6a5a3e, 0.98, 0.02);
-    const crateMat = matFn(0x5a442e, 0.88, 0.04);
-    const scorchedMat = new THREE.MeshStandardMaterial({
-      color: 0x141210,
-      roughness: 1,
-      transparent: true,
-      opacity: 0.45,
-      depthWrite: false
-    });
-    const smokeMat = new THREE.MeshBasicMaterial({
-      color: 0x8a8678,
-      transparent: true,
-      opacity: 0.14,
-      depthWrite: false
-    });
+    const rockMat = Mats ? Mats.get('prop.rock') : matFn(0x4a4b3d, 0.95, 0.02);
+    const rockMatB = Mats ? Mats.get('prop.rockB') : matFn(0x5c5e4f, 0.92, 0.03);
+    const trunkMat = Mats ? Mats.get('prop.trunk') : matFn(0x4b3827, 1, 0.01);
+    const deadTrunkMat = Mats ? Mats.get('prop.deadTrunk') : matFn(0x3a3228, 0.98, 0.02);
+    const foliageMat = Mats ? Mats.get('prop.foliage') : matFn(0x2a4528, 1, 0);
+    const foliageMatB = Mats ? Mats.get('prop.foliageB') : matFn(0x355534, 0.98, 0);
+    const bushMat = Mats ? Mats.get('prop.bush') : matFn(0x243b24, 1, 0);
+    const rubbleMat = Mats ? Mats.get('prop.rubble') : matFn(0x55564a, 0.94, 0.04);
+    const woodMat = Mats ? Mats.get('prop.wood') : matFn(0x493625, 0.9, 0.01);
+    const sandbagMat = Mats ? Mats.get('prop.sandbag') : matFn(0x6a5a3e, 0.98, 0.02);
+    const crateMat = Mats ? Mats.get('prop.crate') : matFn(0x5a442e, 0.88, 0.04);
+    const scorchedMat = Mats
+      ? Mats.get('prop.scorched')
+      : new THREE.MeshStandardMaterial({
+          color: 0x141210,
+          roughness: 1,
+          transparent: true,
+          opacity: 0.45,
+          depthWrite: false
+        });
+    // Ambient haze smoke stays MeshBasic (hot/cheap FX path — not PBR)
+    const smokeMat = (Mats && Mats.basic)
+      ? Mats.basic({
+          color: 0x8a8678,
+          transparent: true,
+          opacity: 0.14,
+          depthWrite: false
+        })
+      : new THREE.MeshBasicMaterial({
+          color: 0x8a8678,
+          transparent: true,
+          opacity: 0.14,
+          depthWrite: false
+        });
 
     const counts = {
       rocks: Math.max(4, Math.round(42 * scale)),
@@ -500,8 +512,12 @@
       group.traverse(function (obj) {
         if (obj.geometry) obj.geometry.dispose();
         if (obj.material) {
-          if (Array.isArray(obj.material)) obj.material.forEach(function (m) { m.dispose(); });
-          else obj.material.dispose();
+          var mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+          mats.forEach(function (m) {
+            if (!m) return;
+            if (Mats && Mats.isShared && Mats.isShared(m)) return;
+            if (m.dispose) m.dispose();
+          });
         }
       });
       scene.remove(group);

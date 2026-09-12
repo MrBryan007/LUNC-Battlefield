@@ -139,9 +139,10 @@
     if ('outputEncoding' in renderer && THREE.sRGBEncoding != null) {
       renderer.outputEncoding = THREE.sRGBEncoding;
     }
+    // v9.2: ACES retained but exposure restrained for MeshStandard PBR readability
     if ('toneMapping' in renderer && THREE.ACESFilmicToneMapping != null) {
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 1.02;
+      renderer.toneMappingExposure = 0.94;
     }
     document.body.insertBefore(renderer.domElement, document.body.firstChild);
 
@@ -167,27 +168,60 @@
     });
     addEventListener('keyup', e => keys[e.code] = false);
 
-    scene.add(new THREE.HemisphereLight(0xd2dcc8, 0x1a1e14, .68));
-    const sun = new THREE.DirectionalLight(0xffe6c4, 1.28);
-    sun.position.set(-26, 50, 22);
+    // v9.2 lighting foundation — sun / hemi / fill / rim / faction accents (quality-scaled)
+    const hemi = new THREE.HemisphereLight(0xc8d4bc, 0x1c2018, 0.52);
+    scene.add(hemi);
+    const sun = new THREE.DirectionalLight(0xffe2b8, 1.05);
+    sun.position.set(-28, 52, 18);
     sun.castShadow = true;
     sun.shadow.mapSize.set(1024, 1024);
     sun.shadow.camera.left = -62; sun.shadow.camera.right = 62; sun.shadow.camera.top = 44; sun.shadow.camera.bottom = -44;
     sun.shadow.camera.near = 8; sun.shadow.camera.far = 120; sun.shadow.bias = -.0003;
     scene.add(sun);
-    const fill = new THREE.DirectionalLight(0x7aa5b0,.22); fill.position.set(35,18,-28); scene.add(fill);
+    const fill = new THREE.DirectionalLight(0x6a90a0, 0.18);
+    fill.position.set(38, 16, -30);
+    scene.add(fill);
+    const rim = new THREE.DirectionalLight(0xb0c4a8, 0.07);
+    rim.position.set(12, 28, 40);
+    scene.add(rim);
 
-    // v8.8 quality bootstrap (AUTO default; localStorage preference)
+    // Faction accent points — softer with PBR so bases read without blooming
+    const bullLight = new THREE.PointLight(tokens[current].color, 0.85, 42);
+    bullLight.position.set(-34, 7, 0);
+    bullLight.userData.baseIntensity = 0.85;
+    scene.add(bullLight);
+    const bearLight = new THREE.PointLight(0xe4675f, 0.75, 42);
+    bearLight.position.set(34, 7, 0);
+    bearLight.userData.baseIntensity = 0.75;
+    scene.add(bearLight);
+
+    // v8.8/v9.2 quality bootstrap (AUTO default; localStorage preference)
     if (window.LUNCBattle && LUNCBattle.quality) {
-      LUNCBattle.quality.apply(renderer, scene, sun, { fillLight: fill, immediate: true });
+      LUNCBattle.quality.apply(renderer, scene, sun, {
+        fillLight: fill,
+        hemiLight: hemi,
+        rimLight: rim,
+        accentLights: [bullLight, bearLight],
+        immediate: true
+      });
     } else {
       renderer.setPixelRatio(Math.min(devicePixelRatio || 1, innerWidth < 760 ? 1.35 : 1.8));
     }
 
-    const bullLight = new THREE.PointLight(tokens[current].color, 1.3, 45); bullLight.position.set(-34, 7, 0); scene.add(bullLight);
-    const bearLight = new THREE.PointLight(0xe4675f, 1.15, 45); bearLight.position.set(34, 7, 0); scene.add(bearLight);
-
+    // Shared PBR material factory → LUNCBattle.materials registry
+    if (window.LUNCBattle && LUNCBattle.materials && LUNCBattle.materials.init) {
+      LUNCBattle.materials.init(THREE);
+      try {
+        const qp = LUNCBattle.quality && LUNCBattle.quality.getEffectivePreset
+          ? LUNCBattle.quality.getEffectivePreset()
+          : null;
+        if (qp) LUNCBattle.materials.applyQuality(qp.lightingComplexity || qp.unitDetail || 'high');
+      } catch (_) {}
+    }
     function mat(color, rough=.72, metal=.08, emissive=0x000000, intensity=0) {
+      if (window.LUNCBattle && LUNCBattle.materials && LUNCBattle.materials.mat) {
+        return LUNCBattle.materials.mat(color, rough, metal, emissive, intensity);
+      }
       return new THREE.MeshStandardMaterial({ color, roughness:rough, metalness:metal, emissive, emissiveIntensity:intensity });
     }
 
@@ -214,7 +248,7 @@
       scene.background = new THREE.Color(envApi.fog.background != null ? envApi.fog.background : 0x0c140e);
       scene.fog = new THREE.Fog(envApi.fog.fogColor, envApi.fog.fogNear, envApi.fog.fogFar);
     }
-    const woodMat=mat(0x493625,.9,.01);
+    // v9.2: wood/prop mats come from materials registry inside environment/structures
 
     // v8.3 — faction bases & structures (procedural, no GridHelper)
     const structuresApi = (window.LUNCBattle && LUNCBattle.structures)
@@ -1098,12 +1132,20 @@
         for (let i = 0; i < particlePool.length; i++) {
           if (particlePool[i].userData && particlePool[i].userData.smoke) smokeN++;
         }
+        var matCount = null;
+        try {
+          if (window.LUNCBattle && LUNCBattle.materials && LUNCBattle.materials.getCount) {
+            matCount = LUNCBattle.materials.getCount();
+          }
+        } catch (_) {}
         return {
           units: bulls.length + bears.length,
           projectiles: projectilePool.length,
           particles: particlePool.length,
           explosions: activeExplosionApprox,
-          smoke: smokeN
+          smoke: smokeN,
+          materials: matCount ? matCount.total : null,
+          materialsShared: matCount ? matCount.shared : null
         };
       });
     }
@@ -1196,7 +1238,7 @@
       camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();
       renderer.setSize(innerWidth,innerHeight);
       if (window.LUNCBattle && LUNCBattle.quality && LUNCBattle.quality.apply) {
-        LUNCBattle.quality.apply(renderer, scene, sun, { fillLight: fill, immediate: false });
+        LUNCBattle.quality.apply(renderer, scene, sun, { fillLight: fill, hemiLight: hemi, rimLight: rim, accentLights: [bullLight, bearLight], immediate: false });
       } else {
         renderer.setPixelRatio(Math.min(devicePixelRatio||1,innerWidth<760?1.35:1.8));
       }

@@ -79,7 +79,10 @@
     ];
 
     function accentMat(side, color, rough, metal, intensity) {
-      const m = mat(color, rough == null ? 0.5 : rough, metal == null ? 0.22 : metal, color, intensity == null ? 0.14 : intensity);
+      // Mutable faction accents — unique instances so setAccentColor can retint
+      const m = Mats
+        ? Mats.create(color, rough == null ? 0.5 : rough, metal == null ? 0.22 : metal, color, intensity == null ? 0.14 : intensity)
+        : mat(color, rough == null ? 0.5 : rough, metal == null ? 0.22 : metal, color, intensity == null ? 0.14 : intensity);
       accentBySide[String(side)].push(m);
       ownedMats.push(m);
       return m;
@@ -87,14 +90,33 @@
 
     function factionMats(side, accentColor) {
       const bull = side < 0;
+      const wall = Mats
+        ? Mats.get(bull ? 'structure.wallBull' : 'structure.wallBear')
+        : mat(bull ? 0x5c5e54 : 0x4a4038, 0.92, 0.04);
+      const wallDark = Mats
+        ? Mats.get(bull ? 'structure.wallDarkBull' : 'structure.wallDarkBear')
+        : mat(bull ? 0x4a4e46 : 0x3a342c, 0.9, 0.05);
+      const concrete = Mats
+        ? Mats.get(bull ? 'structure.concreteBull' : 'structure.concreteBear')
+        : mat(bull ? 0x6a6c62 : 0x524840, 0.88, 0.06);
+      const roof = Mats
+        ? Mats.get(bull ? 'structure.roofBull' : 'structure.roofBear')
+        : mat(bull ? 0x2a3028 : 0x1c1814, 0.78, 0.12);
+      const roofTrim = Mats
+        ? Mats.get(bull ? 'structure.roofTrimBull' : 'structure.roofTrimBear')
+        : mat(bull ? 0x3a4038 : 0x2a221c, 0.7, 0.18);
+      const frame = Mats
+        ? Mats.get(bull ? 'structure.frameBull' : 'structure.frameBear')
+        : mat(bull ? 0x3a4238 : 0x2e2822, 0.65, 0.22);
+      const interior = Mats ? Mats.get('structure.interior') : mat(0x121410, 0.95, 0.02);
       return {
-        wall: mat(bull ? 0x5c5e54 : 0x4a4038, 0.92, 0.04),
-        wallDark: mat(bull ? 0x4a4e46 : 0x3a342c, 0.9, 0.05),
-        concrete: mat(bull ? 0x6a6c62 : 0x524840, 0.88, 0.06),
-        roof: mat(bull ? 0x2a3028 : 0x1c1814, 0.78, 0.12),
-        roofTrim: mat(bull ? 0x3a4038 : 0x2a221c, 0.7, 0.18),
-        frame: mat(bull ? 0x3a4238 : 0x2e2822, 0.65, 0.22),
-        interior: mat(0x121410, 0.95, 0.02),
+        wall: wall,
+        wallDark: wallDark,
+        concrete: concrete,
+        roof: roof,
+        roofTrim: roofTrim,
+        frame: frame,
+        interior: interior,
         accent: accentMat(side, accentColor, 0.48, 0.22, 0.16),
         accentSoft: accentMat(side, accentColor, 0.7, 0.1, 0.08),
         lamp: accentMat(side, accentColor, 0.35, 0.15, 0.55),
@@ -103,7 +125,12 @@
     }
 
     function registerFactionMats(fm) {
-      ownedMats.push(fm.wall, fm.wallDark, fm.concrete, fm.roof, fm.roofTrim, fm.frame, fm.interior);
+      // Shared registry mats are not disposed here — only track non-shared
+      [fm.wall, fm.wallDark, fm.concrete, fm.roof, fm.roofTrim, fm.frame, fm.interior].forEach(function (m) {
+        if (!m) return;
+        if (Mats && Mats.isShared && Mats.isShared(m)) return;
+        ownedMats.push(m);
+      });
     }
 
     function heightRange(x, z, hx, hz) {
@@ -825,7 +852,12 @@
       banners.length = 0;
       blinkers.length = 0;
       ownedGeos.forEach(function (geo) { if (geo && geo.dispose) geo.dispose(); });
-      ownedMats.forEach(function (m) { if (m && m.dispose) m.dispose(); });
+      ownedMats.forEach(function (m) {
+        if (!m) return;
+        if (Mats && Mats.isShared && Mats.isShared(m)) return;
+        if (Mats && Mats.dispose) Mats.dispose(m);
+        else if (m.dispose) m.dispose();
+      });
     }
 
     function getBuildings() {
@@ -840,7 +872,7 @@
       getBuildings: getBuildings,
       setAccentColor: setAccentColor,
       dispose: dispose,
-      version: 'v8.8'
+      version: 'v9.2'
     };
   }
 

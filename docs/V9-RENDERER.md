@@ -1,6 +1,6 @@
 # LUNC Battlefield v9 — Renderer strategy
 
-**Status:** v9.1 on feature branch `feat/v9-next-gen-renderer` only. **Not merged to main.** Live GitHub Pages remains v8.x until an explicit merge.
+**Status:** v9.1 shipped on `feat/v9-next-gen-renderer`; **v9.2** adds PBR materials/lighting (see `docs/V9-GRAPHICS.md`). **Not merged to main.** Live GitHub Pages remains v8.x until an explicit merge.
 
 ## Goals (v9.1)
 
@@ -84,7 +84,7 @@ prefer webgpu
 | WebGPURenderer | Absent on r128 → experimental path documents fallback |
 | Why | Preserve live v8.8 visual/behavior parity; avoid OrbitControls / encoding / shadowMap API drift |
 
-Real WebGPU requires a **future Three upgrade** (likely modern `three` npm/module build with `WebGPURenderer`, possibly WebGPU node materials). That is **v9.2+**, behind the same abstraction so battle-engine/quality keep calling `LUNCBattle.renderer.create`.
+Real WebGPU requires a **future Three upgrade** (likely modern `three` npm/module build with `WebGPURenderer`, possibly WebGPU node materials). That remains **after v9.2** (materials/lighting), behind the same abstraction so battle-engine/quality keep calling `LUNCBattle.renderer.create`.
 
 ---
 
@@ -139,24 +139,19 @@ localStorage.removeItem('luncBattle.renderer');
 
 ---
 
-## Milestone plan (v9.2+)
+## Milestone plan
 
-Do **not** start these in v9.1.
-
-1. **v9.2 — Three upgrade evaluation**  
-   Pin a modern Three build (module or UMD) with `WebGPURenderer`; dual-load strategy or full cutover behind feature flag; keep WebGL fallback.
-
-2. **v9.3 — WebGPU path hardening**  
-   Async renderer init, capability matrix, color space / tone mapping parity, OrbitControls compatibility.
-
-3. **v9.4 — Asset pipeline hooks**  
-   Optional glTF / KTX2 / compressed textures behind quality presets (still non-breaking defaults).
-
-4. **v9.5 — Materials & effects**  
-   Selective PBR, GPU particle experiments, post-FX hooks already stubbed in `quality.js`.
-
-5. **v9.6 — Content pass**  
-   Unit/building/terrain upgrades using the stable renderer abstraction — only after WebGL default remains rock-solid.
+1. **v9.1 — Renderer abstraction** ✅ (this doc)
+2. **v9.2 — PBR materials & lighting foundation** ✅ — see `docs/V9-GRAPHICS.md`  
+   Shared MeshStandard registry, lighting foundation, tone-mapping restraint. **No Three upgrade.**
+3. **Later — Three upgrade evaluation** (do not start as v9.3 in the v9.2 commit)  
+   Pin a modern Three build with `WebGPURenderer`; keep WebGL fallback.
+4. **Later — WebGPU path hardening**  
+   Async init, color space / tone mapping parity, OrbitControls compatibility.
+5. **Later — Asset pipeline hooks**  
+   Optional glTF / KTX2 behind quality presets (clear-license only).
+6. **Later — Content pass**  
+   Unit/building/terrain upgrades after WebGL default stays rock-solid.
 
 ---
 

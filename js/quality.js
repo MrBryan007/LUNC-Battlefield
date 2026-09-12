@@ -1,4 +1,4 @@
-/* LUNC Battlefield v9.1 — graphics quality + performance scaling (graphics-only) */
+/* LUNC Battlefield v9.2 — graphics quality + performance scaling (PBR lighting aware) */
 (function (global) {
   'use strict';
 
@@ -239,6 +239,9 @@
   var sceneRef = null;
   var sunRef = null;
   var fillRef = null;
+  var hemiRef = null;
+  var rimRef = null;
+  var accentLightsRef = null;
 
   // FPS / dyn-res adaptation
   var frameTimes = [];
@@ -352,6 +355,9 @@
     sceneRef = scene || sceneRef;
     sunRef = sun || sunRef;
     if (opts.fillLight) fillRef = opts.fillLight;
+    if (opts.hemiLight) hemiRef = opts.hemiLight;
+    if (opts.rimLight) rimRef = opts.rimLight;
+    if (opts.accentLights) accentLightsRef = opts.accentLights;
 
     syncAppliedFromEffective();
     var p = applied;
@@ -412,12 +418,53 @@
       }
     }
 
-    // Lighting complexity: dim/disable fill on LOW
+    // Lighting complexity: scale fill / hemi / rim / accents for PBR (v9.2)
     if (fillRef) {
-      if (p.lightingComplexity === 'low') fillRef.intensity = 0.08;
-      else if (p.lightingComplexity === 'medium') fillRef.intensity = 0.16;
-      else fillRef.intensity = 0.22;
+      if (p.lightingComplexity === 'low') fillRef.intensity = 0.06;
+      else if (p.lightingComplexity === 'medium') fillRef.intensity = 0.12;
+      else if (p.lightingComplexity === 'ultra') fillRef.intensity = 0.22;
+      else fillRef.intensity = 0.18;
     }
+    if (hemiRef) {
+      if (p.lightingComplexity === 'low') hemiRef.intensity = 0.38;
+      else if (p.lightingComplexity === 'medium') hemiRef.intensity = 0.46;
+      else if (p.lightingComplexity === 'ultra') hemiRef.intensity = 0.58;
+      else hemiRef.intensity = 0.52;
+    }
+    if (rimRef) {
+      if (p.lightingComplexity === 'low') rimRef.intensity = 0;
+      else if (p.lightingComplexity === 'medium') rimRef.intensity = 0.04;
+      else if (p.lightingComplexity === 'ultra') rimRef.intensity = 0.1;
+      else rimRef.intensity = 0.07;
+    }
+    if (sunRef && sunRef.isDirectionalLight) {
+      if (p.lightingComplexity === 'low') sunRef.intensity = 0.88;
+      else if (p.lightingComplexity === 'medium') sunRef.intensity = 0.98;
+      else if (p.lightingComplexity === 'ultra') sunRef.intensity = 1.12;
+      else sunRef.intensity = 1.05;
+    }
+    if (accentLightsRef && accentLightsRef.length) {
+      var accentScale = 1;
+      if (p.lightingComplexity === 'low') accentScale = 0.55;
+      else if (p.lightingComplexity === 'medium') accentScale = 0.8;
+      else if (p.lightingComplexity === 'ultra') accentScale = 1.15;
+      for (var ai = 0; ai < accentLightsRef.length; ai++) {
+        var al = accentLightsRef[ai];
+        if (!al) continue;
+        if (al.userData && al.userData.baseIntensity == null) {
+          al.userData.baseIntensity = al.intensity;
+        }
+        var base = (al.userData && al.userData.baseIntensity != null) ? al.userData.baseIntensity : al.intensity;
+        al.intensity = base * accentScale;
+      }
+    }
+
+    // Keep materials registry quality clamps in sync
+    try {
+      if (LB.materials && typeof LB.materials.applyQuality === 'function') {
+        LB.materials.applyQuality(p.lightingComplexity || p.unitDetail || 'high');
+      }
+    } catch (_) {}
 
     // Notify listeners (effects/minimap/etc.)
     try {
@@ -477,7 +524,7 @@
       autoLevel = PRESET_ORDER[idx - 1];
       lastLevelChangeAt = now;
       syncAppliedFromEffective();
-      apply(rendererRef, sceneRef, sunRef, { immediate: false, fillLight: fillRef });
+      apply(rendererRef, sceneRef, sunRef, { immediate: false, fillLight: fillRef, hemiLight: hemiRef, rimLight: rimRef, accentLights: accentLightsRef });
       try { updateQualityUi(); } catch (_) {}
       return;
     }
@@ -487,7 +534,7 @@
       autoLevel = PRESET_ORDER[idx + 1];
       lastLevelChangeAt = now;
       syncAppliedFromEffective();
-      apply(rendererRef, sceneRef, sunRef, { immediate: false, fillLight: fillRef });
+      apply(rendererRef, sceneRef, sunRef, { immediate: false, fillLight: fillRef, hemiLight: hemiRef, rimLight: rimRef, accentLights: accentLightsRef });
       try { updateQualityUi(); } catch (_) {}
     }
   }
@@ -536,7 +583,7 @@
     syncAppliedFromEffective();
     currentRenderScale = applied.renderScale;
     targetRenderScale = applied.renderScale;
-    apply(rendererRef, sceneRef, sunRef, { immediate: true, fillLight: fillRef });
+    apply(rendererRef, sceneRef, sunRef, { immediate: true, fillLight: fillRef, hemiLight: hemiRef, rimLight: rimRef, accentLights: accentLightsRef });
     updateQualityUi();
     return getState();
   }
@@ -568,7 +615,7 @@
     overlayEl.className = 'perf-overlay';
     overlayEl.setAttribute('aria-hidden', 'true');
     overlayEl.innerHTML =
-      '<div class="perf-title">PERF · v9.1</div>' +
+      '<div class="perf-title">PERF · v9.2</div>' +
       '<div class="perf-section" id="perfGfx"></div>' +
       '<div class="perf-section perf-feeds" id="perfFeeds"></div>';
     document.body.appendChild(overlayEl);
@@ -602,6 +649,8 @@
         '<div>Tex <b>' + (infoSrc && infoSrc.memory ? infoSrc.memory.textures : '—') + '</b> · Geo <b>' + (infoSrc && infoSrc.memory ? infoSrc.memory.geometries : '—') + '</b></div>' +
         '<div>Units <b>' + (counts.units != null ? counts.units : '—') + '</b> · Proj <b>' + (counts.projectiles != null ? counts.projectiles : '—') + '</b></div>' +
         '<div>Parts <b>' + (counts.particles != null ? counts.particles : '—') + '</b> · Expl <b>' + (counts.explosions != null ? counts.explosions : '—') + '</b> · Smoke <b>' + (counts.smoke != null ? counts.smoke : '—') + '</b></div>' +
+        '<div>Mats <b>' + (counts.materials != null ? counts.materials : (LB.materials && LB.materials.count ? LB.materials.count() : '—')) + '</b>' +
+        (counts.materialsShared != null ? (' · shared <b>' + counts.materialsShared + '</b>') : '') + '</div>' +
         '<div>Minimap <b>' + (st.preset.minimapHz || '—') + ' Hz</b></div>';
     }
     if (feedEl) {

@@ -1,4 +1,4 @@
-/* Unit builders / formations — v8.2 articulated RTS units */
+/* Unit builders / formations — v9.2 articulated RTS units (materials registry) */
 (function (global) {
   'use strict';
   const LB = global.LUNCBattle;
@@ -11,22 +11,26 @@
       RELOAD: 'RELOAD', HIT: 'HIT', MOVE: 'MOVE', AIM_TURRET: 'AIM_TURRET', IDLE_SCAN: 'IDLE_SCAN'
     };
 
-    // ---- Shared materials (once per API) ----
-    const bodyMatBull = mat(0x2a3a30, 0.78, 0.12);
-    const bodyMatBear = mat(0x2e2424, 0.78, 0.12);
-    const clothMat = mat(0x1c241e, 0.92, 0.02);
-    const clothMatBear = mat(0x241818, 0.92, 0.02);
-    const darkMat = mat(0x121814, 0.7, 0.22);
-    const metalMat = mat(0x3a4640, 0.42, 0.48);
-    const metalMatDark = mat(0x222a26, 0.5, 0.55);
-    const skinMat = mat(0xc4a07a, 0.88, 0.02);
-    const trackMat = mat(0x0e1210, 0.82, 0.18);
-    // accent mats created per-faction color below via cache
+    // ---- Shared materials via LUNCBattle.materials registry (v9.2) ----
+    const Mats = (LB && LB.materials) || null;
+    if (Mats && Mats.init) Mats.init(THREE);
+    const bodyMatBull = Mats ? Mats.get('unit.bodyBull') : mat(0x2a3a30, 0.78, 0.12);
+    const bodyMatBear = Mats ? Mats.get('unit.bodyBear') : mat(0x2e2424, 0.78, 0.12);
+    const clothMat = Mats ? Mats.get('unit.clothBull') : mat(0x1c241e, 0.92, 0.02);
+    const clothMatBear = Mats ? Mats.get('unit.clothBear') : mat(0x241818, 0.92, 0.02);
+    const darkMat = Mats ? Mats.get('unit.dark') : mat(0x121814, 0.7, 0.22);
+    const metalMat = Mats ? Mats.get('unit.metal') : mat(0x3a4640, 0.42, 0.48);
+    const metalMatDark = Mats ? Mats.get('unit.metalDark') : mat(0x222a26, 0.5, 0.55);
+    const skinMat = Mats ? Mats.get('unit.skin') : mat(0xc4a07a, 0.88, 0.02);
+    const trackMat = Mats ? Mats.get('unit.track') : mat(0x0e1210, 0.82, 0.18);
+    // accent mats created per-faction color below via cache / registry
     const accentCache = {};
     function accentMat(color, emissiveBoost) {
       const key = color + '_' + (emissiveBoost || 0);
       if (!accentCache[key]) {
-        accentCache[key] = mat(color, 0.55, 0.2, color, emissiveBoost != null ? emissiveBoost : 0.07);
+        accentCache[key] = Mats
+          ? Mats.accent(color, emissiveBoost != null ? emissiveBoost : 0.07)
+          : mat(color, 0.55, 0.2, color, emissiveBoost != null ? emissiveBoost : 0.07);
       }
       return accentCache[key];
     }
@@ -72,9 +76,11 @@
       shadowArt: new THREE.CircleGeometry(0.58, 12)
     };
 
-    const shadowMat = new THREE.MeshBasicMaterial({
-      color: 0x000000, transparent: true, opacity: 0.18, depthWrite: false
-    });
+    const shadowMat = (Mats && Mats.basic)
+      ? Mats.basic({ color: 0x000000, transparent: true, opacity: 0.18, depthWrite: false })
+      : new THREE.MeshBasicMaterial({
+          color: 0x000000, transparent: true, opacity: 0.18, depthWrite: false
+        });
 
     function setShadow(mesh, cast) {
       cast = cast !== false;
@@ -506,7 +512,7 @@
       setAnimState: setAnimState,
       tickUnit: tickUnit,
       GEO: GEO,
-      version: 'v8.8'
+      version: 'v9.2'
     };
   }
 

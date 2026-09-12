@@ -409,7 +409,7 @@
   }
 
   var api = {
-    version: 'v9.1',
+    version: 'v9.1+v9.2',
     STORAGE_KEY: STORAGE_KEY,
     detectWebGPU: detectWebGPU,
     detectWebGPUAsync: detectWebGPUAsync,
