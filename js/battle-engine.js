@@ -3,7 +3,7 @@
 
     // =====================================================
     // LUNC ECOSYSTEM BATTLEFIELD v8 — RTS GRAPHICS OVERHAUL
-    // v8.1 terrain · v8.2 units/anim · v8.3 bases · v8.4 combat effects · v8.5 price territory · v8.6 minimap+camera
+    // v8.1 terrain · v8.2 units/anim · v8.3 bases · v8.4 effects · v8.5 territory · v8.6 minimap/camera · v8.7 command HUD
     // Original procedural art only. No third-party game assets.
     // =====================================================
 
@@ -39,6 +39,11 @@
     const feedEl = $('feed');
 
     function pushFeed(text, type = '') {
+      if (window.LUNCBattle && LUNCBattle.warRoom && typeof LUNCBattle.warRoom.pushText === 'function') {
+        LUNCBattle.warRoom.pushText(text, type);
+        return;
+      }
+      if (!feedEl) return;
       const div = document.createElement('div');
       div.className = 'feed-item ' + type;
       div.textContent = text;
@@ -311,11 +316,38 @@
       else if (depthSource===SRC.API) depthLabel = (depthVendorLabel || 'Backend API') + ' depth (LIVE)';
       else depthLabel = 'Estimated walls (NOT live order book)';
       const live = priceSource!==SRC.SIM;
-      $('dataMode').textContent=live?('LIVE · '+priceLabel.toUpperCase()):'SIMULATION — price not live';
-      $('dataMode').className=live?'live':'error';
-      $('agentStatus').textContent='Depth: '+depthLabel+' · build v8.5';
-      $('pair').textContent=tokens[current].name+' · '+priceLabel;
-      if (window.LUNCBattle && LUNCBattle.ui) LUNCBattle.ui.lastDepthSourceLabel = depthLabel;
+      const build = (window.LUNCBattle && LUNCBattle.config && LUNCBattle.config.BUILD) || '';
+      const dm = $('dataMode');
+      if (dm) {
+        dm.textContent = live ? ('LIVE · ' + priceLabel.toUpperCase()) : 'SIMULATION — price not live';
+        dm.className = live ? 'live' : 'error';
+      }
+      const ag = $('agentStatus');
+      if (ag) ag.textContent = 'Depth: ' + depthLabel + ' · ' + build;
+      const pair = $('pair');
+      if (pair) pair.textContent = tokens[current].name + ' · ' + priceLabel;
+      if (window.LUNCBattle && LUNCBattle.ui) {
+        LUNCBattle.ui.lastDepthSourceLabel = depthLabel;
+        if (typeof LUNCBattle.ui.updateHealthInput === 'function') {
+          const reconnecting = !!(reconnectAttempts > 0 && (!spotWs || spotWs.readyState !== 1)
+            && tokens[current] && tokens[current].symbol);
+          LUNCBattle.ui.updateHealthInput({
+            priceLive: live,
+            priceSource: priceLabel,
+            priceAgeMs: Date.now() - lastPriceTs,
+            depthLive: depthSource === SRC.BINANCE || depthSource === SRC.API,
+            depthLabel: depthLabel,
+            depthAgeMs: lastDepthTs ? (Date.now() - lastDepthTs) : null,
+            binanceOk: depthSource === SRC.BINANCE || priceSource === SRC.BINANCE,
+            geckoOk: priceSource === SRC.GECKO || priceSource === SRC.LLAMA ? true : null,
+            apiOk: depthSource === SRC.API || priceSource === SRC.API || priceSource === SRC.BRIDGE,
+            backendExpected: !!(LUNCBattle.config && LUNCBattle.config.apiBase),
+            backendOffline: !!(LUNCBattle.config && LUNCBattle.config.apiBase && !live && depthSource === SRC.SIM),
+            reconnecting: reconnecting,
+            token: current
+          });
+        }
+      }
       updateWallLabels();
     }
 
@@ -383,6 +415,9 @@
         }
       }
       document.querySelectorAll('.token-btn').forEach(b=>b.classList.toggle('active',b.dataset.token===sym));
+      if (window.LUNCBattle && LUNCBattle.ui && typeof LUNCBattle.ui.clearForTokenSwitch === 'function') {
+        LUNCBattle.ui.clearForTokenSwitch(sym);
+      }
       rebuildUnits(); pushFeed('Command switched to '+sym,'win');
       if(t.symbol) connectBinance(t.symbol,t.futures); else closeExchangeSockets();
       // Immediate multi-source refresh so USTC/LUNC don't sit on stale base
@@ -430,6 +465,12 @@
             LUNCBattle.ui.lastVolumeUsd = coin.usd_24h_vol;
             LUNCBattle.ui.lastVolumeTruth = LUNCBattle.DataTruth.LIVE;
           }
+          const mv = $('marketVolume'); if (mv) mv.textContent = fmtUsd(coin.usd_24h_vol);
+        }
+        if (window.LUNCBattle && LUNCBattle.ui && typeof LUNCBattle.ui.setPriceChange === 'function') {
+          if (coin.usd_24h_change != null && isFinite(coin.usd_24h_change)) {
+            LUNCBattle.ui.setPriceChange(coin.usd_24h_change, LUNCBattle.DataTruth.LIVE);
+          }
         }
         // Estimated walls only when no live book — clearly ESTIMATED, never labeled Binance
         if(depthSource!==SRC.BINANCE && depthSource!==SRC.API) {
@@ -449,13 +490,45 @@
         const rows=await r.json(), coin=Array.isArray(rows)?rows[0]:null; if(!coin) return;
         if(coin.market_cap>0) $('marketCap').textContent=fmtUsd(coin.market_cap);
         $('marketRank').textContent=coin.market_cap_rank?('#'+coin.market_cap_rank):'—';
+        if (coin.total_volume > 0) {
+          const mv = $('marketVolume'); if (mv) mv.textContent = fmtUsd(coin.total_volume);
+          if (window.LUNCBattle && LUNCBattle.market) {
+            LUNCBattle.market.setVolume24h(coin.total_volume, LUNCBattle.DataTruth.LIVE);
+            if (LUNCBattle.ui) {
+              LUNCBattle.ui.lastVolumeUsd = coin.total_volume;
+              LUNCBattle.ui.lastVolumeTruth = LUNCBattle.DataTruth.LIVE;
+            }
+          }
+        }
+        if (coin.circulating_supply > 0) {
+          const ms = $('marketSupply');
+          if (ms) {
+            const s = coin.circulating_supply;
+            ms.textContent = s >= 1e12 ? (s/1e12).toFixed(2)+'T'
+              : s >= 1e9 ? (s/1e9).toFixed(2)+'B'
+              : s >= 1e6 ? (s/1e6).toFixed(2)+'M'
+              : String(Math.round(s));
+          }
+        }
+        if (coin.price_change_percentage_24h != null && window.LUNCBattle && LUNCBattle.ui && LUNCBattle.ui.setPriceChange) {
+          LUNCBattle.ui.setPriceChange(coin.price_change_percentage_24h, LUNCBattle.DataTruth.LIVE);
+        }
       } catch(e){ console.warn('[Market context]',e.message||e); }
     }
 
     async function fetchChainTvl() {
       try {
         const r=await fetch('https://api.llama.fi/v2/chains',{cache:'no-store'}), rows=await r.json();
-        const terra=rows.find(c=>c.name==='Terra Classic'); if(terra) $('tvlValue').textContent=fmtUsd(terra.tvl);
+        const terra=rows.find(c=>c.name==='Terra Classic');
+        if(terra) {
+          $('tvlValue').textContent=fmtUsd(terra.tvl);
+          if (window.LUNCBattle && LUNCBattle.ui) {
+            // Ecosystem bias stays neutral — TVL presence is informational LIVE, not directional
+            LUNCBattle.ui.lastEcosystemTruth = LUNCBattle.DataTruth.LIVE;
+            LUNCBattle.ui.lastEcosystemBias = 0;
+            LUNCBattle.ui.lastEcosystemDetail = 'TVL ' + fmtUsd(terra.tvl);
+          }
+        }
       } catch(e){ console.warn('[DefiLlama chain]',e.message||e); }
     }
     async function fetchProtocolTvl(slug,id) {
@@ -487,6 +560,10 @@
     }
 
     function renderLiquidityHud(zones, sourceLabel) {
+      if (window.LUNCBattle && LUNCBattle.ui && typeof LUNCBattle.ui.renderLiquidityBands === 'function') {
+        LUNCBattle.ui.renderLiquidityBands(zones, sourceLabel, { noBook: !(tokens[current] && tokens[current].symbol) });
+        return;
+      }
       const el = document.getElementById('liquidityZones');
       if (!el) return;
       if (!zones || zones.truth === 'UNAVAILABLE') {
@@ -567,7 +644,7 @@
       const streams=symbol+'@bookTicker/'+symbol+'@depth20@100ms';
       try {
         spotWs=new WebSocket('wss://stream.binance.com:9443/stream?streams='+streams);
-        spotWs.onopen=()=>{ reconnectAttempts=0; depthSource=SRC.BINANCE; depthVendorLabel='Binance'; updateStatusUI(); pushFeed('Binance order book connected','win'); };
+        spotWs.onopen=()=>{ reconnectAttempts=0; depthSource=SRC.BINANCE; depthVendorLabel='Binance'; if(window.LUNCBattle&&LUNCBattle.ui&&LUNCBattle.ui.updateHealthInput) LUNCBattle.ui.updateHealthInput({ reconnecting:false, binanceOk:true, depthLive:true }); updateStatusUI(); pushFeed('Binance order book connected','win'); };
         spotWs.onmessage=evt=>{
           try {
             const raw=JSON.parse(evt.data), msg=raw.data||raw;
@@ -598,6 +675,9 @@
           if(zel && depthSource===SRC.SIM) zel.textContent='UNAVAILABLE — live order book disconnected';
           if(window.LUNCBattle&&LUNCBattle.ui){ LUNCBattle.ui.lastBookTruth=LUNCBattle.DataTruth.UNAVAILABLE; LUNCBattle.ui.lastZones=null; }
           if (priceTerritoryApi) priceTerritoryApi.updateLiquidityDefenses(null, price);
+          if (window.LUNCBattle && LUNCBattle.ui && LUNCBattle.ui.updateHealthInput) {
+            LUNCBattle.ui.updateHealthInput({ reconnecting: true, depthLive: false });
+          }
           updateStatusUI(); scheduleReconnect(symbol,futuresSymbol);
         };
         spotWs.onerror=()=>{};
@@ -623,14 +703,12 @@
                   source: 'Binance Futures'
                 })
               : { classification: side==='SELL'?'LONG_LIQ':'SHORT_LIQ' };
-            const when = new Date(ts).toISOString().slice(11,19) + 'Z';
+            // War Room card emitted by ui.recordLiquidation → warRoom.pushLiquidation
             if(side==='SELL') {
               // Longs liquidated → forced sells → bearish pressure on bulls
-              pushFeed('LIVE LIQ · '+sym+' · LONG · qty '+amount+' · ~'+fmtUsd(usd)+' · '+when+' · Binance Futures','loss');
               buyWall=Math.max(.25,buyWall*.93);
             } else {
               // Shorts liquidated → forced buys → bullish pressure on bears
-              pushFeed('LIVE LIQ · '+sym+' · SHORT · qty '+amount+' · ~'+fmtUsd(usd)+' · '+when+' · Binance Futures','liq');
               sellWall=Math.max(.25,sellWall*.93);
             }
             if (effectsApi && effectsApi.playLiquidationFX) {
@@ -823,6 +901,20 @@
       const tickVal=(momentum*55).toFixed(2), tick=$('tick'); tick.textContent=(momentum>=0?'+':'')+tickVal+'%'; tick.style.color=momentum>=0?'var(--bull)':'var(--bear)';
       const press=$('pressure'); if(momentum>.07){press.textContent='Buyers advancing';press.className='pressure buyers';}else if(momentum<-.07){press.textContent='Sellers advancing';press.className='pressure sellers';}else{press.textContent='Contested';press.className='pressure contested';}
       $('buyWall').textContent='$'+buyWall.toFixed(2)+'M'; $('sellWall').textContent='$'+sellWall.toFixed(2)+'M';
+      if (window.LUNCBattle && LUNCBattle.ui && typeof LUNCBattle.ui.updateFrontlineHud === 'function') {
+        let levels = [];
+        if (priceTerritoryApi && typeof priceTerritoryApi.getVisiblePriceLevels === 'function') {
+          try { levels = priceTerritoryApi.getVisiblePriceLevels() || []; } catch (_) {}
+        }
+        LUNCBattle.ui.updateFrontlineHud({
+          price: price,
+          rangeLow: rangeLow,
+          rangeHigh: rangeHigh,
+          decimals: t.decimals,
+          levels: levels,
+          frontlineX: priceTerritoryApi ? priceTerritoryApi.getFrontlineX() : targetX
+        });
+      }
 
       if(Date.now()-lastRebuild>7000 && Math.random()<.17) rebuildUnits();
       if(!isLive&&t.hasBurns&&Math.random()<.055){
@@ -972,7 +1064,7 @@
     addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio||1,innerWidth<760?1.35:1.8));});
 
     updateStatusUI();
-    pushFeed('Battlefield v8.6 · minimap & camera navigation','win');
+    pushFeed('Battlefield ' + (window.LUNCBattle && LUNCBattle.config && LUNCBattle.config.BUILD) || 'v8' + ' · RTS command HUD & War Room','win');
     pushFeed('Market pressure moves formations and the contested front','info');
     pushFeed('Public build uses HTTPS-safe data feeds','info');
     animate();

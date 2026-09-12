@@ -6,8 +6,8 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#070b08" />
-  <title>LUNC Ecosystem Battlefield v8</title>
-  <link rel="stylesheet" href="css/battlefield.css" />
+  <title>LUNC Ecosystem Battlefield v8.7 — RTS Command</title>
+  <link rel="stylesheet" href="css/battlefield.css?v=20260911v87" />
 </head>
 <body>
   <div id="buildTag">BATTLEFIELD v8</div>
@@ -15,25 +15,50 @@
   <div id="victoryFlash"></div>
   <div id="battleBadge">Contested Market Front</div>
 
-  <header id="topHud">
-    <div>
-      <div class="battle-range" id="battleRange">BATTLE RANGE — connecting —</div>
-      <div class="micro" id="utc" style="margin-top:4px">UTC --:--:--</div>
-    </div>
-    <div>
-      <div class="micro" id="pair">LUNC/USDT</div>
-      <div class="price-big"><span id="price">$—</span><span class="tick" id="tick">—</span></div>
-    </div>
-    <div class="pressureWrap">
-      <div class="micro">Front pressure</div>
-      <div class="pressure contested" id="pressure">Contested</div>
-    </div>
-    <div class="metrics">
-      <div class="metric buy"><span class="micro" id="buyWallLabel">Buy wall <span class="qual est">(est.)</span></span><strong id="buyWall">$—</strong></div>
-      <div class="metric sell"><span class="micro" id="sellWallLabel">Sell wall <span class="qual est">(est.)</span></span><strong id="sellWall">$—</strong></div>
-      <div class="metric"><span class="micro">Terra TVL <span class="qual live">(live)</span></span><strong id="tvlValue" style="color:var(--cyan)">$—</strong></div>
-      <div class="metric"><span class="micro">CoinGecko mcap <span class="qual live">(live)</span></span><strong id="marketCap">$—</strong></div>
-      <div class="metric"><span class="micro">CoinGecko rank <span class="qual live">(live)</span></span><strong id="marketRank" style="color:var(--gold)">—</strong></div>
+  <!-- PRIMARY RTS Command HUD (always visible) -->
+  <header id="topHud" class="cmd-hud" role="banner">
+    <div class="cmd-primary">
+      <div class="cmd-block cmd-token">
+        <div class="micro" id="pair">LUNC/USDT</div>
+        <div class="price-big"><span id="price">$—</span><span class="tick" id="tick">—</span></div>
+        <div class="micro price-change" id="priceChange">24h —</div>
+      </div>
+
+      <div class="cmd-block cmd-power" aria-label="Battle power">
+        <div class="power-row bull-row">
+          <span class="faction-icon bull-icon" aria-hidden="true">▲</span>
+          <span class="micro">Bull Power</span>
+          <strong id="bullPower" class="bull">—</strong>
+        </div>
+        <div class="power-row bear-row">
+          <span class="faction-icon bear-icon" aria-hidden="true">▼</span>
+          <span class="micro">Bear Power</span>
+          <strong id="bearPower" class="bear">—</strong>
+        </div>
+      </div>
+
+      <div class="cmd-block cmd-advantage">
+        <div class="micro">Advantage</div>
+        <div id="battleAdvantage" class="advantage contested" data-state="CONTESTED">
+          <span class="adv-icon" aria-hidden="true">◆</span>
+          <span class="adv-text">CONTESTED</span>
+        </div>
+        <div class="pressureWrap">
+          <div class="pressure contested" id="pressure">Contested</div>
+        </div>
+      </div>
+
+      <div class="cmd-block cmd-frontline">
+        <div class="battle-range" id="battleRange">BATTLE RANGE — connecting —</div>
+        <div class="micro" id="frontlineDetail">Frontline —</div>
+        <div class="micro" id="utc">UTC --:--:--</div>
+      </div>
+
+      <div class="cmd-block cmd-health">
+        <div class="micro">Data health</div>
+        <div id="dataHealth" class="data-health connecting" data-state="CONNECTING">CONNECTING…</div>
+        <div class="micro" id="sourceFreshness">—</div>
+      </div>
     </div>
   </header>
 
@@ -43,55 +68,80 @@
     <button class="token-btn" data-token="JURIS">JURIS</button>
   </nav>
 
-  <aside id="leftPanel">
+  <!-- Mobile panel tabs (~390px) -->
+  <nav id="hudTabs" class="hud-tabs" aria-label="Command panels">
+    <button type="button" data-panel="command" class="active">Command</button>
+    <button type="button" data-panel="intel">Intel</button>
+    <button type="button" data-panel="warroom">War Room</button>
+  </nav>
+
+  <!-- SECONDARY: Command / intel drawers -->
+  <aside id="leftPanel" data-hud="command" aria-label="Command intel">
     <div class="panel-title">LUNC Command</div>
     <div class="legend"><span class="bull">Bulls</span> defend the west. <span class="bear">Bears</span> defend the east. Army strength follows market-wall pressure; price movement shifts the front.</div>
+
+    <div class="section drawer open" id="drawerMarket">
+      <button type="button" class="section-label drawer-toggle" data-drawer-toggle="drawerMarketBody" aria-expanded="true">Market · secondary</button>
+      <div id="drawerMarketBody" class="drawer-body open">
+        <div class="metrics secondary-metrics">
+          <div class="metric"><span class="micro">Mcap <span class="qual live">(live)</span></span><strong id="marketCap">$—</strong></div>
+          <div class="metric"><span class="micro">Rank <span class="qual live">(live)</span></span><strong id="marketRank" style="color:var(--gold)">—</strong></div>
+          <div class="metric"><span class="micro">Volume 24h</span><strong id="marketVolume">$—</strong></div>
+          <div class="metric"><span class="micro">Supply</span><strong id="marketSupply">—</strong></div>
+          <div class="metric"><span class="micro">Terra TVL <span class="qual live">(live)</span></span><strong id="tvlValue" style="color:var(--cyan)">$—</strong></div>
+        </div>
+        <div class="row"><span id="buyWallLabel">Buy wall <span class="qual est">(est.)</span></span><strong id="buyWall" class="bull">$—</strong></div>
+        <div class="row"><span id="sellWallLabel">Sell wall <span class="qual est">(est.)</span></span><strong id="sellWall" class="bear">$—</strong></div>
+      </div>
+    </div>
+
     <div class="section">
       <div class="section-label">Protocol TVL</div>
       <div class="row"><span>Terraport</span><strong id="tvlTerraport">$—</strong></div>
       <div class="row"><span>Garuda</span><strong id="tvlGaruda">$—</strong></div>
       <div class="row"><span>Juris</span><strong id="tvlJuris">$—</strong></div>
     </div>
+
+    <div class="section">
+      <div class="section-label">Battle Strength components</div>
+      <div id="strengthParts" class="micro strength-parts" style="margin-top:6px"></div>
+      <div class="micro" style="margin-top:4px">Contributions only from LIVE / CALCULATED inputs. Missing feeds stay UNAVAILABLE — never fabricated.</div>
+    </div>
+
+    <div class="section">
+      <div class="section-label">Liquidity bands</div>
+      <div class="micro" id="liquidityZones">UNAVAILABLE — waiting for live book</div>
+    </div>
+
+    <div class="section" data-hud="intel">
+      <div class="section-label">Burns</div>
+      <div class="micro" id="burnsStatus">UNAVAILABLE</div>
+    </div>
+    <div class="section" data-hud="intel">
+      <div class="section-label">Whale Hunter</div>
+      <div class="micro" id="whalesStatus">UNAVAILABLE</div>
+    </div>
+    <div class="section" data-hud="intel">
+      <div class="section-label">Governance</div>
+      <div class="micro" id="govStatus">UNAVAILABLE</div>
+    </div>
+    <div class="section" data-hud="intel">
+      <div class="section-label">Validators / Network</div>
+      <div class="micro" id="validatorsStatus">UNAVAILABLE</div>
+      <div id="validatorsList"></div>
+    </div>
+
     <div class="section">
       <div class="section-label">Battle rules</div>
       <div class="legend"><span style="color:var(--gold);font-weight:700">Burn flashes</span> are labeled simulated unless a trusted live event source is connected. Liquidations are shown only when the exchange stream provides them.</div>
     </div>
-    
-    <div class="section">
-      <div class="section-label">Battle Strength Score</div>
-      <div class="row"><span>Bull Power</span><strong id="bullPower" class="bull">—</strong></div>
-      <div class="row"><span>Bear Power</span><strong id="bearPower" class="bear">—</strong></div>
-      <div class="row"><span>Advantage</span><strong id="battleAdvantage">—</strong></div>
-      <div id="strengthParts" class="micro" style="margin-top:6px"></div>
-      <div class="micro" style="margin-top:4px">Score is CALCULATED from available inputs. Missing feeds stay UNAVAILABLE.</div>
-    </div>
-    <div class="section">
-      <div class="section-label">Burns</div>
-      <div class="micro" id="burnsStatus">UNAVAILABLE</div>
-    </div>
-    <div class="section">
-      <div class="section-label">Whale Hunter</div>
-      <div class="micro" id="whalesStatus">UNAVAILABLE</div>
-    </div>
-    <div class="section">
-      <div class="section-label">Governance</div>
-      <div class="micro" id="govStatus">UNAVAILABLE</div>
-    </div>
-    <div class="section">
-      <div class="section-label">Validators</div>
-      <div class="micro" id="validatorsStatus">UNAVAILABLE</div>
-      <div id="validatorsList"></div>
-    </div>
-    <div class="section">
-      <div class="section-label">Liquidity zones</div>
-      <div class="micro" id="liquidityZones">UNAVAILABLE — waiting for live book</div>
-    </div>
 
-    <div class="section micro" style="line-height:1.45">Prices: DefiLlama → CoinGecko · Depth: Binance if open<br>Walls without Binance = estimated, not live book · Build <strong>v8.6</strong> · RTS Graphics</div>
+    <div class="section micro" style="line-height:1.45">Prices: DefiLlama → CoinGecko · Depth: Binance if open<br>Walls without Binance = estimated, not live book · Build <strong id="buildLabel">v8.7</strong> · RTS Command HUD</div>
   </aside>
 
-  <aside id="rightPanel">
-    <div class="panel-title">War Room Feed</div>
+  <aside id="rightPanel" data-hud="warroom" aria-label="War Room">
+    <div class="panel-title">War Room</div>
+    <div class="micro wr-legend">MARKET · PRICE TERRITORY · LIQUIDATION · BURN · WHALE · GOV · VALIDATOR · NETWORK · SYSTEM</div>
     <div id="feed"></div>
   </aside>
 
@@ -109,23 +159,24 @@
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-  <script src="js/config.js?v=20260911v86"></script>
-  <script src="js/market.js?v=20260911v86"></script>
-  <script src="js/terra.js?v=20260911v86"></script>
-  <script src="js/burns.js?v=20260911v86"></script>
-  <script src="js/whales.js?v=20260911v86"></script>
-  <script src="js/governance.js?v=20260911v86"></script>
-  <script src="js/effects.js?v=20260911v86"></script>
-  <script src="js/animations.js?v=20260911v86"></script>
-  <script src="js/units.js?v=20260911v86"></script>
-  <script src="js/ui.js?v=20260911v86"></script>
-  <script src="js/terrain.js?v=20260911v86"></script>
-  <script src="js/environment.js?v=20260911v86"></script>
-  <script src="js/structures.js?v=20260911v86"></script>
-  <script src="js/price-territory.js?v=20260911v86"></script>
-  <script src="js/camera.js?v=20260911v86"></script>
-  <script src="js/minimap.js?v=20260911v86"></script>
-  <script src="js/battle-engine.js?v=20260911v86"></script>
-  <script src="js/main.js?v=20260911v86"></script>
+  <script src="js/config.js?v=20260911v87"></script>
+  <script src="js/market.js?v=20260911v87"></script>
+  <script src="js/terra.js?v=20260911v87"></script>
+  <script src="js/burns.js?v=20260911v87"></script>
+  <script src="js/whales.js?v=20260911v87"></script>
+  <script src="js/governance.js?v=20260911v87"></script>
+  <script src="js/effects.js?v=20260911v87"></script>
+  <script src="js/animations.js?v=20260911v87"></script>
+  <script src="js/units.js?v=20260911v87"></script>
+  <script src="js/ui.js?v=20260911v87"></script>
+  <script src="js/war-room.js?v=20260911v87"></script>
+  <script src="js/terrain.js?v=20260911v87"></script>
+  <script src="js/environment.js?v=20260911v87"></script>
+  <script src="js/structures.js?v=20260911v87"></script>
+  <script src="js/price-territory.js?v=20260911v87"></script>
+  <script src="js/camera.js?v=20260911v87"></script>
+  <script src="js/minimap.js?v=20260911v87"></script>
+  <script src="js/battle-engine.js?v=20260911v87"></script>
+  <script src="js/main.js?v=20260911v87"></script>
 </body>
 </html>

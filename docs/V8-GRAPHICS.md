@@ -2,6 +2,8 @@
 
 ## Status
 
+**v8.7 done** — RTS Command HUD + War Room (primary/secondary layout, data-health, structured event cards).
+
 **v8.6 done** — RTS minimap (Canvas 2D) + classic 3/4 camera navigation; frontline terrain grounding fix.
 
 **v8.5 done** — price territory mapping and contested frontline (markers, capture, liquidity defenses).
@@ -29,7 +31,30 @@ All meshes are **original procedural Three.js r128** geometry. No third-party ga
 | `js/price-territory.js` | v8.5 price↔world X mapping, markers, contested frontline, liquidity defense props; v8.6 grounded frontline seating |
 | `js/camera.js` | v8.6 classic 3/4 RTS camera (WASD pan, OrbitControls, focus helpers, optional cinematic) |
 | `js/minimap.js` | v8.6 Canvas 2D overlay minimap (~10 Hz) + FRONT/BULL/BEAR focus |
-| `js/battle-engine.js` | Wires terrain / environment / units / structures / effects / price-territory / camera / minimap; keeps market / Binance / strength paths |
+| `js/ui.js` | v8.7 RTS Command HUD — primary strip, Battle Strength gates, data-health, intel cards |
+| `js/war-room.js` | v8.7 structured War Room feed (event class / importance / VIEW EVENT) |
+| `js/battle-engine.js` | Wires terrain / environment / units / structures / effects / price-territory / camera / minimap / HUD; keeps market / Binance / strength paths |
+
+
+## v8.7 RTS Command HUD & War Room
+
+### Command HUD (`LUNCBattle.ui`)
+- **Primary (always on):** token, live price + 24h change, Bull/Bear Power, advantage state, frontline price/neighbors, data-health + source freshness
+- **Advantage states:** STRONG BULL / BULL / CONTESTED / BEAR / STRONG BEAR — icon + text + faction accents (not color-only)
+- **Battle Strength components:** Momentum, Order Book, Volume, Liqs, Whales, Burns, Funding, OI, Ecosystem — contributions only when truth is **LIVE** or **CALCULATED**; otherwise marked **UNAVAILABLE** (never fabricated)
+- **Liquidity bands:** Immediate / Near / Major / Deep with Bid/Ask + truth; PARTIAL less authoritative
+- **Data health:** ALL SYSTEMS LIVE / PARTIAL DATA / DEGRADED / RECONNECTING / BACKEND OFFLINE — CoinGecko fail ≠ total failure if Binance ok
+- **Source freshness:** e.g. `BINANCE · LIVE · 1s`; stale downgrades
+- **Token switch** clears stale HUD; **JURIS** has no fake Binance book/liq
+- DOM writes throttled (primary ~8 Hz, strength/health slower)
+- Mobile ~390px: safe-area, Command / Intel / War Room tabs; minimap + FRONT/BULL/BEAR preserved
+
+### War Room (`LUNCBattle.warRoom`)
+Event classes: MARKET · PRICE TERRITORY · LIQUIDATION · BURN · WHALE · GOVERNANCE · VALIDATOR · NETWORK · SYSTEM  
+Fields: timestamp / type / headline / explanation / token / source / truth / importance  
+Importance: INFO / NOTABLE / MAJOR / CRITICAL — **VIEW EVENT** only on MAJOR/CRITICAL  
+Liq cards: LONG/SHORT · USD · LIVE · side benefiting; synced with existing FX — no fake liqs  
+Legacy `pushFeed(text, type)` adapts into structured cards
 
 ## v8.6 minimap & camera
 
@@ -222,8 +247,8 @@ Barrel elevates toward target; longer reload; holds rear ranks.
 | **8.3** | Base architecture refresh |
 | **8.4** | VFX / strikes / atmosphere |
 | **8.5** | Frontline / capture markers |
-| **8.6** | Minimap + camera navigation (this release) |
-| 8.7 | Mobile perf pass / lighting polish |
-| 8.8 | Final art QA + docs |
+| **8.6** | Minimap + camera navigation |
+| **8.7** | RTS Command HUD + War Room (this release) |
+| 8.8 | Final art QA + docs / mobile perf |
 
 Market data, Binance depth, Battle Strength, liquidations, and `?api=` bridge must remain intact across all stages. Do **not** fabricate LIVE burns / whales / liquidations.

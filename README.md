@@ -2,7 +2,7 @@
 
 Classic-RTS-inspired Terra Classic intelligence battlefield.
 
-**Build:** v8.6 — RTS minimap and camera navigation (see `docs/V8-GRAPHICS.md`).
+**Build:** v8.7 — RTS Command HUD + War Room (see `docs/V8-GRAPHICS.md`).
 
 **Live site:** https://mrbryan007.github.io/LUNC-Battlefield/
 
@@ -22,6 +22,7 @@ js/battle-engine.js
 js/units.js
 js/effects.js
 js/ui.js
+js/war-room.js
 ```
 
 v6 RTS visuals are preserved in `battle-engine.js`. `units.js` / `effects.js` are API stubs for further extraction.

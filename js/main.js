@@ -6,7 +6,10 @@
     const tag = document.getElementById('buildTag');
     if (tag) tag.textContent = 'BATTLEFIELD ' + ((LB.config && LB.config.BUILD) || 'v8');
     const title = document.querySelector('title');
-    if (title) title.textContent = LB.config.TITLE;
+    if (title && LB.config && LB.config.TITLE) title.textContent = LB.config.TITLE;
+    const buildLabel = document.getElementById('buildLabel');
+    if (buildLabel && LB.config) buildLabel.textContent = LB.config.BUILD;
+    if (LB.ui && typeof LB.ui.initHudChrome === 'function') LB.ui.initHudChrome();
     if (LB.config.apiBase) {
       console.info('[LUNCBattle] HTTPS API base', LB.config.apiBase);
     } else {
