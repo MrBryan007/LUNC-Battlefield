@@ -1,6 +1,8 @@
 # LUNC Battlefield v9.2 — PBR materials & lighting foundation
 
-**Status:** v9.2 on feature branch `feat/v9-next-gen-renderer` only. **Not merged to main.** Live GitHub Pages remains v8.x until an explicit merge.
+**Status:** v9.2.1 on feature branch `feat/v9-next-gen-renderer` only. **Not merged to main.** Live GitHub Pages remains v8.x until an explicit merge.
+
+**v9.2.1 hotfix:** `structures.js` referenced undeclared `Mats` during faction base setup (ReferenceError), aborting battle init → black canvas / Calls 0. Declared registry + registry presets for neutral structure kit; hardened `createFactionBase` in battle-engine.
 
 **Prerequisite:** v9.1 renderer abstraction (`js/renderer.js`) — WebGL default (Three.js **r128**) unchanged. **No Three.js upgrade in v9.2.**
 

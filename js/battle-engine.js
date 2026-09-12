@@ -258,12 +258,16 @@
         })
       : null;
     if (!structuresApi) console.error('[LUNCBattle] structures.js failed to load');
-    const bullBase = structuresApi
-      ? structuresApi.createFactionBase(-1, tokens[current].color)
-      : new THREE.Group();
-    const bearBase = structuresApi
-      ? structuresApi.createFactionBase(1, 0xe4675f)
-      : new THREE.Group();
+    let bullBase = new THREE.Group();
+    let bearBase = new THREE.Group();
+    if (structuresApi) {
+      try {
+        bullBase = structuresApi.createFactionBase(-1, tokens[current].color);
+        bearBase = structuresApi.createFactionBase(1, 0xe4675f);
+      } catch (e) {
+        console.error('[LUNCBattle] createFactionBase failed', e);
+      }
+    }
 
     // v8.5 — price territory mapping & contested frontline (replaces simple poles/rope)
     const priceTerritoryApi = (window.LUNCBattle && LUNCBattle.priceTerritory)

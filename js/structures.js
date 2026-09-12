@@ -15,6 +15,9 @@
         emissiveIntensity: intensity || 0
       });
     };
+    // v9.2: shared PBR registry (was referenced below but never declared — black canvas)
+    const Mats = (global.LUNCBattle && LUNCBattle.materials) || null;
+    if (Mats && Mats.init) Mats.init(THREE);
     const mobile = !!opts.mobile;
     let structureDens = 1;
     let shadowCastMode = mobile ? 'bases' : 'rich';
@@ -45,19 +48,19 @@
     };
 
     const MAT = {
-      dirt: mat(0x4a3c2a, 1, 0),
-      dirtDark: mat(0x3a3024, 1, 0),
-      sandbag: mat(0x6a5a3e, 0.98, 0.02),
-      crate: mat(0x5a442e, 0.88, 0.04),
-      wood: mat(0x493625, 0.9, 0.01),
-      metal: mat(0x3a4038, 0.42, 0.48),
-      metalDark: mat(0x222824, 0.5, 0.55),
-      rust: mat(0x4a3428, 0.78, 0.28),
-      drum: mat(0x3a4030, 0.55, 0.35),
-      glass: mat(0x1a2218, 0.35, 0.15, 0x2a3a28, 0.08),
-      scorch: mat(0x1c1a16, 1, 0),
-      rubble: mat(0x4a4a40, 0.95, 0.04),
-      earth: mat(0x5a4a34, 1, 0.01)
+      dirt: Mats ? Mats.get('structure.dirt') : mat(0x4a3c2a, 1, 0),
+      dirtDark: Mats ? Mats.get('structure.dirtDark') : mat(0x3a3024, 1, 0),
+      sandbag: Mats ? Mats.get('structure.sandbag') : mat(0x6a5a3e, 0.98, 0.02),
+      crate: Mats ? Mats.get('structure.crate') : mat(0x5a442e, 0.88, 0.04),
+      wood: Mats ? Mats.get('structure.wood') : mat(0x493625, 0.9, 0.01),
+      metal: Mats ? Mats.get('structure.metal') : mat(0x3a4038, 0.42, 0.48),
+      metalDark: Mats ? Mats.get('structure.metalDark') : mat(0x222824, 0.5, 0.55),
+      rust: Mats ? Mats.get('structure.rust') : mat(0x4a3428, 0.78, 0.28),
+      drum: Mats ? Mats.get('structure.drum') : mat(0x3a4030, 0.55, 0.35),
+      glass: Mats ? Mats.get('structure.glass') : mat(0x1a2218, 0.35, 0.15, 0x2a3a28, 0.08),
+      scorch: Mats ? Mats.get('structure.scorch') : mat(0x1c1a16, 1, 0),
+      rubble: Mats ? Mats.get('structure.rubble') : mat(0x4a4a40, 0.95, 0.04),
+      earth: Mats ? Mats.get('structure.earth') : mat(0x5a4a34, 1, 0.01)
     };
 
     const dummy = new THREE.Object3D();

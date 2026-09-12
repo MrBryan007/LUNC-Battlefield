@@ -56,7 +56,7 @@
   };
 
   const config = {
-    BUILD: 'v9.2',
+    BUILD: 'v9.2.1',
     TITLE: 'LUNC Ecosystem Battlefield v9.2 — PBR materials & lighting (WebGL default)',
     DataTruth,
     tokens,
