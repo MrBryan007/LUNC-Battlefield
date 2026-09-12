@@ -1,3 +1,5 @@
+> **v9.4.8:** Non-JS stall hunt — see **`docs/V9-STALL.md`** (`?stall=1`, GPU timers, `tools/webgl-baseline.html`).
+
 # LUNC Battlefield v9.4.7 — FPS cadence diagnostics & root-cause isolation
 
 **Status:** `feat/v9-next-gen-renderer` only. **Not merged. Not deployed.** No v9.5 / authored art.

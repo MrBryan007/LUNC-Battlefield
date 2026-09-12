@@ -735,3 +735,51 @@
   color: #8aa0b0;
   font-weight: 700;
 }
+
+
+/* v9.4.8 stall / GPU diagnostic overlay (?stall=1 / ?diag=1) */
+.stall-overlay {
+  position: fixed;
+  left: max(8px, env(safe-area-inset-left));
+  top: max(8px, env(safe-area-inset-top));
+  z-index: 82;
+  max-width: min(360px, 94vw);
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(220,160,100,.4);
+  background: rgba(14,8,4,.92);
+  color: #dcc8b0;
+  font: 11px/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  pointer-events: none;
+  backdrop-filter: blur(8px);
+}
+.stall-title {
+  font-weight: 800;
+  letter-spacing: .08em;
+  color: #e0a868;
+  margin-bottom: 4px;
+  font-size: 10px;
+}
+.stall-overlay b { color: #f5ebe0; font-weight: 700; }
+.stall-flags, .stall-gpu {
+  margin-top: 4px;
+  font-size: 10px;
+  color: #a89078;
+}
+html.stall-ui-off #topHud,
+html.stall-ui-off #tokenBar,
+html.stall-ui-off #hudTabs,
+html.stall-ui-off #leftPanel,
+html.stall-ui-off #rightPanel,
+html.stall-ui-off #statusTray,
+html.stall-ui-off #qualityPicker,
+html.stall-ui-off .perf-overlay,
+html.stall-ui-off .cadence-overlay {
+  display: none !important;
+}
+@media (max-width: 720px) {
+  .stall-overlay {
+    max-width: min(300px, 92vw);
+    font-size: 10px;
+  }
+}

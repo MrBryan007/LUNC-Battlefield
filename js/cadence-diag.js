@@ -1,4 +1,4 @@
-/* LUNC Battlefield v9.4.7 — CPU / frame-cadence diagnostic harness (dev-only) */
+/* LUNC Battlefield v9.4.8 — CPU / frame-cadence diagnostic harness (dev-only) */
 (function (global) {
   'use strict';
 
@@ -21,7 +21,8 @@
     return n;
   }
 
-  var enabled = params.get('diag') === '1' || params.get('cadence') === '1';
+  var uiOff = params.get('ui') === '0';
+  var enabled = !uiOff && (params.get('diag') === '1' || params.get('cadence') === '1' || params.get('stall') === '1');
   var scene = parseScene(params.get('scene'));
   var dprOverride = parseDpr(params.get('dpr'));
   var shadowsOff = params.get('shadows') === '0';
@@ -203,7 +204,7 @@
         return '<div>' + x.name + ' <b>' + x.avgMs.toFixed(2) + 'ms</b> · ' + x.pct.toFixed(0) + '%</div>';
       }).join('');
       overlayEl.innerHTML =
-        '<div class="cadence-title">CADENCE · v9.4.7</div>' +
+        '<div class="cadence-title">CADENCE · v9.4.8</div>' +
         '<div>RAF/s <b>' + snap.rafPerSec + '</b> · render/s <b>' + snap.renderPerSec + '</b> · sim/s <b>' + snap.simPerSec + '</b></div>' +
         '<div>PERF FPS <b>' + (snap.perfFps != null ? snap.perfFps : '—') + '</b> · scene <b>' + snap.scene + '</b></div>' +
         '<div>CSS <b>' + snap.sizes.css + '</b> · DB <b>' + snap.sizes.drawingBuffer + '</b></div>' +
@@ -274,7 +275,7 @@
     if (!enabled && scene === 'full' && dprOverride == null && !shadowsOff && !fxOff && !airOff) return;
     try {
       console.info(
-        '[cadence] v9.4.7 hooks',
+        '[cadence] v9.4.8 hooks',
         'diag=' + enabled,
         'scene=' + scene,
         'dpr=' + dprOverride,
@@ -298,7 +299,7 @@
   }
 
   LB.cadence = {
-    version: 'v9.4.7',
+    version: 'v9.4.8',
     flags: flags,
     SCENE_ORDER: SCENE_ORDER,
     sceneIncludes: sceneIncludes,

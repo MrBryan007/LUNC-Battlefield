@@ -1,4 +1,4 @@
-/* LUNC Battlefield v9.4.7 — graphics quality + mesh-merge PERF (throttled UI) */
+/* LUNC Battlefield v9.4.8 — graphics quality + stall-aware PERF (throttled UI) */
 (function (global) {
   'use strict';
 
@@ -226,8 +226,9 @@
   function wantPerfOverlay() {
     try {
       var sp = new URLSearchParams(location.search);
+      if (sp.get('ui') === '0') return false;
       if (sp.get('perf') === '1') return true;
-      if (sp.get('diag') === '1' || sp.get('cadence') === '1') return true;
+      if (sp.get('diag') === '1' || sp.get('cadence') === '1' || sp.get('stall') === '1') return true;
       if (localStorage.getItem(PERF_KEY) === '1') return true;
     } catch (_) {}
     return false;
@@ -632,7 +633,7 @@
     overlayEl.className = 'perf-overlay';
     overlayEl.setAttribute('aria-hidden', 'true');
     overlayEl.innerHTML =
-      '<div class="perf-title">PERF · v9.4.7</div>' +
+      '<div class="perf-title">PERF · v9.4.8</div>' +
       '<div class="perf-section" id="perfGfx"></div>' +
       '<div class="perf-section" id="perfAssets"></div>' +
       '<div class="perf-section perf-feeds" id="perfFeeds"></div>';
@@ -657,18 +658,35 @@
       if (fb && fb.length > 72) fb = fb.slice(0, 69) + '…';
       var infoSrc = info;
       if (!infoSrc && LB.renderer && LB.renderer.getInfo) infoSrc = LB.renderer.getInfo(rendererRef);
+      var stallHtml = '';
+      try {
+        if (LB.stall && LB.stall.getGpuStats) {
+          var gs = LB.stall.getGpuStats();
+          var sc = LB.stall.getLastScene && LB.stall.getLastScene();
+          var gpart = gs.supported
+            ? ('GPU <b>' + (gs.lastMs != null ? (+gs.lastMs).toFixed(2) : '…') + 'ms</b> · CPU submit <b>' + (gs.cpuSubmitMs != null ? (+gs.cpuSubmitMs).toFixed(2) : '—') + 'ms</b>')
+            : 'GPU <b>n/a</b>';
+          var vpart = sc ? (' · visMesh <b>' + sc.visibleMeshes + '</b>/' + sc.meshes + ' · near/far <b>' + sc.nearMeshes + '</b>/<b>' + sc.farMeshes + '</b>') : '';
+          stallHtml = '<div>' + gpart + vpart + '</div>';
+        }
+      } catch (_) { stallHtml = ''; }
       gfx.innerHTML =
         '<div>FPS <b>' + st.fps.toFixed(0) + '</b> · avg <b>' + st.frameMs.toFixed(1) + 'ms</b> · 1%low≈ <b>' + st.low1pctMs.toFixed(1) + 'ms</b></div>' +
         '<div>Scale <b>' + st.renderScale.toFixed(2) + '</b> · dPR <b>' + st.pixelRatio.toFixed(2) + '</b> · <b>' + st.label + '</b></div>' +
         '<div>Renderer prefer <b>' + preferLabel + '</b> · Active <b>' + activeBackend + '</b></div>' +
         '<div>WebGPU available <b>' + gpuLabel + '</b></div>' +
         (fb ? '<div>Fallback <b>' + String(fb).replace(/[<>]/g, '') + '</b></div>' : '') +
-        '<div>Calls <b>' + (infoSrc && infoSrc.render ? infoSrc.render.calls : '—') + '</b> · Tris <b>' + (infoSrc && infoSrc.render ? infoSrc.render.triangles : '—') + '</b></div>' +
-        '<div>Tex <b>' + (infoSrc && infoSrc.memory ? infoSrc.memory.textures : '—') + '</b> · Geo <b>' + (infoSrc && infoSrc.memory ? infoSrc.memory.geometries : '—') + '</b></div>' +
+        '<div>Calls <b>' + (infoSrc && infoSrc.render ? infoSrc.render.calls : '—') + '</b> · Tris <b>' + (infoSrc && infoSrc.render ? infoSrc.render.triangles : '—') + '</b>' +
+        ' · Pts <b>' + (infoSrc && infoSrc.render && infoSrc.render.points != null ? infoSrc.render.points : '—') + '</b>' +
+        ' · Lines <b>' + (infoSrc && infoSrc.render && infoSrc.render.lines != null ? infoSrc.render.lines : '—') + '</b></div>' +
+        '<div>Prog <b>' + (infoSrc && infoSrc.programs ? infoSrc.programs.length : '—') + '</b>' +
+        ' · Tex <b>' + (infoSrc && infoSrc.memory ? infoSrc.memory.textures : '—') + '</b> · Geo <b>' + (infoSrc && infoSrc.memory ? infoSrc.memory.geometries : '—') + '</b>' +
+        ' · autoReset <b>' + (infoSrc ? (infoSrc.autoReset !== false ? 'on' : 'off') : '—') + '</b></div>' +
         '<div>Units <b>' + (counts.units != null ? counts.units : '—') + '</b> · Proj <b>' + (counts.projectiles != null ? counts.projectiles : '—') + '</b></div>' +
         '<div>Parts <b>' + (counts.particles != null ? counts.particles : '—') + '</b> · Expl <b>' + (counts.explosions != null ? counts.explosions : '—') + '</b> · Smoke <b>' + (counts.smoke != null ? counts.smoke : '—') + '</b></div>' +
         '<div>Mats <b>' + (counts.materials != null ? counts.materials : (LB.materials && LB.materials.count ? LB.materials.count() : '—')) + '</b>' +
         (counts.materialsShared != null ? (' · shared <b>' + counts.materialsShared + '</b>') : '') + '</div>' +
+        stallHtml +
         '<div>Minimap <b>' + (st.preset.minimapHz || '—') + ' Hz</b></div>';
     }
     var assetsEl = document.getElementById('perfAssets');
@@ -859,7 +877,7 @@
 
   // Public API
   var api = {
-    version: 'v9.4.7',
+    version: 'v9.4.8',
     MODES: MODES,
     PRESETS: PRESETS,
     FEED_STATES: FEED_STATES,

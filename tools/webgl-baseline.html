@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LUNC WebGL baseline A–E (Three r128) — v9.4.8</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #0a0e10; color: #c8d4dc; font: 13px/1.4 ui-monospace, Menlo, Consolas, monospace; }
+    #hud {
+      position: fixed; left: 10px; top: 10px; z-index: 5;
+      background: rgba(4,10,14,.88); border: 1px solid rgba(120,180,220,.35);
+      border-radius: 8px; padding: 10px 12px; max-width: min(420px, 94vw);
+      backdrop-filter: blur(8px);
+    }
+    #hud h1 { margin: 0 0 6px; font-size: 12px; letter-spacing: .08em; color: #7db8de; }
+    #hud a { color: #9fd0ef; }
+    .row { margin: 3px 0; }
+    .row b { color: #e8f0f5; }
+    .tiers button {
+      margin: 2px 4px 2px 0; padding: 4px 8px; border-radius: 4px;
+      border: 1px solid rgba(120,180,220,.4); background: #152028; color: #d0dde6; cursor: pointer;
+    }
+    .tiers button.active { background: #2a5070; border-color: #7db8de; }
+    canvas { display: block; width: 100%; height: 100%; }
+    .note { margin-top: 8px; font-size: 11px; color: #8aa0b0; }
+  </style>
+</head>
+<body>
+  <div id="hud">
+    <h1>WEBGL BASELINE · Three r128 · v9.4.8</h1>
+    <div class="tiers" id="tiers">
+      <button data-tier="A" class="active">A clear</button>
+      <button data-tier="B">B 1 mesh</button>
+      <button data-tier="C">C 100 same-mat</button>
+      <button data-tier="D">D 100 multi-mat</button>
+      <button data-tier="E">E +shadow</button>
+    </div>
+    <div class="row">Tier <b id="tierLabel">A</b> · RAF/s <b id="raf">—</b> · wall <b id="wall">—</b> ms</div>
+    <div class="row">CPU render <b id="cpu">—</b> ms · GPU <b id="gpu">—</b> ms</div>
+    <div class="row">Calls <b id="calls">—</b> · Tris <b id="tris">—</b> · Prog <b id="prog">—</b></div>
+    <div class="row">DB <b id="db">—</b> · AA <b id="aa">—</b></div>
+    <div class="row">GPU <b id="vendor">—</b></div>
+    <div class="note">
+      Same Three r128 CDN as battlefield. Compare tier wall-ms to game (~216 ms @ ~5.4 RAF/s).
+      Query: <code>?tier=A|B|C|D|E</code> · <code>?aa=0</code> · <code>?size=640x400</code>
+      · <a href="../index.html?stall=1&amp;perf=1">battlefield ?stall=1</a>
+    </div>
+  </div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script>
+(function () {
+  'use strict';
+  var params = new URLSearchParams(location.search);
+  var tier = String(params.get('tier') || 'A').toUpperCase();
+  if ('ABCDE'.indexOf(tier) < 0) tier = 'A';
+  var aaOff = params.get('aa') === '0';
+  var sizeRaw = params.get('size') || '';
+  var sizeW = 0, sizeH = 0;
+  (function () {
+    var m = String(sizeRaw).match(/^(\d{2,4})x(\d{2,4})$/);
+    if (m) { sizeW = +m[1]; sizeH = +m[2]; }
+  })();
+
+  var renderer = new THREE.WebGLRenderer({
+    antialias: !aaOff,
+    powerPreference: 'high-performance'
+  });
+  renderer.setPixelRatio(1);
+  if (sizeW && sizeH) renderer.setSize(sizeW, sizeH, false);
+  else renderer.setSize(window.innerWidth, window.innerHeight, false);
+  renderer.setClearColor(0x0c1418, 1);
+  document.body.appendChild(renderer.domElement);
+  if (sizeW && sizeH) {
+    renderer.domElement.style.width = '100%';
+    renderer.domElement.style.height = '100%';
+  }
+
+  var scene = new THREE.Scene();
+  var camera = new THREE.PerspectiveCamera(50, 1, 0.1, 200);
+  camera.position.set(0, 18, 28);
+  camera.lookAt(0, 0, 0);
+
+  var hemi = new THREE.HemisphereLight(0xb0c4d8, 0x223322, 0.55);
+  var sun = new THREE.DirectionalLight(0xfff2d0, 1.05);
+  sun.position.set(12, 22, 8);
+  sun.castShadow = false;
+  scene.add(hemi);
+  scene.add(sun);
+
+  var sharedMat = new THREE.MeshStandardMaterial({ color: 0x4a9a6a, roughness: 0.55, metalness: 0.15 });
+  var boxGeo = new THREE.BoxGeometry(0.9, 0.9, 0.9);
+  var root = new THREE.Group();
+  scene.add(root);
+
+  function clearRoot() {
+    while (root.children.length) {
+      var c = root.children[0];
+      root.remove(c);
+    }
+  }
+
+  function buildTier(t) {
+    clearRoot();
+    sun.castShadow = false;
+    if (renderer.shadowMap) renderer.shadowMap.enabled = false;
+    if (t === 'A') return;
+    if (t === 'B') {
+      var m = new THREE.Mesh(boxGeo, sharedMat);
+      m.position.set(0, 0.5, 0);
+      root.add(m);
+      return;
+    }
+    if (t === 'C') {
+      for (var i = 0; i < 100; i++) {
+        var mesh = new THREE.Mesh(boxGeo, sharedMat);
+        mesh.position.set((i % 10) - 4.5, 0.5, Math.floor(i / 10) - 4.5);
+        root.add(mesh);
+      }
+      return;
+    }
+    if (t === 'D') {
+      for (var j = 0; j < 100; j++) {
+        var mat = new THREE.MeshStandardMaterial({
+          color: new THREE.Color().setHSL((j % 20) / 20, 0.55, 0.45),
+          roughness: 0.4 + (j % 5) * 0.1,
+          metalness: (j % 3) * 0.2
+        });
+        var meshD = new THREE.Mesh(boxGeo, mat);
+        meshD.position.set((j % 10) - 4.5, 0.5, Math.floor(j / 10) - 4.5);
+        root.add(meshD);
+      }
+      return;
+    }
+    if (t === 'E') {
+      for (var k = 0; k < 100; k++) {
+        var meshE = new THREE.Mesh(boxGeo, sharedMat);
+        meshE.position.set((k % 10) - 4.5, 0.5, Math.floor(k / 10) - 4.5);
+        meshE.castShadow = true;
+        meshE.receiveShadow = true;
+        root.add(meshE);
+      }
+      var ground = new THREE.Mesh(
+        new THREE.PlaneGeometry(24, 24),
+        new THREE.MeshStandardMaterial({ color: 0x2a332a, roughness: 0.9 })
+      );
+      ground.rotation.x = -Math.PI / 2;
+      ground.receiveShadow = true;
+      root.add(ground);
+      sun.castShadow = true;
+      sun.shadow.mapSize.set(1024, 1024);
+      if (renderer.shadowMap) {
+        renderer.shadowMap.enabled = true;
+        if (THREE.PCFSoftShadowMap) renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      }
+    }
+  }
+
+  // GPU timer (async)
+  var gl = renderer.getContext();
+  var ext = null, extKind = null;
+  if (typeof WebGL2RenderingContext !== 'undefined' && gl instanceof WebGL2RenderingContext) {
+    ext = gl.getExtension('EXT_disjoint_timer_query_webgl2');
+    if (ext) extKind = 'webgl2';
+  }
+  if (!ext) {
+    ext = gl.getExtension('EXT_disjoint_timer_query');
+    if (ext) extKind = 'webgl1';
+  }
+  var pendingQ = null, gpuLast = null, gpuAvg = null;
+
+  function pollGpu() {
+    if (!ext || !pendingQ) return;
+    try {
+      if (extKind === 'webgl2') {
+        if (gl.getQueryParameter(pendingQ, gl.QUERY_RESULT_AVAILABLE)) {
+          if (!gl.getParameter(ext.GPU_DISJOINT_EXT)) {
+            gpuLast = gl.getQueryParameter(pendingQ, gl.QUERY_RESULT) / 1e6;
+            gpuAvg = gpuAvg == null ? gpuLast : gpuAvg * 0.85 + gpuLast * 0.15;
+          }
+          gl.deleteQuery(pendingQ);
+          pendingQ = null;
+        }
+      } else {
+        if (ext.getQueryObjectEXT(pendingQ, ext.QUERY_RESULT_AVAILABLE_EXT)) {
+          if (!gl.getParameter(ext.GPU_DISJOINT_EXT)) {
+            gpuLast = ext.getQueryObjectEXT(pendingQ, ext.QUERY_RESULT_EXT) / 1e6;
+            gpuAvg = gpuAvg == null ? gpuLast : gpuAvg * 0.85 + gpuLast * 0.15;
+          }
+          ext.deleteQueryEXT(pendingQ);
+          pendingQ = null;
+        }
+      }
+    } catch (_) { pendingQ = null; }
+  }
+
+  // WebGL dump once
+  (function dump() {
+    var dbg = gl.getExtension('WEBGL_debug_renderer_info');
+    var vendor = dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
+    document.getElementById('vendor').textContent = vendor || '—';
+    var attrs = gl.getContextAttributes() || {};
+    document.getElementById('aa').textContent = String(!!attrs.antialias);
+    console.info('[webgl-baseline] GPU', vendor, 'AA', attrs.antialias, 'ext', extKind || 'none');
+  })();
+
+  var rafN = 0, winStart = performance.now(), lastHud = 0;
+  var lastWall = performance.now();
+
+  function setTier(t) {
+    tier = t;
+    buildTier(tier);
+    document.getElementById('tierLabel').textContent = tier;
+    document.querySelectorAll('#tiers button').forEach(function (btn) {
+      btn.classList.toggle('active', btn.getAttribute('data-tier') === tier);
+    });
+    var u = new URL(location.href);
+    u.searchParams.set('tier', tier);
+    history.replaceState(null, '', u);
+  }
+
+  document.getElementById('tiers').addEventListener('click', function (e) {
+    var btn = e.target.closest('button[data-tier]');
+    if (!btn) return;
+    setTier(btn.getAttribute('data-tier'));
+  });
+
+  function onResize() {
+    if (sizeW && sizeH) return;
+    var w = window.innerWidth, h = window.innerHeight;
+    camera.aspect = w / Math.max(1, h);
+    camera.updateProjectionMatrix();
+    renderer.setSize(w, h, false);
+  }
+  addEventListener('resize', onResize);
+  onResize();
+  setTier(tier);
+
+  function frame(now) {
+    requestAnimationFrame(frame);
+    rafN++;
+    var wall = now - lastWall;
+    lastWall = now;
+    pollGpu();
+
+    var began = false;
+    if (ext && !pendingQ) {
+      try {
+        if (extKind === 'webgl2') {
+          pendingQ = gl.createQuery();
+          gl.beginQuery(ext.TIME_ELAPSED_EXT, pendingQ);
+          began = true;
+        } else {
+          pendingQ = ext.createQueryEXT();
+          ext.beginQueryEXT(ext.TIME_ELAPSED_EXT, pendingQ);
+          began = true;
+        }
+      } catch (_) { pendingQ = null; began = false; }
+    }
+
+    var t0 = performance.now();
+    renderer.render(scene, camera);
+    var cpu = performance.now() - t0;
+
+    if (began) {
+      try {
+        if (extKind === 'webgl2') gl.endQuery(ext.TIME_ELAPSED_EXT);
+        else ext.endQueryEXT(ext.TIME_ELAPSED_EXT);
+      } catch (_) { pendingQ = null; }
+    }
+
+    if (now - lastHud > 500) {
+      lastHud = now;
+      var elapsed = Math.max(0.001, (now - winStart) / 1000);
+      var rafPs = rafN / elapsed;
+      var info = renderer.info.render;
+      document.getElementById('raf').textContent = rafPs.toFixed(1);
+      document.getElementById('wall').textContent = wall.toFixed(1);
+      document.getElementById('cpu').textContent = cpu.toFixed(2);
+      document.getElementById('gpu').textContent = gpuLast != null ? gpuLast.toFixed(2) : (ext ? '…' : 'n/a');
+      document.getElementById('calls').textContent = String(info.calls);
+      document.getElementById('tris').textContent = String(info.triangles);
+      document.getElementById('prog').textContent = renderer.info.programs ? String(renderer.info.programs.length) : '—';
+      document.getElementById('db').textContent = gl.drawingBufferWidth + '×' + gl.drawingBufferHeight;
+      if (elapsed > 2) { rafN = 0; winStart = now; }
+    }
+  }
+  requestAnimationFrame(frame);
+})();
+  </script>
+</body>
+</html>

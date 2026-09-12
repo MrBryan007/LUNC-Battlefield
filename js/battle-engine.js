@@ -2,7 +2,7 @@
     'use strict';
 
     // =====================================================
-    // LUNC ECOSYSTEM BATTLEFIELD v9.4.7 — FPS cadence diagnostics + LOD/assets
+    // LUNC ECOSYSTEM BATTLEFIELD v9.4.8 — non-JS/WebGL stall diagnostics + LOD/assets
     // v8.1–v8.8 + v9.1–v9.3 preserved; LOD + asset diagnostics (procedural SAFE FALLBACK)
     // Original procedural art only. No third-party game assets.
     // Graphics-only: never alter market / Battle Strength / liq / burn math.
@@ -107,15 +107,17 @@
     let rendererHandle = null;
     let rendererBackend = 'webgl';
     let rendererFallbackReason = null;
+    const stallMod = (window.LUNCBattle && LUNCBattle.stall) ? LUNCBattle.stall : null;
+    const wantAA = !(stallMod && stallMod.flags && stallMod.flags.aaOff);
     if (window.LUNCBattle && LUNCBattle.renderer && typeof LUNCBattle.renderer.create === 'function') {
       rendererHandle = LUNCBattle.renderer.create({
         THREE: THREE,
-        antialias: true,
+        antialias: wantAA,
         powerPreference: 'high-performance'
       });
     } else {
       rendererHandle = {
-        renderer: new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' }),
+        renderer: new THREE.WebGLRenderer({ antialias: wantAA, powerPreference: 'high-performance' }),
         backend: 'webgl',
         webgpuAvailable: null,
         fallbackReason: 'LUNCBattle.renderer missing — direct WebGLRenderer',
@@ -242,7 +244,7 @@
       return new THREE.MeshStandardMaterial({ color, roughness:rough, metalness:metal, emissive, emissiveIntensity:intensity });
     }
 
-    // v9.4.7 — cadence / scene / A-B query hooks (non-destructive; see docs/V9-CADENCE.md)
+    // v9.4.8 — cadence + stall / GPU / A-B query hooks (see docs/V9-STALL.md, V9-CADENCE.md)
     const cadence = (window.LUNCBattle && LUNCBattle.cadence) ? LUNCBattle.cadence : null;
     const diagOn = !!(cadence && cadence.enabled);
     const cFlags = (cadence && cadence.flags) ? cadence.flags : {
@@ -266,6 +268,13 @@
     if (cadence && typeof cadence.applyAbHooks === 'function') {
       cadence.applyAbHooks(renderer, sun);
     }
+    if (stallMod && typeof stallMod.bind === 'function') {
+      stallMod.bind(renderer, scene);
+    }
+    if (stallMod && stallMod.flags && stallMod.flags.canvas && typeof stallMod.applyCanvasSize === 'function') {
+      stallMod.applyCanvasSize(renderer);
+    }
+    if (stallMod && typeof stallMod.applyUiOff === 'function') stallMod.applyUiOff();
 
     // v8.1 — modular terrain + environment (procedural, no GridHelper)
     const mobileGfx = innerWidth < 760;
@@ -1278,12 +1287,38 @@
       // Drain THREE.Clock so getDelta stays consistent if used elsewhere; do not feed it to PERF.
       clock.getDelta();
       const dt = Math.min(0.04, wallDtSec > 0 ? wallDtSec : 0.0167);
-      if (cadence) cadence.markSim();
+      const freezeSim = !!(stallMod && stallMod.flags && stallMod.flags.freeze);
+      if (cadence && !freezeSim) cadence.markSim();
       if (window.LUNCBattle && LUNCBattle.lod && LUNCBattle.lod.beginFrame) {
         LUNCBattle.lod.beginFrame();
       }
       if (cameraCtrl) cameraShake = cameraCtrl.update(dt, keys, cameraShake);
       else controls.update();
+      if (freezeSim) {
+        if (window.LUNCBattle && LUNCBattle.lod && LUNCBattle.lod.endFrame) {
+          LUNCBattle.lod.endFrame();
+        }
+        function runQualityFreeze() {
+          if (window.LUNCBattle && LUNCBattle.quality && LUNCBattle.quality.tick) {
+            LUNCBattle.quality.tick(wallDtSec, renderer);
+          }
+        }
+        if (cadence && cadence.time) cadence.time('quality', runQualityFreeze);
+        else runQualityFreeze();
+        function runRenderFreeze() {
+          if (stallMod && typeof stallMod.timedRender === 'function') {
+            stallMod.timedRender(renderer, scene, camera);
+          } else if (!(stallMod && stallMod.flags && stallMod.flags.norender)) {
+            renderer.render(scene, camera);
+          }
+          if (cadence) cadence.markRender();
+        }
+        if (cadence && cadence.time) cadence.time('render', runRenderFreeze);
+        else runRenderFreeze();
+        if (stallMod && typeof stallMod.endFrame === 'function') stallMod.endFrame(renderer, scene, camera);
+        if (cadence && cadence.endFrame) cadence.endFrame(renderer);
+        return;
+      }
       if (priceTerritoryApi) {
         priceTerritoryApi.updateFrontline(dt);
         targetX = priceTerritoryApi.getFrontlineX();
@@ -1540,12 +1575,19 @@
       else runQuality();
 
       function runRender() {
-        renderer.render(scene, camera);
+        if (stallMod && typeof stallMod.timedRender === 'function') {
+          stallMod.timedRender(renderer, scene, camera);
+        } else if (!(stallMod && stallMod.flags && stallMod.flags.norender)) {
+          renderer.render(scene, camera);
+        }
         if (cadence) cadence.markRender();
       }
       if (cadence && cadence.time) cadence.time('render', runRender);
       else runRender();
 
+      if (stallMod && typeof stallMod.endFrame === 'function') {
+        stallMod.endFrame(renderer, scene, camera);
+      }
       if (cadence && cadence.endFrame) cadence.endFrame(renderer);
     }
 
