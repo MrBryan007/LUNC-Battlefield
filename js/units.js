@@ -1,4 +1,4 @@
-/* Unit builders / formations — v9.4 articulated RTS units + LOD + optional glTF instantiate */
+/* Unit builders / formations — v9.4.2 articulated RTS units + LOD + optional glTF instantiate */
 (function (global) {
   'use strict';
   const LB = global.LUNCBattle;
@@ -218,21 +218,37 @@
 
       g.add(hips, torso);
 
+      // v9.4.2: semantic LOD groups (lod.js toggles by group, not mesh names)
+      const lodGroups = {
+        core: [hips, torso],
+        silhouette: [hips, torso],
+        major: [headG],
+        detail: parts.backpack ? [parts.backpack, helm, helmDisc] : [helm, helmDisc],
+        limbs: [L_leg.group, R_leg.group, L_arm.group, R_arm.group]
+      };
+      if (global.LUNCBattle && LUNCBattle.lod && LUNCBattle.lod.registerLodGroups) {
+        LUNCBattle.lod.registerLodGroups(g, lodGroups);
+      } else {
+        g.userData = g.userData || {};
+        g.userData.lodGroups = lodGroups;
+      }
+
       const muzzleOffset = new THREE.Vector3(side * 0.15, 1.05, 0.55);
-      g.userData = {
+      g.userData = Object.assign(g.userData || {}, {
         type: 0,
         side: side,
         phase: Math.random() * Math.PI * 2,
         shot: Math.random() * 3,
         animState: STATES.IDLE,
         parts: parts,
+        lodGroups: (g.userData && g.userData.lodGroups) || lodGroups,
         speed: 0,
         facing: side < 0 ? Math.PI / 2 : -Math.PI / 2,
         weaponRef: weapon,
         muzzleOffset: muzzleOffset,
         weapon: weapon,
         rootBob: 0
-      };
+      });
       g.scale.setScalar(0.95);
       return g;
     }
@@ -314,13 +330,33 @@
 
       g.add(hullG, turret);
 
-      g.userData = {
+      // v9.4.2: semantic LOD groups
+      const armorDetail = wheels.slice();
+      turret.children.forEach(function (ch) {
+        if (ch !== cannonG && ch !== turretMesh) armorDetail.push(ch);
+      });
+      const lodGroups = {
+        core: [hullG],
+        silhouette: [hullG],
+        major: [turret],
+        detail: armorDetail,
+        limbs: tracks.slice()
+      };
+      if (global.LUNCBattle && LUNCBattle.lod && LUNCBattle.lod.registerLodGroups) {
+        LUNCBattle.lod.registerLodGroups(g, lodGroups);
+      } else {
+        g.userData = g.userData || {};
+        g.userData.lodGroups = lodGroups;
+      }
+
+      g.userData = Object.assign(g.userData || {}, {
         type: 1,
         side: side,
         phase: Math.random() * Math.PI * 2,
         shot: Math.random() * 4,
         animState: STATES.IDLE_SCAN,
         parts: parts,
+        lodGroups: (g.userData && g.userData.lodGroups) || lodGroups,
         speed: 0,
         facing: side < 0 ? Math.PI / 2 : -Math.PI / 2,
         weaponRef: cannon,
@@ -329,7 +365,7 @@
         muzzleOffset: new THREE.Vector3(0, 1.0, 1.1),
         rootBob: 0,
         recoil: 0
-      };
+      });
       return g;
     }
 
@@ -399,13 +435,29 @@
       // Scale up slightly — distinctly larger than infantry
       g.scale.setScalar(1.15);
 
-      g.userData = {
+      // v9.4.2: semantic LOD groups
+      const lodGroups = {
+        core: [carriage],
+        silhouette: [carriage],
+        major: [barrelG],
+        detail: wheels.concat([trail1, trail2, foot1, foot2, shield]),
+        limbs: [trail1, trail2]
+      };
+      if (global.LUNCBattle && LUNCBattle.lod && LUNCBattle.lod.registerLodGroups) {
+        LUNCBattle.lod.registerLodGroups(g, lodGroups);
+      } else {
+        g.userData = g.userData || {};
+        g.userData.lodGroups = lodGroups;
+      }
+
+      g.userData = Object.assign(g.userData || {}, {
         type: 2,
         side: side,
         phase: Math.random() * Math.PI * 2,
         shot: Math.random() * 5,
         animState: STATES.IDLE,
         parts: parts,
+        lodGroups: (g.userData && g.userData.lodGroups) || lodGroups,
         speed: 0,
         facing: side < 0 ? Math.PI / 2 : -Math.PI / 2,
         weaponRef: barrelMesh,
@@ -413,7 +465,7 @@
         muzzleOffset: new THREE.Vector3(0, 1.1, 1.4),
         rootBob: 0,
         recoil: 0
-      };
+      });
       return g;
     }
 
@@ -506,14 +558,16 @@
         if (Lod && camObj && u.position) {
           const band = Lod.updateUnitLod(u, camObj);
           tickCtx.lodBand = band;
-          Lod.tally(band, 'unit', false);
-          // Frustum: skip expensive anim for off-camera far units (keep sim state)
+          // Frustum/far-skip AFTER LOD apply; tally reflects this frame (visible vs culled)
+          let culled = false;
           if (band >= 2 && Lod.isInView && !Lod.isInView(u, camObj, THREE)) {
             tickCtx.skipAnim = true;
             u.userData.lodCulled = true;
+            culled = true;
           } else {
             u.userData.lodCulled = false;
           }
+          Lod.tally(band, 'unit', culled);
         } else if (tickCtx.lodBand == null && global.LUNCBattle && LUNCBattle.quality && LUNCBattle.quality.getLodBand) {
           const cam = tickCtx.cameraPos;
           if (cam && u.position) {
@@ -560,7 +614,7 @@
       setAnimState: setAnimState,
       tickUnit: tickUnit,
       GEO: GEO,
-      version: 'v9.4'
+      version: 'v9.4.2'
     };
   }
 

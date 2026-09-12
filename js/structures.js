@@ -1,4 +1,4 @@
-/* LUNC Battlefield v9.4 — faction bases & RTS structures (original procedural) */
+/* LUNC Battlefield v9.4.2 — faction bases & RTS structures (original procedural) */
 (function (global) {
   'use strict';
 
@@ -682,18 +682,34 @@
 
     function placeNamed(group, building, x, z, hx, hz, yOff) {
       placeBuilding(building, x, z, hx, hz, yOff);
-      // v9.4: collect decorative children for distance cull (keep silhouette + faction)
+      // v9.4.2: decorative → semantic LOD groups (detail); keep silhouette/core
       if (building && building.userData) {
         const decor = [];
+        const core = [];
         building.traverse(function (ch) {
           if (!ch.isMesh) return;
           const n = (ch.name || '').toLowerCase();
           if (n.indexOf('decor') >= 0 || n.indexOf('antenna') >= 0 || n.indexOf('banner') >= 0 ||
               n.indexOf('blink') >= 0 || n.indexOf('light') >= 0 || n.indexOf('dish') >= 0) {
             decor.push(ch);
+          } else if (n.indexOf('silhou') >= 0 || n.indexOf('hull') >= 0 || n.indexOf('keep') >= 0 ||
+                     n.indexOf('tower') >= 0 || n.indexOf('base') >= 0) {
+            core.push(ch);
           }
         });
         if (decor.length) building.userData.decorative = decor;
+        const lodGroups = {
+          core: core.length ? core : null,
+          silhouette: core.length ? core : (building.userData.silhouette || null),
+          major: building.userData.factionAccent ? [building.userData.factionAccent] : null,
+          detail: decor.length ? decor : null,
+          limbs: null
+        };
+        if (global.LUNCBattle && LUNCBattle.lod && LUNCBattle.lod.registerLodGroups) {
+          LUNCBattle.lod.registerLodGroups(building, lodGroups);
+        } else {
+          building.userData.lodGroups = lodGroups;
+        }
         building.userData.lodBand = 0;
       }
       group.add(building);

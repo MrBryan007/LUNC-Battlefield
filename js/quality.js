@@ -678,7 +678,7 @@
         if (LB.lod && LB.lod.getCounts) {
           var lc = LB.lod.getCounts();
           lodLine = 'LOD0 <b>' + lc.lod0 + '</b> · LOD1 <b>' + lc.lod1 + '</b> · LOD2 <b>' + lc.lod2 + '</b> · LOD3 <b>' + lc.lod3 + '</b>' +
-            (lc.culled ? (' · cull <b>' + lc.culled + '</b>') : '');
+            ' · cull <b>' + (lc.culled || 0) + '</b>';
         }
       } catch (_) {}
       assetsEl.innerHTML =

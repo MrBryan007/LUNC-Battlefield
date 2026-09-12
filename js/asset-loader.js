@@ -1,4 +1,4 @@
-/* LUNC Battlefield v9.4 — glTF/GLB + LOD-aware asset pipeline
+/* LUNC Battlefield v9.4.2 — glTF/GLB + LOD-aware asset pipeline
  * Three.js r128 GLTFLoader (CDN examples). Procedural SAFE FALLBACK forever.
  * Modes: ?assets=procedural | ?assets=gltf | default AUTO
  * Progressive: never block first paint; missing/failed → procedural.
@@ -96,16 +96,36 @@
     return false;
   }
 
+  /**
+   * Effective LOD band after quality/mobile resolution.
+   * LOW/MED (and narrow viewports) bump a LOD0 request to LOD1 so simpler assets load.
+   * Cache identity MUST use this effective band — never the raw requested band.
+   */
+  function resolveEffectiveLodBand(requestedBand, entry) {
+    var band = requestedBand == null ? 0 : (requestedBand | 0);
+    if (band < 0) band = 0;
+    if (band > 3) band = 3;
+    if (preferSimplerAssets() && band < 2) band = Math.max(band, 1);
+    return band;
+  }
+
+  /** Cache key for an already-effective band. lod0 → base id; else id::lodN. */
   function cacheKey(id, lodBand) {
-    if (lodBand == null || lodBand === 0) return id;
-    return id + '::lod' + (lodBand | 0);
+    var band = lodBand == null ? 0 : (lodBand | 0);
+    if (band <= 0) return id;
+    return id + '::lod' + band;
+  }
+
+  /** Resolve cache key from a requested band (applies quality/mobile effective resolution). */
+  function cacheKeyForRequest(id, requestedBand) {
+    var entry = getEntry(id);
+    return cacheKey(id, resolveEffectiveLodBand(requestedBand, entry));
   }
 
   function resolvePath(entry, lodBand) {
     if (!entry) return null;
-    var band = lodBand == null ? 0 : (lodBand | 0);
-    // Quality LOW/MED: prefer higher LOD band (simpler) when AUTO
-    if (preferSimplerAssets() && band < 2) band = Math.max(band, 1);
+    // Accept either requested or already-effective; resolveEffective is idempotent for HIGH/ULTRA
+    var band = resolveEffectiveLodBand(lodBand, entry);
     if (LB.lod && LB.lod.resolveLodPath) {
       var p = LB.lod.resolveLodPath(entry, band);
       if (p) return p;
@@ -284,7 +304,7 @@
       mode: mode,
       loaderReady: !!loader,
       gltfLoader: typeof (THREE_REF && THREE_REF.GLTFLoader) === 'function',
-      version: 'v9.4'
+      version: 'v9.4.2'
     };
   }
 
@@ -305,15 +325,17 @@
   }
 
   function get(id, lodBand) {
-    var key = cacheKey(id, lodBand);
-    var c = cache[key] || cache[id];
+    var effective = resolveEffectiveLodBand(lodBand, getEntry(id));
+    var key = cacheKey(id, effective);
+    var c = cache[key] || (effective === 0 ? cache[id] : null);
     return c && c.status === 'ready' ? c.scene : null;
   }
 
   function isReady(id, lodBand) {
-    var key = cacheKey(id, lodBand);
+    var effective = resolveEffectiveLodBand(lodBand, getEntry(id));
+    var key = cacheKey(id, effective);
     if (cache[key] && cache[key].status === 'ready' && cache[key].scene) return true;
-    if ((lodBand == null || lodBand === 0) && cache[id] && cache[id].status === 'ready' && cache[id].scene) return true;
+    if (effective === 0 && cache[id] && cache[id].status === 'ready' && cache[id].scene) return true;
     return false;
   }
 
@@ -337,14 +359,16 @@
 
   function loadAsset(id, lodBand) {
     var entry = getEntry(id);
-    var band = lodBand == null ? 0 : (lodBand | 0);
+    var requested = lodBand == null ? 0 : (lodBand | 0);
+    // Effective resolved variant — cache identity follows this, not the request band
+    var band = resolveEffectiveLodBand(requested, entry);
     var key = cacheKey(id, band);
     if (!entry) {
-      return Promise.resolve({ ok: false, id: id, lodBand: band, error: 'unknown id', status: 'failed' });
+      return Promise.resolve({ ok: false, id: id, lodBand: band, requestedLodBand: requested, error: 'unknown id', status: 'failed' });
     }
     if (mode === 'PROCEDURAL') {
       setCacheStatus(key, { status: 'skipped', error: 'mode=PROCEDURAL', entry: entry, lodBand: band });
-      return Promise.resolve({ ok: false, id: id, lodBand: band, error: 'procedural mode', status: 'skipped' });
+      return Promise.resolve({ ok: false, id: id, lodBand: band, requestedLodBand: requested, error: 'procedural mode', status: 'skipped' });
     }
     var url = resolvePath(entry, band);
     if (!url) {
@@ -491,16 +515,17 @@
    */
   function instantiate(id, opts) {
     opts = opts || {};
-    var band = opts.lodBand != null ? opts.lodBand : 0;
-    if (!shouldUseGltf(id, band) && mode !== 'GLTF') {
+    var requested = opts.lodBand != null ? opts.lodBand : 0;
+    var entry = getEntry(id);
+    var band = resolveEffectiveLodBand(requested, entry);
+    if (!shouldUseGltf(id, requested) && mode !== 'GLTF') {
       return null;
     }
-    if (!isReady(id, band)) {
-      // Try lower LOD / base
+    if (!isReady(id, requested)) {
+      // Try lower LOD / base (still via effective resolution)
       if (!isReady(id, 0)) return null;
-      band = 0;
+      band = resolveEffectiveLodBand(0, entry);
     }
-    var entry = getEntry(id);
     var key = cacheKey(id, band);
     var template = (cache[key] && cache[key].scene) || (cache[id] && cache[id].scene);
     var cloned = cloneTemplate(template);
@@ -517,7 +542,8 @@
     wrap.userData.luncAssetId = id;
     wrap.userData.luncAssetSource = 'gltf';
     wrap.userData.luncProcedural = false;
-    wrap.userData.luncLodBand = opts.lodBand != null ? opts.lodBand : 0;
+    wrap.userData.luncLodBand = band;
+    wrap.userData.luncRequestedLodBand = requested;
     wrap.userData.lodBand = wrap.userData.luncLodBand;
     wrap.userData.type = opts.type;
     wrap.userData.side = opts.side;
@@ -685,10 +711,16 @@
     if (!wrap || !THREE_REF) return { ok: false, reason: 'no wrap' };
     var band = lodBand == null ? 0 : (lodBand | 0);
     if (band >= 3) {
-      // Impostor architecture — do not swap mesh; flag only
+      // Impostor stub — create/show stub; hide procedural/GLTF visual; preserve transform/state
       wrap.userData.lodBand = 3;
+      wrap.userData.luncLodBand = 3;
       wrap.userData.impostorReady = true;
       if (LB.lod && LB.lod.ensureImpostorStub) LB.lod.ensureImpostorStub(wrap, THREE_REF);
+      if (LB.lod && LB.lod.applyProceduralLodVisibility) {
+        LB.lod.applyProceduralLodVisibility(wrap, 3);
+      } else if (wrap.userData.impostorStub) {
+        wrap.userData.impostorStub.visible = true;
+      }
       return { ok: true, impostor: true, lodBand: 3 };
     }
     if (!isReady(id, band)) {
@@ -794,10 +826,19 @@
       });
     }
     if (id) {
-      var c = cache[id];
-      if (c && c.scene) disposeObject(c.scene);
-      delete cache[id];
-      delete pending[id];
+      var prefix = id + '::';
+      var keys = Object.keys(cache).filter(function (k) {
+        return k === id || k.indexOf(prefix) === 0;
+      });
+      // Also catch any effective-variant keys stored for this asset id
+      keys.forEach(function (k) {
+        var c = cache[k];
+        if (c && c.scene) disposeObject(c.scene);
+        delete cache[k];
+      });
+      Object.keys(pending).forEach(function (k) {
+        if (k === id || k.indexOf(prefix) === 0) delete pending[k];
+      });
       recomputeStats();
       return true;
     }
@@ -822,7 +863,7 @@
   function prepareMeshoptStub() { return meshoptStub; }
 
   var api = {
-    version: 'v9.4',
+    version: 'v9.4.2',
     init: init,
     loadAsset: loadAsset,
     preload: preload,
@@ -843,6 +884,8 @@
     captureUnitState: captureUnitState,
     restoreUnitState: restoreUnitState,
     cacheKey: cacheKey,
+    cacheKeyForRequest: cacheKeyForRequest,
+    resolveEffectiveLodBand: resolveEffectiveLodBand,
     resolvePath: resolvePath,
     tryHotSwap: tryHotSwap,
     prepareKTX2Stub: prepareKTX2Stub,

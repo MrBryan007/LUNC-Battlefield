@@ -1,4 +1,4 @@
-/* LUNC Battlefield v9.4 — true LOD system (distance bands + hysteresis + quality)
+/* LUNC Battlefield v9.4.2 — true LOD (semantic groups + impostor stub + cull diag)
  * LUNCBattle.lod — camera distance → LOD0–3; never despawns simulation state.
  * Missing LOD / GLB → procedural SAFE FALLBACK forever. No black canvas.
  */
@@ -57,7 +57,6 @@
   function getEnterThresholds() {
     var q = qualityKey();
     if (QUALITY_ENTER[q]) return QUALITY_ENTER[q];
-    // Prefer quality preset lod if present (LOD0/1/2 are enter distances)
     try {
       if (LB.quality && LB.quality.getEffectivePreset) {
         var lod = LB.quality.getEffectivePreset().lod;
@@ -108,7 +107,6 @@
     var d = +distance || 0;
     var raw = bandFromDistance(d, enter);
 
-    // Moving farther: promote at most one band per resolve when past enter
     if (raw > prev) {
       var promoteAt;
       if (prev === 0) promoteAt = enter.LOD0;
@@ -117,7 +115,6 @@
       if (d >= promoteAt) return Math.min(3, prev + 1);
       return prev;
     }
-    // Moving closer: demote at most one band when below leave (enter − hyst)
     if (raw < prev) {
       var leaveAt;
       if (prev === 1) leaveAt = enter.LOD0 - hyst;
@@ -139,6 +136,38 @@
   function distanceToCamera(obj, camera) {
     if (!obj || !obj.position || !camera || !camera.position) return 0;
     return distanceXZ(obj.position.x, obj.position.z, camera.position.x, camera.position.z);
+  }
+
+  function setVis(obj, on) {
+    if (obj) obj.visible = !!on;
+  }
+
+  /** Toggle an array or single Object3D. */
+  function setGroupVis(list, on) {
+    if (!list) return;
+    if (Array.isArray(list)) {
+      for (var i = 0; i < list.length; i++) setVis(list[i], on);
+    } else {
+      setVis(list, on);
+    }
+  }
+
+  /**
+   * Register semantic LOD groups on a procedural mesh root.
+   * groups: { core|silhouette, major, detail, limbs } → Object3D | Object3D[]
+   */
+  function registerLodGroups(root, groups) {
+    if (!root) return null;
+    root.userData = root.userData || {};
+    var g = groups || {};
+    root.userData.lodGroups = {
+      core: g.core || g.silhouette || null,
+      silhouette: g.silhouette || g.core || null,
+      major: g.major || null,
+      detail: g.detail || null,
+      limbs: g.limbs || null
+    };
+    return root.userData.lodGroups;
   }
 
   /**
@@ -177,91 +206,169 @@
     prop.userData.lodBand = band;
     prop.userData.lodDistance = dist;
     prop.userData.lodKind = 'prop';
-    // Far props: hide decorative detail, keep silhouette group if marked
+    var groups = prop.userData.lodGroups;
     if (band >= 3) {
       if (prop.userData.lodHideAt3 !== false) prop.visible = false;
     } else if (band >= 2) {
       prop.visible = true;
-      if (prop.userData.lodDetail) prop.userData.lodDetail.visible = false;
+      if (groups && groups.detail) setGroupVis(groups.detail, false);
+      else if (prop.userData.lodDetail) prop.userData.lodDetail.visible = false;
     } else {
       prop.visible = true;
-      if (prop.userData.lodDetail) prop.userData.lodDetail.visible = true;
+      if (groups && groups.detail) setGroupVis(groups.detail, band === 0);
+      else if (prop.userData.lodDetail) prop.userData.lodDetail.visible = true;
     }
     return band;
   }
 
   /**
-   * Procedural LOD visual simplification (no mesh swap):
-   * LOD0 articulated · LOD1 hide minor detail · LOD2 silhouette core · LOD3 impostor prep (hide limbs).
+   * Semantic procedural LOD (preferred):
+   * LOD0 full · LOD1 hide detail · LOD2 core/silhouette only · LOD3 impostor stub.
+   * Falls back to lodGroups; never relies on fragile mesh-name aliases.
    */
   function applyProceduralLodVisibility(unit, band) {
     var ud = unit.userData;
-    if (!ud || !ud.parts) return;
-    // Only for procedural articulated units — GLB smoke boxes have no parts tree
+    if (!ud) return;
+    var THREE = global.THREE;
+
+    // GLTF smoke / production mesh: impostor stub only at LOD3 (no name-based hide)
     if (ud.luncAssetSource === 'gltf' && !ud.luncProcedural) {
-      // LOD3 impostor stub flag only
-      ud.impostorReady = band >= 3;
+      if (band >= 3) {
+        ud.impostorReady = true;
+        ensureImpostorStub(unit, THREE);
+        setProceduralChildrenVisible(unit, false);
+        if (ud.impostorStub) ud.impostorStub.visible = true;
+      } else {
+        ud.impostorReady = false;
+        if (ud.impostorStub) ud.impostorStub.visible = false;
+        setProceduralChildrenVisible(unit, true);
+      }
       return;
     }
-    var parts = ud.parts;
-    var showLimbs = band <= 1;
-    var showDetail = band === 0;
-    var showSilhouette = band <= 2;
 
-    function setVis(obj, on) {
-      if (obj) obj.visible = !!on;
+    var groups = ud.lodGroups;
+    var showDetail = band === 0;
+    var showMajor = band <= 1;
+    var showLimbs = band <= 1;
+    var showCore = band <= 2;
+
+    if (groups) {
+      if (band >= 3) {
+        // LOD3: hide all procedural groups; show impostor stub (no despawn / no teleport)
+        setGroupVis(groups.detail, false);
+        setGroupVis(groups.major, false);
+        setGroupVis(groups.limbs, false);
+        setGroupVis(groups.core, false);
+        setGroupVis(groups.silhouette, false);
+        ensureImpostorStub(unit, THREE);
+        if (ud.impostorStub) ud.impostorStub.visible = true;
+        ud.impostorReady = true;
+        unit.visible = true;
+      } else {
+        ud.impostorReady = false;
+        if (ud.impostorStub) ud.impostorStub.visible = false;
+        setGroupVis(groups.detail, showDetail);
+        setGroupVis(groups.major, showMajor);
+        setGroupVis(groups.limbs, showLimbs);
+        setGroupVis(groups.core, showCore);
+        setGroupVis(groups.silhouette, showCore);
+        unit.visible = true;
+      }
+      return;
     }
-    // Infantry
-    setVis(parts.leftLeg, showLimbs);
-    setVis(parts.rightLeg, showLimbs);
-    setVis(parts.leftArm, showLimbs);
-    setVis(parts.rightArm, showLimbs);
-    setVis(parts.head, showDetail || showLimbs);
-    setVis(parts.pack, showDetail);
+
+    // Legacy parts fallback (only if builders forgot lodGroups) — map real builder names
+    var parts = ud.parts;
+    if (!parts) return;
+    setVis(parts.L_upperLeg || parts.leftLeg, showLimbs);
+    setVis(parts.R_upperLeg || parts.rightLeg, showLimbs);
+    setVis(parts.L_upperArm || parts.leftArm, showLimbs);
+    setVis(parts.R_upperArm || parts.rightArm, showLimbs);
+    setVis(parts.head, showMajor);
+    setVis(parts.backpack || parts.pack, showDetail);
     setVis(parts.antenna, showDetail);
-    // Armor / arty extras
     if (parts.wheels) {
       for (var i = 0; i < parts.wheels.length; i++) setVis(parts.wheels[i], showDetail);
     }
     if (parts.tracks) {
       for (var j = 0; j < parts.tracks.length; j++) setVis(parts.tracks[j], showLimbs);
     }
+    if (parts.trails) {
+      for (var t = 0; t < parts.trails.length; t++) setVis(parts.trails[t], showDetail);
+    }
     setVis(parts.turretDetail, showDetail);
     setVis(parts.barrelDetail, showDetail);
     setVis(parts.banner, showDetail);
-    // Core body / hull always for silhouette (LOD0–2); LOD3 impostor prep
-    setVis(parts.body, showSilhouette);
-    setVis(parts.hull, showSilhouette);
-    setVis(parts.torso, showSilhouette);
+    setVis(parts.turret, showMajor);
+    setVis(parts.cannon, showMajor);
+    setVis(parts.barrel, showMajor);
+    setVis(parts.body || parts.hull || parts.torso || parts.carriage, showCore);
+    setVis(parts.hull, showCore);
+    setVis(parts.torso, showCore);
+    setVis(parts.carriage, showCore);
+    setVis(parts.hips, showCore);
+
     if (band >= 3) {
-      // Impostor architecture stub — hide articulated mesh; billboard slot later
-      unit.visible = true; // keep unit present (no despawn); mark impostor
+      unit.visible = true;
       ud.impostorReady = true;
-      if (ud.impostorStub && ud.impostorStub.visible != null) ud.impostorStub.visible = true;
-      // Soften: hide children but keep root for targeting/shadow optional
-      if (parts.body) parts.body.visible = true; // keep a single silhouette chunk
+      ensureImpostorStub(unit, THREE);
+      if (ud.impostorStub) ud.impostorStub.visible = true;
+      // Hide high-detail procedural; keep unit root for sim
+      setProceduralChildrenVisible(unit, false);
+      if (ud.impostorStub) ud.impostorStub.visible = true;
     } else {
       ud.impostorReady = false;
       if (ud.impostorStub) ud.impostorStub.visible = false;
+      setProceduralChildrenVisible(unit, true);
+      // Re-apply group-less visibility already set above
+    }
+  }
+
+  /** Hide/show non-impostor children (procedural or GLTF visual) without removing from scene. */
+  function setProceduralChildrenVisible(unit, on) {
+    if (!unit || !unit.children) return;
+    for (var i = 0; i < unit.children.length; i++) {
+      var ch = unit.children[i];
+      if (ch && ch.userData && ch.userData.luncImpostor) continue;
+      // Keep ground blob shadow visible at all bands except we still show it at LOD3 under stub
+      if (ch && ch.isMesh && ch.material && ch.material.transparent && ch.rotation &&
+          Math.abs(ch.rotation.x + Math.PI / 2) < 0.01) {
+        ch.visible = true;
+        continue;
+      }
+      if (ch) ch.visible = !!on;
     }
   }
 
   /**
-   * Structure LOD: cull decorative detail at distance; keep HQ silhouette + faction identity.
+   * Structure LOD: semantic groups preferred; decorative/blinker fallback.
+   * Keep HQ silhouette + faction identity at LOD0–2.
    */
   function applyStructureLodVisibility(building, band) {
     var ud = building.userData;
     if (!ud) return;
+    var groups = ud.lodGroups;
+    if (groups) {
+      setGroupVis(groups.detail, band === 0);
+      setGroupVis(groups.major, band <= 1);
+      setGroupVis(groups.limbs, band <= 1);
+      setGroupVis(groups.core || groups.silhouette, band <= 2);
+    }
     var decor = ud.decorative || ud.lodDecor;
-    if (decor) {
+    if (decor && !groups) {
       var showDecor = band <= 1;
       if (Array.isArray(decor)) {
         for (var i = 0; i < decor.length; i++) if (decor[i]) decor[i].visible = showDecor;
       } else {
         decor.visible = showDecor;
       }
+    } else if (decor && groups && !groups.detail) {
+      // If decor collected but not folded into groups.detail
+      var showD = band <= 1;
+      if (Array.isArray(decor)) {
+        for (var d = 0; d < decor.length; d++) if (decor[d]) decor[d].visible = showD;
+      } else decor.visible = showD;
     }
-    // Blinkers / banners / radar dishes — detail
     if (ud.blinkerMeshes) {
       var showBlink = band === 0;
       for (var b = 0; b < ud.blinkerMeshes.length; b++) {
@@ -269,22 +376,33 @@
       }
     }
     if (ud.banner) ud.banner.visible = band <= 1;
-    // Faction accent / silhouette always on for identity
     if (ud.factionAccent) ud.factionAccent.visible = true;
-    if (ud.silhouette) ud.silhouette.visible = true;
+    if (ud.silhouette) ud.silhouette.visible = band <= 2;
     ud.impostorReady = band >= 3;
+    if (band >= 3) {
+      ensureImpostorStub(building, global.THREE);
+      if (ud.impostorStub) ud.impostorStub.visible = true;
+    } else if (ud.impostorStub) {
+      ud.impostorStub.visible = false;
+    }
   }
 
   /** Ensure a cheap billboard impostor stub group exists (architecture only). */
   function ensureImpostorStub(unit, THREE) {
-    if (!unit || !THREE) return null;
-    var ud = unit.userData;
-    if (ud.impostorStub) return ud.impostorStub;
+    if (!unit) return null;
+    if (!THREE) THREE = global.THREE;
+    if (!THREE) return null;
+    var ud = unit.userData || (unit.userData = {});
+    if (ud.impostorStub && ud.impostorStub.parent === unit) return ud.impostorStub;
+    // Stale ref (reparented / disposed) — recreate
+    if (ud.impostorStub && ud.impostorStub.parent !== unit) {
+      try { if (ud.impostorStub.parent) ud.impostorStub.parent.remove(ud.impostorStub); } catch (_) {}
+      ud.impostorStub = null;
+    }
     var stub = new THREE.Group();
     stub.name = 'lod3-impostor-stub';
     stub.visible = false;
     stub.userData.luncImpostor = true;
-    // Placeholder plane — not production art
     try {
       var geo = new THREE.PlaneGeometry(1.2, 1.6);
       var mat = new THREE.MeshBasicMaterial({
@@ -345,7 +463,6 @@
       if (!_projScreen) _projScreen = new THREE.Matrix4();
       _projScreen.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
       _frustum.setFromProjectionMatrix(_projScreen);
-      // Use bounding sphere if available; else position point
       if (obj.geometry && obj.geometry.boundingSphere) {
         return _frustum.intersectsObject(obj);
       }
@@ -377,20 +494,28 @@
     _counts.props = 0;
   }
 
+  /**
+   * Tally one object for PERF.
+   * lod0–3 = visible/processed this frame (not frustum/far-skipped).
+   * culled = skipped expensive work (still simulated; not in lod0–3).
+   */
   function tally(band, kind, culled) {
-    if (culled) _counts.culled++;
+    if (kind === 'unit') _counts.units++;
+    else if (kind === 'structure') _counts.structures++;
+    else if (kind === 'prop') _counts.props++;
+    if (culled) {
+      _counts.culled++;
+      return;
+    }
     if (band === 0) _counts.lod0++;
     else if (band === 1) _counts.lod1++;
     else if (band === 2) _counts.lod2++;
     else _counts.lod3++;
-    if (kind === 'unit') _counts.units++;
-    else if (kind === 'structure') _counts.structures++;
-    else if (kind === 'prop') _counts.props++;
   }
 
   function endFrame() {
     // Snapshot for PERF overlay — beginFrame zeros working counts at the start of
-    // the next frame, which previously raced quality.tick → always showed 0/0/0/0.
+    // the next frame; quality.tick reads display snapshot after endFrame (v9.4.1+).
     _displayCounts.lod0 = _counts.lod0;
     _displayCounts.lod1 = _counts.lod1;
     _displayCounts.lod2 = _counts.lod2;
@@ -435,7 +560,6 @@
       if (n <= 0) return paths.lod0 || entry.path || null;
       if (n === 1) return paths.lod1 || paths.lod0 || entry.path || null;
       if (n === 2) return paths.lod2 || paths.lod1 || paths.lod0 || entry.path || null;
-      // LOD3 impostor — may be null (billboard stub); fall back for mesh test
       return paths.lod3 || paths.lod2 || paths.lod1 || paths.lod0 || entry.path || null;
     }
     return pick(band);
@@ -457,7 +581,6 @@
       var kind = obj.userData.envKind;
       var band = resolveLod(dist, obj.userData.lodBand, opts);
       obj.userData.lodBand = band;
-      // Trees/rocks/wreckage/crates/fences/debris
       if (band >= 3 || dist > hideBeyond * 1.15) {
         obj.visible = false;
         tally(3, 'prop', true);
@@ -465,16 +588,20 @@
       }
       obj.visible = true;
       if (band >= 2 || dist > clusterBeyond) {
-        // Hide child detail if present
         if (obj.userData.lodDetail) obj.userData.lodDetail.visible = false;
-        // Cluster: scale down slightly for density feel (no logical despawn)
+        if (obj.userData.lodGroups && obj.userData.lodGroups.detail) {
+          setGroupVis(obj.userData.lodGroups.detail, false);
+        }
         if (kind === 'tree' || kind === 'bush') {
           if (obj.userData.baseScale == null && obj.scale) {
             obj.userData.baseScale = obj.scale.x;
           }
         }
-      } else if (obj.userData.lodDetail) {
-        obj.userData.lodDetail.visible = true;
+      } else {
+        if (obj.userData.lodDetail) obj.userData.lodDetail.visible = true;
+        if (obj.userData.lodGroups && obj.userData.lodGroups.detail) {
+          setGroupVis(obj.userData.lodGroups.detail, band === 0);
+        }
       }
       tally(band, 'prop', false);
     });
@@ -491,7 +618,6 @@
       var band = updateStructureLod(b, camera, opts);
       var inView = isInView(b, camera, global.THREE);
       if (!inView && band >= 2) {
-        // Skip expensive blinker updates via flag; keep visible silhouette
         b.userData.lodSkipFx = true;
         tally(band, 'structure', true);
       } else {
@@ -527,13 +653,12 @@
     };
   }
 
-  // Bridge: quality.getLodBand remains for back-compat; prefer lod.resolveLod
   function getLodBand(distance) {
     return bandFromDistance(distance, getEnterThresholds());
   }
 
   LB.lod = {
-    version: 'v9.4',
+    version: 'v9.4.2',
     DEFAULT_ENTER: DEFAULT_ENTER,
     QUALITY_ENTER: QUALITY_ENTER,
     getEnterThresholds: getEnterThresholds,
@@ -547,6 +672,7 @@
     updatePropLod: updatePropLod,
     applyProceduralLodVisibility: applyProceduralLodVisibility,
     applyStructureLodVisibility: applyStructureLodVisibility,
+    registerLodGroups: registerLodGroups,
     ensureImpostorStub: ensureImpostorStub,
     animPolicy: animPolicy,
     shouldUpdateAnim: shouldUpdateAnim,
