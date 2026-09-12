@@ -172,3 +172,6 @@ Feed failures are diagnostics only — not graphics failures. App continues with
 
 ### Merge recommendation
 **Branch ready for independent final review.** Do **not** merge until Bryan approves. Known UI occlusion fixed in v8.8.1; re-verify quality gear click on desktop + ~390px before merge decision.
+
+### Quality UI fix follow-up (v8.8.2)
+Root cause: `.quality-picker { position: relative }` overrode `.quality-picker-fixed { position: fixed }` (same specificity, later rule), so the control sat in document flow (top-left) under the HUD. Fixed via `#qualityPicker { position: fixed !important; …; z-index: 70 }` top-right.

@@ -536,15 +536,23 @@
 
 
 /* ===== v8.8 graphics quality picker + perf overlay ===== */
-.quality-picker-fixed {
-  position: fixed;
+/* #qualityPicker id beats .quality-picker { position:relative } — was stuck in document flow (top-left) */
+#qualityPicker.quality-picker-fixed,
+#qualityPicker {
+  position: fixed !important;
   top: max(8px, env(safe-area-inset-top));
   right: max(10px, env(safe-area-inset-right));
-  z-index: 45; /* above minimap (27) + trays — must stay clickable */
+  left: auto !important;
+  bottom: auto !important;
+  z-index: 70; /* above #buildTag (60), topHud (30), minimap (27) */
+  display: flex;
+  align-items: center;
+  gap: 6px;
   pointer-events: auto;
+  touch-action: manipulation;
 }
 .quality-picker {
-  position: relative;
+  /* layout only — never reset position when combined with fixed mount */
   display: flex;
   align-items: center;
   gap: 6px;
@@ -589,7 +597,7 @@
   background: rgba(7,11,8,.96);
   backdrop-filter: blur(10px);
   box-shadow: 0 8px 24px rgba(0,0,0,.45);
-  z-index: 46;
+  z-index: 71;
   pointer-events: auto;
 }
 .quality-menu[hidden] { display: none !important; }
@@ -678,9 +686,10 @@
 .feed-row.state-UNAVAILABLE b { color: #ed7d74; }
 
 @media (max-width: 720px) {
-  .quality-picker-fixed {
+  #qualityPicker {
     top: max(8px, env(safe-area-inset-top));
     right: max(6px, env(safe-area-inset-right));
+    z-index: 70;
   }
   .quality-chip { max-width: 88px; font-size: 9px; padding: 3px 6px; }
   .quality-menu { min-width: 148px; right: 0; }
