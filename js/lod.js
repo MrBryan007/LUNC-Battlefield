@@ -1,4 +1,4 @@
-/* LUNC Battlefield v9.4.3 — true LOD (single-source thresholds + structure LOD3)
+/* LUNC Battlefield v9.4.4 — true LOD (tank silhouettes + shaped LOD3 stubs)
  * LUNCBattle.lod — camera distance → LOD0–3; never despawns simulation state.
  * Missing LOD / GLB → procedural SAFE FALLBACK forever. No black canvas.
  */
@@ -223,7 +223,7 @@
 
   /**
    * Semantic procedural LOD (preferred):
-   * LOD0 full · LOD1 hide detail · LOD2 core/silhouette only · LOD3 impostor stub.
+   * LOD0 full · LOD1 hide detail · LOD2 core/silhouette (armor keeps hull+turret) · LOD3 shaped stub.
    * Falls back to lodGroups; never relies on fragile mesh-name aliases.
    */
   function applyProceduralLodVisibility(unit, band) {
@@ -390,7 +390,7 @@
     }
   }
 
-  /** Ensure a cheap billboard impostor stub group exists (architecture only). */
+  /** Ensure a cheap LOD3 impostor stub — tank/arty/air shaped when possible (not a building slab). */
   function ensureImpostorStub(unit, THREE) {
     if (!unit) return null;
     if (!THREE) THREE = global.THREE;
@@ -407,19 +407,49 @@
     stub.visible = false;
     stub.userData.luncImpostor = true;
     try {
-      var geo = new THREE.PlaneGeometry(1.2, 1.6);
+      var col = ud.side < 0 ? 0x49d39a : 0xe4675f;
       var mat = new THREE.MeshBasicMaterial({
-        color: ud.side < 0 ? 0x49d39a : 0xe4675f,
+        color: col,
         transparent: true,
-        opacity: 0.55,
+        opacity: 0.62,
         depthWrite: false,
         side: THREE.DoubleSide
       });
       mat.userData = mat.userData || {};
       mat.userData.luncOwned = true;
-      var mesh = new THREE.Mesh(geo, mat);
-      mesh.position.y = 0.8;
-      stub.add(mesh);
+      var type = ud.type | 0;
+      function addMesh(geo, y, z, rx) {
+        var m = new THREE.Mesh(geo, mat);
+        m.position.y = y || 0;
+        if (z) m.position.z = z;
+        if (rx) m.rotation.x = rx;
+        stub.add(m);
+        return m;
+      }
+      if (type === 1) {
+        // Tank silhouette: short hull + tiny turret + barrel (not a flat building plane)
+        addMesh(new THREE.BoxGeometry(1.25, 0.38, 0.78), 0.42);
+        addMesh(new THREE.BoxGeometry(0.48, 0.24, 0.42), 0.68);
+        addMesh(new THREE.CylinderGeometry(0.04, 0.05, 0.75, 5), 0.68, 0.48, Math.PI / 2);
+      } else if (type === 2) {
+        // Artillery: carriage + elevated barrel
+        addMesh(new THREE.BoxGeometry(0.9, 0.28, 0.55), 0.35);
+        var bar = addMesh(new THREE.CylinderGeometry(0.05, 0.07, 1.1, 5), 0.55, 0.35, Math.PI / 2);
+        bar.rotation.z = -0.25;
+      } else if (type === 3) {
+        // Heli: cabin + rotor disc
+        addMesh(new THREE.BoxGeometry(0.7, 0.32, 0.45), 0.5);
+        addMesh(new THREE.CylinderGeometry(0.85, 0.85, 0.03, 12), 0.72);
+      } else if (type === 4) {
+        // Jet: fuselage + swept wings
+        addMesh(new THREE.BoxGeometry(1.5, 0.22, 0.28), 0.45);
+        addMesh(new THREE.BoxGeometry(0.4, 0.04, 1.1), 0.42);
+      } else {
+        // Infantry / default: upright plane stub
+        var mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 1.4), mat);
+        mesh.position.y = 0.75;
+        stub.add(mesh);
+      }
     } catch (_) {}
     unit.add(stub);
     ud.impostorStub = stub;
@@ -661,7 +691,7 @@
   }
 
   LB.lod = {
-    version: 'v9.4.3',
+    version: 'v9.4.4',
     DEFAULT_ENTER: DEFAULT_ENTER,
     getEnterThresholds: getEnterThresholds,
     getHysteresis: getHysteresis,

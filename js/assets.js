@@ -1,4 +1,4 @@
-/* LUNC Battlefield v9.4 — glTF/GLB asset registry + lodPaths (original paths + procedural fallbacks) */
+/* LUNC Battlefield v9.4.4 — glTF/GLB asset registry + lodPaths (original paths + procedural fallbacks) */
 (function (global) {
   'use strict';
   const LB = global.LUNCBattle || (global.LUNCBattle = {});
@@ -310,6 +310,9 @@
   function typeToCategory(typeNum) {
     if (typeNum === 0) return 'infantry';
     if (typeNum === 1) return 'armor';
+    if (typeNum === 2) return 'artillery';
+    if (typeNum === 3) return 'heli';
+    if (typeNum === 4) return 'jet';
     return 'artillery';
   }
 
@@ -333,7 +336,7 @@
   }
 
   LB.assetRegistry = {
-    version: 'v9.4',
+    version: 'v9.4.4',
     REGISTRY: REGISTRY,
     get: getEntry,
     listIds: listIds,

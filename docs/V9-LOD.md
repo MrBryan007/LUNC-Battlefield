@@ -1,6 +1,6 @@
-# LUNC Battlefield v9.4.3 — True LOD system
+# LUNC Battlefield v9.4.4 — True LOD system
 
-**Status:** v9.4.3 on `feat/v9-next-gen-renderer` only. **Not merged to main.** Live Pages remains v8.x.
+**Status:** v9.4.4 on `feat/v9-next-gen-renderer` only. **Not merged to main.** Live Pages remains v8.x.
 
 **v9.4.1 hotfix:** PERF LOD counts use an `endFrame` snapshot after unit/structure/env tallies. Earlier, `quality.tick` ran right after `beginFrame` (zeros), so the overlay always showed LOD0–3 as 0/0/0/0 while internal LOD still worked.
 
@@ -12,6 +12,15 @@
 - **Structure LOD3** — `factionAccent.visible = band <= 2`; stub only at LOD3 (no original accent beside stub)
 - Dev-only `?assetDelay=1500` slows GLTF callbacks for race repro (OFF by default)
 - Impostors / SkeletonUtils / KTX2 / final textures still **deferred to v9.5**
+
+
+**v9.4.4 tank silhouette + air combat:**
+- Armor: `hull + turret + cannon` stay in `core`/`silhouette` through LOD0–2 (no more “building” tanks at LOD2)
+- `detail` = wheels/antenna/cupola; `limbs` = tracks only
+- Artillery: carriage+barrel stay in core through LOD2
+- LOD3 impostor stubs are **shaped** (tank hull+turret+barrel, arty carriage+barrel, heli cabin+rotor, jet fuse+wings) — not flat building slabs
+- AUTO still refuses smokeTest GLBs as unit visuals (procedural SAFE FALLBACK)
+- Air: procedural heli (type 3) + jet (type 4) — orbit/strafe/bomb with effectsApi; denser ground caps in battle-engine
 
 **Prerequisite:** v9.1–v9.3 (renderer, PBR, glTF pipeline). Three.js stays **r128**. **No Three upgrade. No v9.5 in this milestone.**
 
@@ -76,7 +85,7 @@ Builders register `userData.lodGroups` (via `LUNCBattle.lod.registerLodGroups`):
 | Group | Meaning | Visibility |
 | --- | --- | --- |
 | `core` / `silhouette` | Recognizable body/hull/carriage | LOD0–2 |
-| `major` | Head, turret, barrel | LOD0–1 (hide at LOD2+) |
+| `major` | Head (infantry); armor/arty keep turret/barrel in `core` | LOD0–1 when used |
 | `detail` | Pack, antenna, wheels, blinkers, decor | LOD0 only (hide at LOD1+) |
 | `limbs` | Legs/arms/tracks/trails | LOD0–1 (hide at LOD2+) |
 
@@ -86,8 +95,8 @@ Builders register `userData.lodGroups` (via `LUNCBattle.lod.registerLodGroups`):
 | --- | --- | --- |
 | LOD0 | Full (all groups) | Full rate |
 | LOD1 | Hide `detail` only | Reduced-freq (period ~2) |
-| LOD2 | `core`/`silhouette` only | Simple facing + light bob |
-| LOD3 | Impostor **stub** (procedural groups hidden) | No limb anim |
+| LOD2 | `core`/`silhouette` only (tanks keep hull+turret) | Simple facing + light bob |
+| LOD3 | Shaped impostor **stub** (tank/arty/air; not a slab) | No limb anim |
 
 Missing LOD mesh → keep current visual / procedural SAFE FALLBACK. **Never remove units/armies. Never black canvas.**
 

@@ -1,4 +1,4 @@
-/* LUNC Battlefield v9.4.3 — glTF/GLB + LOD-aware asset pipeline (async lifecycle)
+/* LUNC Battlefield v9.4.4 — glTF/GLB + LOD-aware asset pipeline (async lifecycle)
  * Three.js r128 GLTFLoader (CDN examples). Procedural SAFE FALLBACK forever.
  * Modes: ?assets=procedural | ?assets=gltf | default AUTO
  * Progressive: never block first paint; missing/failed → procedural.
@@ -361,7 +361,7 @@
       mode: mode,
       loaderReady: !!loader,
       gltfLoader: typeof (THREE_REF && THREE_REF.GLTFLoader) === 'function',
-      version: 'v9.4.3'
+      version: 'v9.4.4'
     };
   }
 
@@ -408,6 +408,8 @@
     if (shouldPreferProceduralForQuality(entry)) return false;
     // AUTO skips smoke-test placeholder boxes — keep articulated procedural as default visual
     // Force ?assets=gltf to exercise the real GLB instantiate path for pipeline verification
+    // v9.4.4: hard gate — smokeTest never replaces tanks/units unless mode===GLTF
+    if (entry.smokeTest && mode !== 'GLTF') return false;
     if (mode === 'AUTO' && entry.smokeTest) return false;
     if (mode === 'GLTF') return isReady(id, lodBand); // only if already loaded — never block
     // AUTO + production-ready assets
@@ -931,7 +933,7 @@
   function prepareMeshoptStub() { return meshoptStub; }
 
   var api = {
-    version: 'v9.4.3',
+    version: 'v9.4.4',
     init: init,
     loadAsset: loadAsset,
     preload: preload,

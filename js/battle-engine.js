@@ -350,15 +350,23 @@
     function rebuildUnits() {
       disposeArmy(bulls); disposeArmy(bears);
       const mobile=innerWidth<760;
-      const maxInf=mobile?22:30, maxArmor=mobile?7:10, maxArt=mobile?4:6;
+      // v9.4.4 denser armies (LOD keeps perf sane)
+      const maxInf=mobile?28:52, maxArmor=mobile?9:18, maxArt=mobile?5:9;
+      const maxHeli=mobile?2:4, maxJet=mobile?1:3;
       const counts = wall => ({
-        inf: Math.min(maxInf, Math.max(10,Math.round(10+wall*4.4))),
-        armor: Math.min(maxArmor,Math.max(3,Math.round(2+wall*1.45))),
-        art: Math.min(maxArt,Math.max(2,Math.round(1+wall*.72)))
+        inf: Math.min(maxInf, Math.max(14,Math.round(14+wall*5.2))),
+        armor: Math.min(maxArmor,Math.max(4,Math.round(3+wall*1.85))),
+        art: Math.min(maxArt,Math.max(2,Math.round(2+wall*.95))),
+        heli: Math.min(maxHeli, Math.max(mobile?1:2, Math.round((mobile?1:2)+wall*0.35))),
+        jet: Math.min(maxJet, Math.max(mobile?1:1, Math.round((mobile?1:1)+wall*0.28)))
       });
       const bc=counts(buyWall), rc=counts(sellWall);
       unitsApi.spawnFormation(-1, tokens[current].color, bc, bulls);
       unitsApi.spawnFormation(1, 0xe4675f, rc, bears);
+      if (unitsApi.spawnAirWing) {
+        unitsApi.spawnAirWing(-1, tokens[current].color, bc, bulls);
+        unitsApi.spawnAirWing(1, 0xe4675f, rc, bears);
+      }
       lastRebuild=Date.now();
     }
     rebuildUnits();
@@ -1142,15 +1150,23 @@
     function maybeFire(u,enemyColor,dt) {
       u.userData.shot-=dt;
       if(u.userData.shot>0) return false;
+      const type=u.userData.type|0;
+      const isAir = type===3 || type===4 || u.userData.air;
       const front=Math.abs(u.position.x-targetX);
-      const base=u.userData.type===2?3.7:u.userData.type===1?2.5:1.7;
-      u.userData.shot=base+Math.random()*base*1.8;
-      if(front<24 && Math.random()<.42) {
+      const base = type===4 ? 2.2 : type===3 ? 1.35 : type===2 ? 3.7 : type===1 ? 2.5 : 1.7;
+      u.userData.shot=base+Math.random()*base*(isAir?1.1:1.8);
+      const rangeOk = isAir ? (front < (type===4 ? 38 : 28) && u.position.y > 4) : (front < 24);
+      const chance = isAir ? (type===4 ? 0.55 : 0.48) : 0.42;
+      if(rangeOk && Math.random()<chance) {
         const side=u.userData.side;
-        const toX=targetX+side*(Math.random()*5-2.5);
-        const z=u.position.z+(Math.random()-.5)*4;
-        const kind = u.userData.type===2 ? 'arty' : (u.userData.type===1 ? 'shell' : 'tracer');
-        const power = u.userData.type===2 ? 1.1 : (u.userData.type===1 ? 0.85 : 0.55);
+        const toX=targetX + (isAir ? (Math.random()-.5)*10 : side*(Math.random()*5-2.5));
+        const z=u.position.z+(Math.random()-.5)*(isAir?8:4);
+        let kind, power;
+        if (type===4) { kind='rocket'; power = mobileGfx ? 1.15 : 1.45; }
+        else if (type===3) { kind = Math.random() < 0.55 ? 'rocket' : 'tracer'; power = kind==='rocket' ? 0.95 : 0.6; }
+        else if (type===2) { kind='arty'; power=1.1; }
+        else if (type===1) { kind='shell'; power=0.85; }
+        else { kind='tracer'; power=0.55; }
         const color = side<0 ? tokens[current].color : 0xe4675f;
         const muz = muzzleWorld(u);
         if (effectsApi && effectsApi.fireWeapon) {
@@ -1162,6 +1178,14 @@
             power: power,
             side: side
           });
+          // Jet bomb ripple — second impact near first for kinetic pass feel
+          if (type===4 && !mobileGfx && Math.random() < 0.55 && effectsApi.createExplosion) {
+            const bx = toX + (Math.random()-.5)*3;
+            const bz = z + (Math.random()-.5)*3;
+            setTimeout(function () {
+              try { createExplosion(bx, bz, color, 1.05 + Math.random()*0.35); } catch (_) {}
+            }, 180 + Math.random()*220);
+          }
         } else {
           launchStrike(u.position.x+side*-1.0,toX,z,color,power);
         }
@@ -1169,8 +1193,8 @@
           unitsApi.setAnimState(u, (window.LUNCBattle && LUNCBattle.animations && LUNCBattle.animations.STATES.FIRE) || 'FIRE', performance.now()*.001);
         } else {
           u.userData.animState = 'FIRE';
-          u.userData.fireUntil = performance.now()*.001 + (u.userData.type===2?0.28:0.18);
-          u.userData.reloadUntil = u.userData.fireUntil + (u.userData.type===2?1.6:0.7);
+          u.userData.fireUntil = performance.now()*.001 + (type===2||type===4?0.28:0.18);
+          u.userData.reloadUntil = u.userData.fireUntil + (type===2?1.6:type===4?0.9:0.7);
           u.userData.recoil = 1;
         }
         return true;
@@ -1221,12 +1245,104 @@
       }
 
       const now=performance.now()*.001;
+      function tickAirCombat(u, side, dt, now) {
+        const ud = u.userData;
+        const type = ud.type | 0;
+        const prevX = u.position.x;
+        const prevZ = u.position.z;
+        if (type === 3) {
+          // Helicopter: orbit / strafe near frontline, fire rockets/guns
+          ud.orbitAngle = (ud.orbitAngle || 0) + dt * (ud.orbitSpeed || 0.4);
+          const r = ud.orbitRadius || 12;
+          const cx = targetX + side * (3.5 + Math.sin(now * 0.2 + (ud.phase || 0)) * 2);
+          const homeZ = ud.homeZ != null ? ud.homeZ : 0;
+          const nx = cx + Math.cos(ud.orbitAngle) * r * 0.55;
+          const nz = homeZ + Math.sin(ud.orbitAngle) * r * 0.85;
+          u.position.x = nx;
+          u.position.z = nz;
+          const alt = ud.alt || 9;
+          u.position.y = alt + Math.sin(now * 1.4 + (ud.phase || 0)) * 0.35;
+          const vx = u.position.x - prevX;
+          const vz = u.position.z - prevZ;
+          ud.speed = Math.sqrt(vx * vx + vz * vz) / Math.max(dt, 1e-4);
+          ud.facing = Math.atan2(vx, vz);
+          // bank slightly into turn
+          u.rotation.z = THREE.MathUtils.clamp(-(vx) * 0.08, -0.35, 0.35);
+          maybeFire(u, side < 0 ? 0xe4675f : tokens[current].color, dt);
+        } else if (type === 4) {
+          // Jet: fast cross-battlefield strafe / bomb pass, exit, re-enter
+          let mode = ud.airMode || 'ingress';
+          const alt = ud.alt || 15;
+          const cruise = mobileGfx ? 22 : 32;
+          if (mode === 'reenter') {
+            ud.runCooldown = (ud.runCooldown || 0) - dt;
+            u.position.y = alt;
+            if (ud.runCooldown <= 0) {
+              ud.airMode = 'ingress';
+              u.position.x = side * (58 + Math.random() * 10);
+              u.position.z = (ud.homeZ != null ? ud.homeZ : 0) + (Math.random() - 0.5) * 8;
+            }
+          } else if (mode === 'egress') {
+            const exitX = -side * 62;
+            const dx = exitX - u.position.x;
+            const step = Math.sign(dx) * cruise * dt;
+            if (Math.abs(step) >= Math.abs(dx)) {
+              u.position.x = exitX;
+              ud.airMode = 'reenter';
+              ud.runCooldown = mobileGfx ? (5 + Math.random() * 4) : (3.5 + Math.random() * 3);
+            } else {
+              u.position.x += step;
+            }
+            u.position.y = alt + 1.5;
+            ud.facing = side < 0 ? -Math.PI / 2 : Math.PI / 2; // flying outbound
+            ud.speed = cruise;
+          } else {
+            // ingress / strafe toward and across frontline
+            const aimX = -side * 48;
+            const dx = aimX - u.position.x;
+            const step = Math.sign(dx || -side) * cruise * dt;
+            u.position.x += step;
+            u.position.z += Math.sin(now * 0.7 + (ud.phase || 0)) * dt * 1.8;
+            u.position.y = alt + Math.sin(now * 2 + (ud.phase || 0)) * 0.4;
+            ud.facing = Math.atan2(step, 0.001);
+            ud.speed = cruise;
+            ud.airMode = 'ingress';
+            // Strafe window near frontline — shoot/bomb
+            if (Math.abs(u.position.x - targetX) < 26) {
+              maybeFire(u, side < 0 ? 0xe4675f : tokens[current].color, dt);
+            }
+            // Crossed far side → egress
+            if ((side < 0 && u.position.x > 42) || (side > 0 && u.position.x < -42)) {
+              ud.airMode = 'egress';
+            }
+          }
+          u.rotation.z = THREE.MathUtils.clamp((u.position.z - prevZ) * -0.15, -0.4, 0.4);
+        }
+        ud.velX = (u.position.x - prevX) / Math.max(dt, 1e-4);
+        if (unitsApi && unitsApi.tickUnit) {
+          unitsApi.tickUnit(u, dt, now, {
+            momentum: momentum, targetX: targetX, mobile: mobileGfx,
+            cameraPos: camera.position,
+            camera: camera,
+            enableLodSwap: false
+          });
+        }
+        // Keep altitude (do not snap to terrain)
+        if (type === 3) u.position.y = Math.max(6.5, u.position.y);
+        if (type === 4) u.position.y = Math.max(11, u.position.y);
+      }
+
       function moveArmy(arr,side) {
         const momAbs = Math.abs(momentum);
         const contested = momAbs < 0.055;
         const urgent = momAbs > 0.12;
         arr.forEach(u=>{
-          const type=u.userData.type, rank=type===0?0:type===1?1:2;
+          const type=u.userData.type|0;
+          if (type === 3 || type === 4 || u.userData.air) {
+            tickAirCombat(u, side, dt, now);
+            return;
+          }
+          const rank=type===0?0:type===1?1:2;
           let desired=targetX+side*(7.8+rank*6.2+Math.floor((u.userData.index||0)/(type===0?8:5))*1.6);
           // Keep staging: bulls west / bears east; infantry may only slightly overrun frontline
           const maxOver = type===0 ? 2.2 : (type===1 ? 1.2 : 0.4);

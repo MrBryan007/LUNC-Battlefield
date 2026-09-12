@@ -1,4 +1,4 @@
-/* LUNC Battlefield v9.4.3 — shared config (GitHub Pages safe) */
+/* LUNC Battlefield v9.4.4 — shared config (GitHub Pages safe) */
 (function (global) {
   'use strict';
   const DataTruth = Object.freeze({
@@ -56,8 +56,8 @@
   };
 
   const config = {
-    BUILD: 'v9.4.3',
-    TITLE: 'LUNC Ecosystem Battlefield v9.4.3 — async asset lifecycle + single-source LOD (WebGL r128)',
+    BUILD: 'v9.4.4',
+    TITLE: 'LUNC Ecosystem Battlefield v9.4.4 — tank silhouettes, denser armies, kinetic air combat (WebGL r128)',
     DataTruth,
     tokens,
     apiBase: resolveApiBase(),

@@ -1,4 +1,4 @@
-/* Unit builders / formations — v9.4.2 articulated RTS units + LOD + optional glTF instantiate */
+/* Unit builders / formations — v9.4.4 tanks+air combat, denser LOD silhouettes */
 (function (global) {
   'use strict';
   const LB = global.LUNCBattle;
@@ -71,9 +71,24 @@
       trailLeg: new THREE.CylinderGeometry(0.045, 0.055, 1.05, 5),
       trailFoot: new THREE.BoxGeometry(0.16, 0.08, 0.22),
       shield: new THREE.BoxGeometry(0.08, 0.45, 0.55),
+      // air — heli
+      heliCabin: new THREE.BoxGeometry(0.85, 0.42, 0.55),
+      heliNose: new THREE.BoxGeometry(0.35, 0.28, 0.4),
+      heliTail: new THREE.BoxGeometry(1.05, 0.12, 0.1),
+      heliRotor: new THREE.CylinderGeometry(1.15, 1.15, 0.04, 16),
+      heliTailRotor: new THREE.BoxGeometry(0.06, 0.42, 0.08),
+      heliSkid: new THREE.BoxGeometry(0.9, 0.05, 0.06),
+      // air — jet
+      jetFuse: new THREE.BoxGeometry(1.9, 0.28, 0.32),
+      jetNose: new THREE.ConeGeometry(0.16, 0.55, 6),
+      jetWing: new THREE.BoxGeometry(0.55, 0.05, 1.35),
+      jetTailFin: new THREE.BoxGeometry(0.06, 0.35, 0.4),
+      jetEngine: new THREE.CylinderGeometry(0.09, 0.11, 0.45, 6),
       shadowInf: new THREE.CircleGeometry(0.38, 12),
       shadowArmor: new THREE.CircleGeometry(0.72, 12),
-      shadowArt: new THREE.CircleGeometry(0.58, 12)
+      shadowArt: new THREE.CircleGeometry(0.58, 12),
+      shadowHeli: new THREE.CircleGeometry(0.85, 12),
+      shadowJet: new THREE.CircleGeometry(0.95, 12)
     };
 
     const shadowMat = (Mats && Mats.basic)
@@ -330,15 +345,15 @@
 
       g.add(hullG, turret);
 
-      // v9.4.2: semantic LOD groups
+      // v9.4.4: hull+turret+cannon stay in core through LOD0–2 (tanks must read as tanks)
       const armorDetail = wheels.slice();
       turret.children.forEach(function (ch) {
         if (ch !== cannonG && ch !== turretMesh) armorDetail.push(ch);
       });
       const lodGroups = {
-        core: [hullG],
-        silhouette: [hullG],
-        major: [turret],
+        core: [hullG, turret],
+        silhouette: [hullG, turret],
+        major: [],
         detail: armorDetail,
         limbs: tracks.slice()
       };
@@ -435,11 +450,11 @@
       // Scale up slightly — distinctly larger than infantry
       g.scale.setScalar(1.15);
 
-      // v9.4.2: semantic LOD groups
+      // v9.4.4: carriage+barrel stay recognizable through LOD0–2
       const lodGroups = {
-        core: [carriage],
-        silhouette: [carriage],
-        major: [barrelG],
+        core: [carriage, barrelG],
+        silhouette: [carriage, barrelG],
+        major: [],
         detail: wheels.concat([trail1, trail2, foot1, foot2, shield]),
         limbs: [trail1, trail2]
       };
@@ -469,15 +484,202 @@
       return g;
     }
 
+
+    function createHelicopter(color, side) {
+      const g = new THREE.Group();
+      const isBull = side < 0;
+      const accent = accentMat(color, 0.1);
+      const body = isBull ? bodyMatBull : bodyMatBear;
+      const parts = {};
+
+      const cabinG = new THREE.Group();
+      const cabin = meshFrom(GEO.heliCabin, accent);
+      cabin.position.y = 0.55;
+      const nose = meshFrom(GEO.heliNose, body);
+      nose.position.set(0.5, 0.5, 0);
+      const boom = meshFrom(GEO.heliTail, darkMat);
+      boom.position.set(-0.85, 0.58, 0);
+      cabinG.add(cabin, nose, boom);
+      [-0.22, 0.22].forEach(function (z) {
+        const skid = meshFrom(GEO.heliSkid, metalMatDark);
+        skid.position.set(0.05, 0.22, z);
+        cabinG.add(skid);
+      });
+      parts.cabin = cabinG;
+
+      const rotorG = new THREE.Group();
+      rotorG.position.y = 0.82;
+      const disc = meshFrom(GEO.heliRotor, metalMat);
+      disc.material = disc.material.clone ? disc.material.clone() : disc.material;
+      if (disc.material.opacity != null) {
+        disc.material.transparent = true;
+        disc.material.opacity = 0.55;
+        disc.material.depthWrite = false;
+      }
+      rotorG.add(disc);
+      parts.rotor = rotorG;
+      parts.rotorDisc = disc;
+
+      const tailRotor = meshFrom(GEO.heliTailRotor, metalMatDark);
+      tailRotor.position.set(-1.35, 0.62, 0.12);
+      cabinG.add(tailRotor);
+      parts.tailRotor = tailRotor;
+
+      // stub rocket pods under cabin
+      const podL = meshFrom(GEO.trailFoot, metalMat);
+      podL.scale.set(1.4, 0.7, 0.7);
+      podL.position.set(0.1, 0.32, 0.28);
+      const podR = meshFrom(GEO.trailFoot, metalMat);
+      podR.scale.set(1.4, 0.7, 0.7);
+      podR.position.set(0.1, 0.32, -0.28);
+      cabinG.add(podL, podR);
+      parts.pods = [podL, podR];
+
+      // Nose was modeled along +X; rotate to local +Z to match facing convention
+      cabinG.rotation.y = -Math.PI / 2;
+      g.add(cabinG, rotorG);
+      g.scale.setScalar(1.05);
+
+      const lodGroups = {
+        core: [cabinG, rotorG],
+        silhouette: [cabinG, rotorG],
+        major: [],
+        detail: [tailRotor, podL, podR],
+        limbs: []
+      };
+      if (global.LUNCBattle && LUNCBattle.lod && LUNCBattle.lod.registerLodGroups) {
+        LUNCBattle.lod.registerLodGroups(g, lodGroups);
+      } else {
+        g.userData = g.userData || {};
+        g.userData.lodGroups = lodGroups;
+      }
+
+      g.userData = Object.assign(g.userData || {}, {
+        type: 3,
+        air: true,
+        side: side,
+        phase: Math.random() * Math.PI * 2,
+        shot: Math.random() * 2,
+        animState: STATES.IDLE,
+        parts: parts,
+        lodGroups: (g.userData && g.userData.lodGroups) || lodGroups,
+        speed: 0,
+        facing: side < 0 ? Math.PI / 2 : -Math.PI / 2,
+        weaponRef: podL,
+        weapon: podL,
+        muzzleOffset: new THREE.Vector3(0, 0.35, 0.55),
+        rootBob: 0,
+        alt: 8.5 + Math.random() * 2.5,
+        orbitAngle: Math.random() * Math.PI * 2,
+        orbitRadius: 10 + Math.random() * 6,
+        orbitSpeed: 0.35 + Math.random() * 0.25,
+        airMode: 'orbit'
+      });
+      return g;
+    }
+
+    function createJet(color, side) {
+      const g = new THREE.Group();
+      const isBull = side < 0;
+      const accent = accentMat(color, 0.12);
+      const body = isBull ? bodyMatBull : bodyMatBear;
+      const parts = {};
+
+      const fuseG = new THREE.Group();
+      const fuse = meshFrom(GEO.jetFuse, accent);
+      fuse.position.y = 0.4;
+      const nose = meshFrom(GEO.jetNose, body);
+      nose.rotation.z = -Math.PI / 2;
+      nose.position.set(1.15, 0.4, 0);
+      fuseG.add(fuse, nose);
+
+      const wingL = meshFrom(GEO.jetWing, metalMat);
+      wingL.position.set(-0.1, 0.38, 0.55);
+      wingL.rotation.y = 0.35;
+      const wingR = meshFrom(GEO.jetWing, metalMat);
+      wingR.position.set(-0.1, 0.38, -0.55);
+      wingR.rotation.y = -0.35;
+      fuseG.add(wingL, wingR);
+
+      const fin = meshFrom(GEO.jetTailFin, accent);
+      fin.position.set(-0.75, 0.62, 0);
+      fuseG.add(fin);
+
+      const engL = meshFrom(GEO.jetEngine, darkMat);
+      engL.rotation.z = Math.PI / 2;
+      engL.position.set(-0.55, 0.28, 0.28);
+      const engR = meshFrom(GEO.jetEngine, darkMat);
+      engR.rotation.z = Math.PI / 2;
+      engR.position.set(-0.55, 0.28, -0.28);
+      fuseG.add(engL, engR);
+      parts.fuselage = fuseG;
+      parts.wings = [wingL, wingR];
+      parts.engines = [engL, engR];
+
+      // Nose along +X in mesh space → local +Z for facing
+      fuseG.rotation.y = -Math.PI / 2;
+      g.add(fuseG);
+      g.scale.setScalar(1.1);
+
+      const lodGroups = {
+        core: [fuseG],
+        silhouette: [fuseG],
+        major: [],
+        detail: [engL, engR, fin],
+        limbs: []
+      };
+      if (global.LUNCBattle && LUNCBattle.lod && LUNCBattle.lod.registerLodGroups) {
+        LUNCBattle.lod.registerLodGroups(g, lodGroups);
+      } else {
+        g.userData = g.userData || {};
+        g.userData.lodGroups = lodGroups;
+      }
+
+      g.userData = Object.assign(g.userData || {}, {
+        type: 4,
+        air: true,
+        side: side,
+        phase: Math.random() * Math.PI * 2,
+        shot: Math.random() * 3,
+        animState: STATES.IDLE,
+        parts: parts,
+        lodGroups: (g.userData && g.userData.lodGroups) || lodGroups,
+        speed: 0,
+        facing: side < 0 ? Math.PI / 2 : -Math.PI / 2,
+        weaponRef: fuse,
+        weapon: fuse,
+        muzzleOffset: new THREE.Vector3(0, 0.2, 0.7),
+        rootBob: 0,
+        alt: 14 + Math.random() * 4,
+        airMode: 'ingress',
+        runCooldown: Math.random() * 4,
+        bank: 0
+      });
+      return g;
+    }
+
     function createUnit(color, side, type) {
-      // v9.3: prefer GLB when asset pipeline has it ready; else procedural SAFE FALLBACK
+      // v9.3/v9.4.4: prefer GLB when ready; AUTO never swaps smoke-test boxes for tanks/air
       let g = null;
       const Assets = (LB && LB.assets) || null;
       const Reg = (LB && LB.assetRegistry) || null;
-      const assetId = Reg && Reg.unitIdFromSideType
+      const isAir = type === 3 || type === 4;
+      const assetId = (!isAir && Reg && Reg.unitIdFromSideType)
         ? Reg.unitIdFromSideType(side, type)
         : null;
+      let allowGltf = false;
       if (Assets && assetId && Assets.shouldUseGltf && Assets.shouldUseGltf(assetId)) {
+        // Hard gate: smoke-test placeholders must never replace procedural armor/units in AUTO
+        try {
+          const entry = Reg && Reg.get ? Reg.get(assetId) : (Reg && Reg.byId && Reg.byId[assetId]);
+          const smoke = entry && entry.smokeTest;
+          const mode = Assets.getMode ? Assets.getMode() : 'AUTO';
+          allowGltf = !(smoke && mode !== 'GLTF');
+        } catch (_) {
+          allowGltf = true;
+        }
+      }
+      if (allowGltf) {
         try {
           g = Assets.instantiate(assetId, { color: color, side: side, type: type, accentColor: color });
         } catch (e) {
@@ -487,18 +689,30 @@
       if (!g) {
         g = type === 0 ? createInfantry(color, side)
           : type === 1 ? createArmor(color, side)
+          : type === 2 ? createArtillery(color, side)
+          : type === 3 ? createHelicopter(color, side)
+          : type === 4 ? createJet(color, side)
           : createArtillery(color, side);
         g.userData = g.userData || {};
         g.userData.luncAssetSource = 'procedural';
         g.userData.luncProcedural = true;
         if (Assets && Assets.markProceduralSpawn) Assets.markProceduralSpawn();
       }
-      const shadowGeo = type === 1 ? GEO.shadowArmor : type === 2 ? GEO.shadowArt : GEO.shadowInf;
+      const shadowGeo = type === 1 ? GEO.shadowArmor
+        : type === 2 ? GEO.shadowArt
+        : type === 3 ? GEO.shadowHeli
+        : type === 4 ? GEO.shadowJet
+        : GEO.shadowInf;
       const shadow = new THREE.Mesh(shadowGeo, shadowMat);
       shadow.rotation.x = -Math.PI / 2;
-      shadow.position.y = 0.02;
+      shadow.position.y = isAir ? -0.15 : 0.02;
       shadow.receiveShadow = false;
       shadow.castShadow = false;
+      if (isAir) {
+        shadow.scale.setScalar(0.65);
+        shadow.material = shadowMat.clone ? shadowMat.clone() : shadowMat;
+        if (shadow.material.opacity != null) shadow.material.opacity = 0.12;
+      }
       g.add(shadow);
       g.rotation.y = side < 0 ? Math.PI / 2 : -Math.PI / 2;
       scene.add(g);
@@ -532,7 +746,8 @@
     function spawnFormation(side, color, counts, list) {
       [[0, counts.inf], [1, counts.armor], [2, counts.art]].forEach(function (pair) {
         const type = pair[0];
-        const n = pair[1];
+        const n = pair[1] | 0;
+        if (n <= 0) return;
         const slots = formationSlots(n, side, type);
         slots.forEach(function (s, i) {
           const u = createUnit(color, side, type);
@@ -542,6 +757,38 @@
           list.push(u);
         });
       });
+    }
+
+    /** Spawn procedural air wing (heli type 3, jet type 4) above the battlefield. */
+    function spawnAirWing(side, color, counts, list) {
+      const nHeli = (counts && counts.heli) | 0;
+      const nJet = (counts && counts.jet) | 0;
+      let idx = 0;
+      for (let i = 0; i < nHeli; i++) {
+        const u = createUnit(color, side, 3);
+        const z = (i - (nHeli - 1) / 2) * 7.5 + (((i * 11) % 5) - 2) * 0.4;
+        const x = side * (18 + (i % 2) * 4);
+        const alt = u.userData.alt || 9;
+        u.position.set(x, alt, z);
+        u.userData.home = { x: x, z: z };
+        u.userData.homeZ = z;
+        u.userData.index = idx++;
+        u.userData.orbitAngle = (i / Math.max(1, nHeli)) * Math.PI * 2 + (side < 0 ? 0 : 1.2);
+        list.push(u);
+      }
+      for (let j = 0; j < nJet; j++) {
+        const u = createUnit(color, side, 4);
+        const z = (j - (nJet - 1) / 2) * 11 + side * 2;
+        const startX = side * (55 + j * 8);
+        const alt = u.userData.alt || 15;
+        u.position.set(startX, alt, z);
+        u.userData.home = { x: startX, z: z };
+        u.userData.homeZ = z;
+        u.userData.index = idx++;
+        u.userData.airMode = 'ingress';
+        u.userData.runCooldown = j * 2.5 + Math.random();
+        list.push(u);
+      }
     }
 
     function setAnimState(u, state, now) {
@@ -606,15 +853,18 @@
       createInfantry: createInfantry,
       createArmor: createArmor,
       createArtillery: createArtillery,
+      createHelicopter: createHelicopter,
+      createJet: createJet,
       createUnit: createUnit,
       formationSlots: formationSlots,
       disposeArmy: disposeArmy,
       spawnFormation: spawnFormation,
+      spawnAirWing: spawnAirWing,
       setShadow: setShadow,
       setAnimState: setAnimState,
       tickUnit: tickUnit,
       GEO: GEO,
-      version: 'v9.4.2'
+      version: 'v9.4.4'
     };
   }
 
