@@ -117,11 +117,21 @@
     const THREE = opts.THREE;
     const scene = opts.scene;
     const mobile = !!opts.mobile;
+    let qualitySegScale = 1;
+    try {
+      if (opts.terrainSegScale != null) qualitySegScale = +opts.terrainSegScale;
+      else if (global.LUNCBattle && LUNCBattle.quality && LUNCBattle.quality.getEffectivePreset) {
+        const ud = LUNCBattle.quality.getEffectivePreset().unitDetail;
+        if (ud === 'low') qualitySegScale = 0.65;
+        else if (ud === 'medium') qualitySegScale = 0.85;
+        else if (ud === 'ultra') qualitySegScale = 1.05;
+      }
+    } catch (_) {}
 
     const width = 138;
     const depth = 82;
-    const segW = mobile ? 96 : 160;
-    const segD = mobile ? 56 : 90;
+    const segW = Math.max(48, Math.round((mobile ? 96 : 160) * qualitySegScale));
+    const segD = Math.max(32, Math.round((mobile ? 56 : 90) * qualitySegScale));
 
     const group = new THREE.Group();
     group.name = 'terrain-v81';
@@ -229,7 +239,13 @@
       opacity: 0.42,
       depthWrite: false
     });
-    const patchCount = mobile ? 5 : 9;
+    let patchCount = mobile ? 5 : 9;
+    try {
+      if (global.LUNCBattle && LUNCBattle.quality && LUNCBattle.quality.getDensityScale) {
+        const d = LUNCBattle.quality.getDensityScale().env || 1;
+        patchCount = Math.max(3, Math.round(patchCount * d));
+      }
+    } catch (_) {}
     for (let i = 0; i < patchCount; i++) {
       const px = (seededRand(i + 701) - 0.5) * 100;
       const pz = (seededRand(i + 811) - 0.5) * 58;

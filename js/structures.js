@@ -16,6 +16,20 @@
       });
     };
     const mobile = !!opts.mobile;
+    let structureDens = 1;
+    let shadowCastMode = mobile ? 'bases' : 'rich';
+    try {
+      if (opts.densityScale != null) structureDens = +opts.densityScale;
+      else if (global.LUNCBattle && LUNCBattle.quality && LUNCBattle.quality.getDensityScale) {
+        structureDens = LUNCBattle.quality.getDensityScale().structure || 1;
+      }
+      if (opts.shadowCast) shadowCastMode = opts.shadowCast;
+      else if (global.LUNCBattle && LUNCBattle.quality && LUNCBattle.quality.getEffectivePreset) {
+        shadowCastMode = LUNCBattle.quality.getEffectivePreset().shadowCast || shadowCastMode;
+      }
+    } catch (_) {}
+    const allowRichShadow = shadowCastMode === 'rich';
+    const allowBaseShadow = shadowCastMode !== 'major' && shadowCastMode !== 'off';
 
     const GEO = {
       box: new THREE.BoxGeometry(1, 1, 1),
@@ -139,7 +153,7 @@
         if (rot.y) m.rotation.y = rot.y;
         if (rot.z) m.rotation.z = rot.z;
       }
-      m.castShadow = forceShadow || !mobile;
+      m.castShadow = forceShadow ? allowBaseShadow : (allowRichShadow && !mobile);
       m.receiveShadow = true;
       parent.add(m);
       return m;
@@ -189,7 +203,7 @@
     function flushInstances(parent, geo, material, items, shadows) {
       if (!items || !items.length) return null;
       const mesh = new THREE.InstancedMesh(geo, material, items.length);
-      mesh.castShadow = !!shadows && !mobile;
+      mesh.castShadow = !!shadows && allowRichShadow && !mobile;
       mesh.receiveShadow = true;
       for (let i = 0; i < items.length; i++) {
         const t = items[i];
@@ -599,7 +613,7 @@
       addPad(group, apX, 0, 5.5, 5.2);
 
       // Sandbags near gate + bunkers
-      const bagN = mobile ? 8 : 16;
+      const bagN = Math.max(4, Math.round((mobile ? 8 : 16) * structureDens));
       for (let i = 0; i < bagN; i++) {
         const sideZ = (i % 2 ? 1 : -1);
         const x = frontX - side * (0.8 + (i % 4) * 0.35);
@@ -609,7 +623,7 @@
       }
 
       // Fence runs along outer flanks
-      const fenceN = mobile ? 6 : 12;
+      const fenceN = Math.max(3, Math.round((mobile ? 6 : 12) * structureDens));
       for (let i = 0; i < fenceN; i++) {
         const z = -11 + i * (22 / Math.max(1, fenceN - 1));
         const x = rearX + side * 1.3;
@@ -626,7 +640,7 @@
       }
 
       // Hedgehogs outside the front wall
-      const hogN = mobile ? 2 : 5;
+      const hogN = Math.max(1, Math.round((mobile ? 2 : 5) * structureDens));
       for (let i = 0; i < hogN; i++) {
         const z = -9 + i * (18 / Math.max(1, hogN - 1));
         const x = frontX - side * 2.4;
@@ -700,7 +714,7 @@
       }
 
       // Depot / hangar drums + crates (shared geo, instanced)
-      const drumN = mobile ? 2 : 4;
+      const drumN = Math.max(1, Math.round((mobile ? 2 : 4) * structureDens));
       const depotZ = -8.4;
       for (let i = 0; i < drumN; i++) {
         const x = ox + toward * 1.2 + i * 0.45;
@@ -710,7 +724,7 @@
           sx: 0.28, sy: 0.76, sz: 0.28
         });
       }
-      const crateN = mobile ? 3 : 7;
+      const crateN = Math.max(2, Math.round((mobile ? 3 : 7) * structureDens));
       for (let i = 0; i < crateN; i++) {
         const x = ox + toward * (2.2 + (i % 3) * 0.5);
         const z = (bull ? 12.2 : -12.2) + ((i % 2) ? 0.55 : -0.4);
@@ -826,7 +840,7 @@
       getBuildings: getBuildings,
       setAccentColor: setAccentColor,
       dispose: dispose,
-      version: 'v8.3'
+      version: 'v8.8'
     };
   }
 

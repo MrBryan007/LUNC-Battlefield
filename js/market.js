@@ -161,7 +161,11 @@
       const base = (LB.config.binanceRestBase || 'https://data-api.binance.vision').replace(/\/$/, '');
       const u = base + '/api/v3/ticker/bookTicker?symbol=' + encodeURIComponent(String(symbol).toUpperCase());
       const r = await fetch(u, { cache: 'no-store' });
-      if (!r.ok) throw new Error('HTTP ' + r.status);
+      if (!r.ok) {
+        const err = new Error('HTTP ' + r.status);
+        err.status = r.status;
+        throw err;
+      }
       const data = await r.json();
       const bid = +data.bidPrice, ask = +data.askPrice;
       const mid = (bid > 0 && ask > 0) ? (bid + ask) / 2 : +data.price;
@@ -174,7 +178,8 @@
         symbol: String(symbol).toUpperCase()
       };
     } catch (e) {
-      return { truth: DT.UNAVAILABLE, reason: String(e.message || e) };
+      const status = e && e.status;
+      return { truth: DT.UNAVAILABLE, reason: String(e.message || e), status: status };
     }
   }
 
@@ -185,7 +190,11 @@
       const base = (LB.config.binanceRestBase || 'https://data-api.binance.vision').replace(/\/$/, '');
       const u = base + '/api/v3/depth?symbol=' + encodeURIComponent(symbol.toUpperCase()) + '&limit=' + limit;
       const r = await fetch(u, { cache: 'no-store' });
-      if (!r.ok) throw new Error('HTTP ' + r.status);
+      if (!r.ok) {
+        const err = new Error('HTTP ' + r.status);
+        err.status = r.status;
+        throw err;
+      }
       const data = await r.json();
       return {
         truth: DT.LIVE,
@@ -196,7 +205,7 @@
         lastUpdateId: data.lastUpdateId
       };
     } catch (e) {
-      return { truth: DT.UNAVAILABLE, reason: String(e.message || e) };
+      return { truth: DT.UNAVAILABLE, reason: String(e.message || e), status: e && e.status };
     }
   }
 
@@ -209,7 +218,7 @@
       const data = await r.json();
       return { truth: DT.LIVE, data, source: 'api', sourceLabel: (data && data.sourceLabel) || 'Backend API' };
     } catch (e) {
-      return { truth: DT.UNAVAILABLE, reason: String(e.message || e) };
+      return { truth: DT.UNAVAILABLE, reason: String(e.message || e), status: e && e.status };
     }
   }
 

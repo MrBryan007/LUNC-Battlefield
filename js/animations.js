@@ -300,6 +300,31 @@
     ctx = ctx || {};
     const ud = unit.userData;
     if (!ud) return;
+
+    // v8.8 — LOD / quality: skip expensive anim for far or LOW/MEDIUM bands
+    const lod = ctx.lodBand != null ? ctx.lodBand : 0;
+    const complexity = ctx.animComplexity || 'high';
+    const divisor = ctx.unitUpdateDivisor > 1 ? ctx.unitUpdateDivisor : 1;
+    if (divisor > 1) {
+      ud._animFrame = (ud._animFrame || 0) + 1;
+      if ((ud._animFrame + (ud.index || 0)) % divisor !== 0 && lod >= 1) {
+        // Still keep facing/rootBob stable
+        if (ud.facing != null) unit.rotation.y = ud.facing;
+        return;
+      }
+    }
+    if (lod >= 3 && complexity !== 'ultra') {
+      if (ud.facing != null) unit.rotation.y = ud.facing;
+      ud.rootBob = 0;
+      return;
+    }
+    if (lod >= 2 && (complexity === 'low' || complexity === 'medium')) {
+      // Sparse: facing + light bob only
+      if (ud.facing != null) unit.rotation.y = dampAngle(unit.rotation.y, ud.facing, dt, 6);
+      ud.rootBob = (ud.type === 0 && (ud.speed || 0) > 0.4) ? Math.sin(now * 6) * 0.02 : 0;
+      return;
+    }
+
     const picked = pickState(unit, {
       speed: ud.speed,
       momentum: ctx.momentum,

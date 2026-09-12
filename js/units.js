@@ -472,7 +472,26 @@
     }
 
     function tickUnit(u, dt, now, tickCtx) {
-      if (Anim && Anim.tickUnit) Anim.tickUnit(u, dt, now, tickCtx || {});
+      tickCtx = tickCtx || {};
+      // Inject quality LOD hooks when not provided by caller
+      if (tickCtx.lodBand == null && global.LUNCBattle && LUNCBattle.quality && LUNCBattle.quality.getLodBand) {
+        try {
+          const cam = tickCtx.cameraPos;
+          if (cam && u.position) {
+            const dx = u.position.x - cam.x;
+            const dz = u.position.z - cam.z;
+            tickCtx.lodBand = LUNCBattle.quality.getLodBand(Math.sqrt(dx * dx + dz * dz));
+          }
+        } catch (_) {}
+      }
+      if (!tickCtx.animComplexity && global.LUNCBattle && LUNCBattle.quality && LUNCBattle.quality.getEffectivePreset) {
+        try {
+          const p = LUNCBattle.quality.getEffectivePreset();
+          tickCtx.animComplexity = p.animComplexity;
+          tickCtx.unitUpdateDivisor = p.unitUpdateDivisor;
+        } catch (_) {}
+      }
+      if (Anim && Anim.tickUnit) Anim.tickUnit(u, dt, now, tickCtx);
     }
 
     return {
@@ -487,7 +506,7 @@
       setAnimState: setAnimState,
       tickUnit: tickUnit,
       GEO: GEO,
-      version: 'v8.2'
+      version: 'v8.8'
     };
   }
 

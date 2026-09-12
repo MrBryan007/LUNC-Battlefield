@@ -27,7 +27,29 @@
       });
     };
 
-    const scale = mobile ? 0.55 : 1;
+    // v8.8 quality density (graphics-only)
+    let dens = 1;
+    let vegDens = 1;
+    let shadowCastMode = 'rich';
+    try {
+      if (opts.densityScale != null) dens = +opts.densityScale;
+      else if (global.LUNCBattle && LUNCBattle.quality && LUNCBattle.quality.getDensityScale) {
+        const ds = LUNCBattle.quality.getDensityScale();
+        dens = ds.env != null ? ds.env : 1;
+        vegDens = ds.vegetation != null ? ds.vegetation : dens;
+      }
+      if (opts.vegetationDensity != null) vegDens = +opts.vegetationDensity;
+      if (opts.shadowCast) shadowCastMode = opts.shadowCast;
+      else if (global.LUNCBattle && LUNCBattle.quality && LUNCBattle.quality.getEffectivePreset) {
+        shadowCastMode = LUNCBattle.quality.getEffectivePreset().shadowCast || shadowCastMode;
+      }
+    } catch (_) {}
+    if (!(dens > 0)) dens = 1;
+    if (!(vegDens > 0)) vegDens = dens;
+    const allowPropShadow = shadowCastMode === 'rich' || shadowCastMode === 'bases';
+    const allowMinorShadow = shadowCastMode === 'rich';
+
+    const scale = (mobile ? 0.55 : 1) * dens;
     const group = new THREE.Group();
     group.name = 'environment-v81';
 
@@ -57,17 +79,18 @@
     });
 
     const counts = {
-      rocks: Math.round(42 * scale),
-      trees: Math.round(28 * scale),
-      deadTrees: Math.round(12 * scale),
-      bushes: Math.round(36 * scale),
-      ruins: Math.round(8 * scale),
-      barricades: Math.round(10 * scale),
-      fences: Math.round(16 * scale),
-      equipment: Math.round(8 * scale),
-      scorched: Math.round(10 * scale),
-      smoke: mobile ? 3 : 6
+      rocks: Math.max(4, Math.round(42 * scale)),
+      trees: Math.max(3, Math.round(28 * scale * (vegDens / Math.max(dens, 0.01)))),
+      deadTrees: Math.max(2, Math.round(12 * scale * (vegDens / Math.max(dens, 0.01)))),
+      bushes: Math.max(4, Math.round(36 * scale * (vegDens / Math.max(dens, 0.01)))),
+      ruins: Math.max(2, Math.round(8 * scale)),
+      barricades: Math.max(2, Math.round(10 * scale)),
+      fences: Math.max(2, Math.round(16 * scale)),
+      equipment: Math.max(1, Math.round(8 * scale)),
+      scorched: Math.max(2, Math.round(10 * scale)),
+      smoke: Math.max(1, Math.round((mobile ? 3 : 6) * dens))
     };
+    const dummy = new THREE.Object3D();
 
     function placeY(x, z, lift) {
       return terrainHeight(x, z) + (lift || 0);
@@ -82,29 +105,50 @@
       return null;
     }
 
-    // ---- Rocks (denser on hills) ----
+    // ---- Rocks (v8.8 InstancedMesh — shared unit geos, per-instance scale) ----
     let rockPlaced = 0;
+    const rockItemsA = [];
+    const rockItemsB = [];
     for (let i = 0; i < counts.rocks * 2 && rockPlaced < counts.rocks; i++) {
       const p = tryPos(i + 40, 124, 72);
       if (!p) continue;
       const h = terrainHeight(p.x, p.z);
-      // Prefer hills
       const hillBias = seededRand(i + 120);
       if (h < 0.35 && hillBias > 0.35) continue;
       const useIcosa = seededRand(i + 200) > 0.55;
       const s = 0.22 + seededRand(i + 250) * 0.75;
-      const geo = useIcosa
-        ? new THREE.IcosahedronGeometry(s, 0)
-        : new THREE.DodecahedronGeometry(s, 0);
-      const rock = new THREE.Mesh(geo, seededRand(i + 280) > 0.5 ? rockMat : rockMatB);
-      rock.scale.set(1.25 + seededRand(i + 300) * 0.4, 0.65 + seededRand(i + 320) * 0.5, 1.05);
-      rock.rotation.set(seededRand(i + 340) * 0.4, seededRand(i + 360) * Math.PI, seededRand(i + 380) * 0.3);
-      rock.position.set(p.x, placeY(p.x, p.z, s * 0.35), p.z);
-      rock.castShadow = true;
-      rock.receiveShadow = true;
-      group.add(rock);
+      const item = {
+        x: p.x,
+        y: placeY(p.x, p.z, s * 0.35),
+        z: p.z,
+        sx: s * (1.25 + seededRand(i + 300) * 0.4),
+        sy: s * (0.65 + seededRand(i + 320) * 0.5),
+        sz: s * 1.05,
+        rx: seededRand(i + 340) * 0.4,
+        ry: seededRand(i + 360) * Math.PI,
+        rz: seededRand(i + 380) * 0.3
+      };
+      if (useIcosa) rockItemsA.push(item); else rockItemsB.push(item);
       rockPlaced++;
     }
+    function addRockInstances(items, geo, material) {
+      if (!items.length) return;
+      const mesh = new THREE.InstancedMesh(geo, material, items.length);
+      mesh.castShadow = allowMinorShadow;
+      mesh.receiveShadow = true;
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i];
+        dummy.position.set(it.x, it.y, it.z);
+        dummy.rotation.set(it.rx, it.ry, it.rz);
+        dummy.scale.set(it.sx, it.sy, it.sz);
+        dummy.updateMatrix();
+        mesh.setMatrixAt(i, dummy.matrix);
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+      group.add(mesh);
+    }
+    addRockInstances(rockItemsA, new THREE.IcosahedronGeometry(1, 0), rockMat);
+    addRockInstances(rockItemsB, new THREE.DodecahedronGeometry(1, 0), rockMatB);
 
     // ---- Living trees (trunk + 2–3 foliage blobs) ----
     let treePlaced = 0;
@@ -119,7 +163,7 @@
         trunkMat
       );
       trunk.position.y = trunkH * 0.5;
-      trunk.castShadow = true;
+      trunk.castShadow = allowPropShadow;
       tree.add(trunk);
 
       const blobCount = 2 + (seededRand(i + 540) > 0.45 ? 1 : 0);
@@ -135,7 +179,7 @@
           (seededRand(i + b + 640) - 0.5) * 0.35
         );
         blob.scale.set(1.15, 0.85 + seededRand(i + b + 660) * 0.35, 1.1);
-        blob.castShadow = true;
+        blob.castShadow = allowMinorShadow;
         tree.add(blob);
       }
       const sc = 0.75 + seededRand(i + 680) * 0.7;
@@ -158,7 +202,7 @@
         deadTrunkMat
       );
       trunk.position.y = th * 0.5;
-      trunk.castShadow = true;
+      trunk.castShadow = allowPropShadow;
       dead.add(trunk);
       const branches = 2 + Math.floor(seededRand(i + 940) * 3);
       for (let b = 0; b < branches; b++) {
@@ -171,7 +215,7 @@
         branch.rotation.z = (seededRand(i + b + 1000) - 0.5) * 1.4;
         branch.rotation.y = seededRand(i + b + 1020) * Math.PI * 2;
         branch.translateY(bl * 0.35);
-        branch.castShadow = !mobile;
+        branch.castShadow = allowMinorShadow && !mobile;
         dead.add(branch);
       }
       dead.scale.setScalar(0.7 + seededRand(i + 1040) * 0.55);
@@ -197,7 +241,7 @@
           (seededRand(i + b + 1280) - 0.5) * 0.35
         );
         m.scale.y = 0.7;
-        if (!mobile) m.castShadow = true;
+        if (allowMinorShadow && !mobile) m.castShadow = true;
         bush.add(m);
       }
       bush.position.set(p.x, placeY(p.x, p.z, 0), p.z);
@@ -287,27 +331,52 @@
       barPlaced++;
     }
 
-    // ---- Fence posts (sparse) ----
+    // ---- Fence posts (v8.8 InstancedMesh) ----
     let fencePlaced = 0;
+    const fencePosts = [];
+    const fenceRails = [];
     for (let i = 0; i < counts.fences * 2 && fencePlaced < counts.fences; i++) {
       const p = tryPos(i + 1800, 100, 60);
       if (!p) continue;
       if (Math.abs(p.x) < 12) continue;
-      const post = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.05, 0.07, 0.95, 5),
-        woodMat
-      );
-      post.position.set(p.x, placeY(p.x, p.z, 0.48), p.z);
-      post.castShadow = !mobile;
-      group.add(post);
-      // Occasional short rail
+      fencePosts.push({ x: p.x, y: placeY(p.x, p.z, 0.48), z: p.z });
       if (seededRand(i + 1820) > 0.55) {
-        const rail = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.06, 0.08), woodMat);
-        rail.position.set(p.x + 0.5, placeY(p.x, p.z, 0.55), p.z);
-        rail.castShadow = !mobile;
-        group.add(rail);
+        fenceRails.push({ x: p.x + 0.5, y: placeY(p.x, p.z, 0.55), z: p.z });
       }
       fencePlaced++;
+    }
+    if (fencePosts.length) {
+      const postMesh = new THREE.InstancedMesh(
+        new THREE.CylinderGeometry(0.05, 0.07, 0.95, 5), woodMat, fencePosts.length
+      );
+      postMesh.castShadow = allowMinorShadow && !mobile;
+      postMesh.receiveShadow = true;
+      for (let i = 0; i < fencePosts.length; i++) {
+        const it = fencePosts[i];
+        dummy.position.set(it.x, it.y, it.z);
+        dummy.rotation.set(0, 0, 0);
+        dummy.scale.set(1, 1, 1);
+        dummy.updateMatrix();
+        postMesh.setMatrixAt(i, dummy.matrix);
+      }
+      postMesh.instanceMatrix.needsUpdate = true;
+      group.add(postMesh);
+    }
+    if (fenceRails.length) {
+      const railMesh = new THREE.InstancedMesh(
+        new THREE.BoxGeometry(1.1, 0.06, 0.08), woodMat, fenceRails.length
+      );
+      railMesh.castShadow = allowMinorShadow && !mobile;
+      for (let i = 0; i < fenceRails.length; i++) {
+        const it = fenceRails[i];
+        dummy.position.set(it.x, it.y, it.z);
+        dummy.rotation.set(0, 0, 0);
+        dummy.scale.set(1, 1, 1);
+        dummy.updateMatrix();
+        railMesh.setMatrixAt(i, dummy.matrix);
+      }
+      railMesh.instanceMatrix.needsUpdate = true;
+      group.add(railMesh);
     }
 
     // ---- Abandoned equipment: cart / wheel / crate stacks ----

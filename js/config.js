@@ -56,8 +56,8 @@
   };
 
   const config = {
-    BUILD: 'v8.7',
-    TITLE: 'LUNC Ecosystem Battlefield v8.7 — RTS Command',
+    BUILD: 'v8.8',
+    TITLE: 'LUNC Ecosystem Battlefield v8.8 — Performance & Quality',
     DataTruth,
     tokens,
     apiBase: resolveApiBase(),

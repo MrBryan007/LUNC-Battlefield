@@ -2,6 +2,8 @@
 
 ## Status
 
+**v8.8 done** — Performance + Graphics Quality System (`js/quality.js`): AUTO/LOW/MEDIUM/HIGH/ULTRA, dynamic resolution, feed-health overlay.
+
 **v8.7 done** — RTS Command HUD + War Room (primary/secondary layout, data-health, structured event cards).
 
 **v8.6 done** — RTS minimap (Canvas 2D) + classic 3/4 camera navigation; frontline terrain grounding fix.
@@ -35,6 +37,44 @@ All meshes are **original procedural Three.js r128** geometry. No third-party ga
 | `js/war-room.js` | v8.7 structured War Room feed (event class / importance / VIEW EVENT) |
 | `js/battle-engine.js` | Wires terrain / environment / units / structures / effects / price-territory / camera / minimap / HUD; keeps market / Binance / strength paths |
 
+
+
+## v8.8 Performance + Graphics Quality System
+
+`LUNCBattle.quality` (`js/quality.js`) — **graphics-only**. Never touches market / Battle Strength / liquidity / burn / whale / governance math.
+
+### API
+- `apply(renderer, scene, sun, opts)` — configure existing `WebGLRenderer` (never recreate)
+- `tick(dt, renderer)` — FPS samples, AUTO adapt, dyn-res easing
+- `getState()` / `setMode(mode)` / `getEffectivePreset()`
+- `getLodBand(distance)` → 0..3 (LOD0–LOD3 distance hooks for v9)
+- `reportFeed(name, state, detail)` — provider diagnostics in overlay
+- `getEffectCaps()` / `getDensityScale()` — consumed by effects / env / structures
+- Stubs: `postFxHooks()`, `textureLodHooks()`
+
+### Modes & presets
+| Mode | pixelRatioCap | renderScale | shadows | shadowMap | particles/smoke/expl | veg dens | minimap Hz |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| LOW | 1.0 | 0.72 | off | 512 | 36/4/3 | 0.30 | 7 |
+| MEDIUM | 1.35 | 0.88 | basic | 1024 | 70/8/5 | 0.55 | 10 |
+| HIGH | 1.6 | 1.0 | soft | 2048 | 120/16/8 | 0.85 | 12 |
+| ULTRA | 1.8 | 1.0 | soft | 2048 | 160/20/10 | 1.0 | 12 |
+
+**AUTO** (default): initial pick from dPR / resolution / cores / mobile / `renderer.info`; then adapts from sustained FPS with hysteresis + cooldowns (no oscillation). Preference stored as `AUTO` in `localStorage` key `luncBattle.graphicsQuality`; UI may show `AUTO · MEDIUM`.
+
+### Dynamic resolution
+Gradually eases `renderScale` and calls `setPixelRatio` — **never** recreates `WebGLRenderer`. Hysteresis on FPS bands (~28 down / ~54 up).
+
+### Wiring
+- `battle-engine.js`: `quality.apply` at boot; `quality.tick` each frame; resize re-applies; effect caps + env/structure density; feed reports from WS/REST
+- `effects.js`: caps + duration scale from quality; pooling retained; `setCaps` on `lunc-quality-change`
+- `environment.js` / `terrain.js` / `structures.js`: density + shadow cast modes; rocks/fence posts → `InstancedMesh`
+- `units.js` / `animations.js`: LOD band + update divisor / simplified far anim
+- `minimap.js`: `drawHz` from quality (clicks still immediate)
+- Overlay: `?perf=1` / `localStorage luncBattle.perfOverlay=1` / Shift+P — FPS, 1% low, scale, quality, `renderer.info`, unit/FX counts, **feed health** (LIVE/DEGRADED/STALE/RATE_LIMITED/CORS_BLOCKED/OFFLINE/UNAVAILABLE/RECONNECTING). 451/429/CORS are feed diagnostics, not graphics failures.
+
+### LOD / v9 hooks
+`getLodBand(distance)` documents LOD0–LOD3 thresholds from the active preset. Do **not** rebuild articulated unit assets here — v9 may attach mesh swaps.
 
 ## v8.7 RTS Command HUD & War Room
 
@@ -228,9 +268,11 @@ Barrel elevates toward target; longer reload; holds rear ranks.
 1. rootBob one-frame lag — **fixed in v8.3** (`moveArmy` now `tickUnit` then `y = terrainHeight + rootBob`)
 2. Frontline float/sink from group translate — **fixed in v8.6** (per-piece terrain reseat)
 3. HIT anim not combat-driven yet
-4. draw-call optimization deferred to v8.8
+4. draw-call / quality scaling — **done in v8.8** (instancing rocks/posts; quality caps; dyn-res)
 5. LIVE burn indexer / whale FX still need HTTPS `?api=` — stubs ready in effects
 6. Capture flip-flop watch if mid sits on a price level (hysteresis already present)
+7. Full asset LOD mesh swaps deferred to v9 (hooks only in v8.8)
+8. Post-FX / texture LOD pipelines stubbed — not enabled
 
 ## License / assets
 
@@ -248,7 +290,8 @@ Barrel elevates toward target; longer reload; holds rear ranks.
 | **8.4** | VFX / strikes / atmosphere |
 | **8.5** | Frontline / capture markers |
 | **8.6** | Minimap + camera navigation |
-| **8.7** | RTS Command HUD + War Room (this release) |
-| 8.8 | Final art QA + docs / mobile perf |
+| **8.7** | RTS Command HUD + War Room |
+| **8.8** | Performance + graphics quality system (this release) |
+| 9.x | Asset LOD rebuilds / post-FX (not started) |
 
 Market data, Binance depth, Battle Strength, liquidations, and `?api=` bridge must remain intact across all stages. Do **not** fabricate LIVE burns / whales / liquidations.

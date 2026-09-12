@@ -3,7 +3,7 @@
   'use strict';
 
   var WORLD = { minX: -70, maxX: 70, minZ: -45, maxZ: 45 };
-  var DRAW_HZ = 10; // ~8–12 Hz throttle
+  var DRAW_HZ = 10; // ~8–12 Hz throttle; overridden by quality
 
   function createApi(opts) {
     opts = opts || {};
@@ -18,6 +18,23 @@
     var onFocusWorld = typeof opts.onFocusWorld === 'function' ? opts.onFocusWorld : null;
     var getUnits = typeof opts.getUnits === 'function' ? opts.getUnits : null;
     var notifyUserInput = typeof opts.notifyUserInput === 'function' ? opts.notifyUserInput : null;
+    var drawHz = opts.drawHz;
+    if (!(drawHz > 0) && global.LUNCBattle && LUNCBattle.quality && LUNCBattle.quality.getEffectivePreset) {
+      try { drawHz = LUNCBattle.quality.getEffectivePreset().minimapHz; } catch (_) {}
+    }
+    if (!(drawHz > 0)) drawHz = DRAW_HZ;
+    function setDrawHz(hz) {
+      if (hz > 0) drawHz = hz;
+      return drawHz;
+    }
+    if (global.addEventListener) {
+      global.addEventListener('lunc-quality-change', function (ev) {
+        try {
+          var hz = ev && ev.detail && ev.detail.preset && ev.detail.preset.minimapHz;
+          if (hz > 0) drawHz = hz;
+        } catch (_) {}
+      });
+    }
 
     var wrap = opts.wrap || null;
     var canvas = opts.canvas || null;
@@ -240,7 +257,7 @@
 
     function draw(force) {
       var now = performance.now();
-      if (!force && now - lastDraw < (1000 / DRAW_HZ)) return;
+      if (!force && now - lastDraw < (1000 / drawHz)) return;
       lastDraw = now;
       if (wrap && wrap.classList.contains('collapsed')) return;
       var fx = getFrontlineX();
@@ -312,7 +329,9 @@
       pulseEvent: pulseEvent,
       canvas: canvas,
       wrap: wrap,
-      version: 'v8.6'
+      setDrawHz: setDrawHz,
+      getDrawHz: function () { return drawHz; },
+      version: 'v8.8'
     };
   }
 

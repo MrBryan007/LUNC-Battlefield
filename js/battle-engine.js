@@ -3,8 +3,9 @@
 
     // =====================================================
     // LUNC ECOSYSTEM BATTLEFIELD v8 — RTS GRAPHICS OVERHAUL
-    // v8.1 terrain · v8.2 units/anim · v8.3 bases · v8.4 effects · v8.5 territory · v8.6 minimap/camera · v8.7 command HUD
+    // v8.1–v8.7 + v8.8 performance / graphics quality system
     // Original procedural art only. No third-party game assets.
+    // Graphics-only: never alter market / Battle Strength / liq / burn math.
     // =====================================================
 
     const tokens = {
@@ -37,6 +38,22 @@
 
     const $ = id => document.getElementById(id);
     const feedEl = $('feed');
+
+    function reportQFeed(name, state, detail) {
+      try {
+        if (window.LUNCBattle && LUNCBattle.quality && LUNCBattle.quality.reportFeed) {
+          LUNCBattle.quality.reportFeed(name, state, detail);
+        }
+      } catch (_) {}
+    }
+    function classifyFeedHttp(status, errMsg) {
+      try {
+        if (window.LUNCBattle && LUNCBattle.quality && LUNCBattle.quality.classifyHttp) {
+          return LUNCBattle.quality.classifyHttp(status, errMsg);
+        }
+      } catch (_) {}
+      return 'UNAVAILABLE';
+    }
 
     function pushFeed(text, type = '') {
       if (window.LUNCBattle && LUNCBattle.warRoom && typeof LUNCBattle.warRoom.pushText === 'function') {
@@ -88,7 +105,7 @@
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     renderer.setSize(innerWidth, innerHeight);
-    renderer.setPixelRatio(Math.min(devicePixelRatio || 1, innerWidth < 760 ? 1.35 : 1.8));
+    // v8.8: pixel ratio + shadowMap applied via LUNCBattle.quality.apply (never recreate renderer)
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.outputEncoding = THREE.sRGBEncoding;
@@ -122,11 +139,18 @@
     const sun = new THREE.DirectionalLight(0xffe6c4, 1.28);
     sun.position.set(-26, 50, 22);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(innerWidth < 760 ? 1024 : 2048, innerWidth < 760 ? 1024 : 2048);
+    sun.shadow.mapSize.set(1024, 1024);
     sun.shadow.camera.left = -62; sun.shadow.camera.right = 62; sun.shadow.camera.top = 44; sun.shadow.camera.bottom = -44;
     sun.shadow.camera.near = 8; sun.shadow.camera.far = 120; sun.shadow.bias = -.0003;
     scene.add(sun);
     const fill = new THREE.DirectionalLight(0x7aa5b0,.22); fill.position.set(35,18,-28); scene.add(fill);
+
+    // v8.8 quality bootstrap (AUTO default; localStorage preference)
+    if (window.LUNCBattle && LUNCBattle.quality) {
+      LUNCBattle.quality.apply(renderer, scene, sun, { fillLight: fill, immediate: true });
+    } else {
+      renderer.setPixelRatio(Math.min(devicePixelRatio || 1, innerWidth < 760 ? 1.35 : 1.8));
+    }
 
     const bullLight = new THREE.PointLight(tokens[current].color, 1.3, 45); bullLight.position.set(-34, 7, 0); scene.add(bullLight);
     const bearLight = new THREE.PointLight(0xe4675f, 1.15, 45); bearLight.position.set(34, 7, 0); scene.add(bearLight);
@@ -147,7 +171,11 @@
     const ground = terrainApi ? terrainApi.ground : null;
 
     const envApi = (window.LUNCBattle && LUNCBattle.environment)
-      ? LUNCBattle.environment.createEnvironment({ THREE, scene, terrainHeight, mobile: mobileGfx, mat })
+      ? LUNCBattle.environment.createEnvironment({ THREE, scene, terrainHeight, mobile: mobileGfx, mat,
+          densityScale: (LUNCBattle.quality && LUNCBattle.quality.getDensityScale) ? LUNCBattle.quality.getDensityScale().env : undefined,
+          vegetationDensity: (LUNCBattle.quality && LUNCBattle.quality.getDensityScale) ? LUNCBattle.quality.getDensityScale().vegetation : undefined,
+          shadowCast: (LUNCBattle.quality && LUNCBattle.quality.getEffectivePreset) ? LUNCBattle.quality.getEffectivePreset().shadowCast : undefined
+        })
       : null;
     if (!envApi) console.error('[LUNCBattle] environment.js failed to load');
     if (envApi && envApi.fog) {
@@ -158,7 +186,10 @@
 
     // v8.3 — faction bases & structures (procedural, no GridHelper)
     const structuresApi = (window.LUNCBattle && LUNCBattle.structures)
-      ? LUNCBattle.structures.createApi({ THREE, scene, terrainHeight, mat, mobile: mobileGfx })
+      ? LUNCBattle.structures.createApi({ THREE, scene, terrainHeight, mat, mobile: mobileGfx,
+          densityScale: (LUNCBattle.quality && LUNCBattle.quality.getDensityScale) ? LUNCBattle.quality.getDensityScale().structure : undefined,
+          shadowCast: (LUNCBattle.quality && LUNCBattle.quality.getEffectivePreset) ? LUNCBattle.quality.getEffectivePreset().shadowCast : undefined
+        })
       : null;
     if (!structuresApi) console.error('[LUNCBattle] structures.js failed to load');
     const bullBase = structuresApi
@@ -197,6 +228,7 @@
           THREE, scene, terrainHeight, projectilePool, particlePool,
           mobile: mobileGfx,
           structuresApi: structuresApi,
+          qualityCaps: (LUNCBattle.quality && LUNCBattle.quality.getEffectCaps) ? LUNCBattle.quality.getEffectCaps() : null,
           onShake: (amp, power) => {
             // Tier caps: small≈0, tank≈0.15, large≈0.35, massive≈0.55
             const add = Math.min(0.55, (amp || 0) * Math.min(1.35, power || 1));
@@ -261,6 +293,7 @@
     minimapApi = (window.LUNCBattle && LUNCBattle.minimap)
       ? LUNCBattle.minimap.createApi({
           mobile: mobileGfx,
+          drawHz: (LUNCBattle.quality && LUNCBattle.quality.getEffectivePreset) ? LUNCBattle.quality.getEffectivePreset().minimapHz : 10,
           worldBounds: { minX: -70, maxX: 70, minZ: -45, maxZ: 45 },
           getFrontlineX: function () {
             return priceTerritoryApi ? priceTerritoryApi.getFrontlineX() : targetX;
@@ -384,13 +417,17 @@
         const spot = await LUNCBattle.market.fetchBinanceSpotPrice(symbol);
         if (!spot || spot.truth !== LUNCBattle.DataTruth.LIVE || !(spot.mid > 0)) {
           if (spot && spot.reason) console.warn('[Binance REST price]', spot.reason);
+          const st = classifyFeedHttp(spot && spot.status, spot && spot.reason);
+          reportQFeed('binanceVision', st, (spot && spot.reason) || 'no price');
           return false;
         }
+        reportQFeed('binanceVision', 'LIVE', 'spot');
         applySpot(spot.mid, SRC.BINANCE);
         updateStatusUI();
         return true;
       } catch (e) {
         console.warn('[Binance REST price]', e.message || e);
+        reportQFeed('binanceVision', classifyFeedHttp(0, e.message || e), String(e.message || e));
         return false;
       }
     }
@@ -436,6 +473,7 @@
       if(futWs){try{futWs.onclose=null;futWs.close();}catch(_){} futWs=null;}
       if(reconnectTimer){clearTimeout(reconnectTimer);reconnectTimer=null;}
       depthSource=SRC.SIM; depthVendorLabel='Unavailable';
+      reportQFeed('binanceWs', 'OFFLINE', 'sockets closed');
       if(restDepthTimer){clearInterval(restDepthTimer);restDepthTimer=null;}
     }
 
@@ -447,8 +485,15 @@
         if(!r.ok) throw new Error('HTTP '+r.status);
         const d=await r.json(), coin=d.coins&&d.coins[id];
         if(!coin||!(coin.price>0)) throw new Error('No price');
+        reportQFeed('defillama', 'LIVE', 'price');
         applySpot(coin.price,SRC.LLAMA); updateStatusUI(); return true;
-      } catch(e){ console.warn('[DefiLlama price]',e.message||e); return false; }
+      } catch(e){
+        console.warn('[DefiLlama price]',e.message||e);
+        const m = String(e.message||e);
+        const http = /HTTP\s+(\d+)/i.exec(m);
+        reportQFeed('defillama', classifyFeedHttp(http ? http[1] : 0, m), m);
+        return false;
+      }
     }
 
     async function fetchGecko() {
@@ -457,6 +502,7 @@
         const u='https://api.coingecko.com/api/v3/simple/price?ids='+encodeURIComponent(t.gecko)+'&vs_currencies=usd&include_24hr_vol=true&include_24hr_change=true&include_market_cap=true';
         const r=await fetch(u,{cache:'no-store'}); if(!r.ok) throw new Error('HTTP '+r.status);
         const d=await r.json(), coin=d[t.gecko]; if(!coin||!(coin.usd>0)) throw new Error('No price');
+        reportQFeed('coingecko', 'LIVE', 'simple/price');
         applySpot(coin.usd,SRC.GECKO);
         if(coin.usd_market_cap>0) $('marketCap').textContent=fmtUsd(coin.usd_market_cap);
         if (coin.usd_24h_vol > 0 && window.LUNCBattle && LUNCBattle.market) {
@@ -479,7 +525,13 @@
           depthVendorLabel = 'Estimated (CoinGecko vol proxy)';
         }
         updateStatusUI(); return true;
-      } catch(e){ console.warn('[CoinGecko]',e.message||e); return false; }
+      } catch(e){
+        console.warn('[CoinGecko]',e.message||e);
+        const m = String(e.message||e);
+        const http = /HTTP\s+(\d+)/i.exec(m);
+        reportQFeed('coingecko', classifyFeedHttp(http ? http[1] : 0, m), m);
+        return false;
+      }
     }
 
     async function fetchMarketContext() {
@@ -513,7 +565,12 @@
         if (coin.price_change_percentage_24h != null && window.LUNCBattle && LUNCBattle.ui && LUNCBattle.ui.setPriceChange) {
           LUNCBattle.ui.setPriceChange(coin.price_change_percentage_24h, LUNCBattle.DataTruth.LIVE);
         }
-      } catch(e){ console.warn('[Market context]',e.message||e); }
+      } catch(e){
+        console.warn('[Market context]',e.message||e);
+        const m = String(e.message||e);
+        const http = /HTTP\s+(\d+)/i.exec(m);
+        reportQFeed('coingecko', classifyFeedHttp(http ? http[1] : 0, m), 'markets '+m);
+      }
     }
 
     async function fetchChainTvl() {
@@ -522,6 +579,8 @@
         const terra=rows.find(c=>c.name==='Terra Classic');
         if(terra) {
           $('tvlValue').textContent=fmtUsd(terra.tvl);
+          reportQFeed('defillama', 'LIVE', 'chains');
+          reportQFeed('terra', 'LIVE', 'Terra Classic TVL');
           if (window.LUNCBattle && LUNCBattle.ui) {
             // Ecosystem bias stays neutral — TVL presence is informational LIVE, not directional
             LUNCBattle.ui.lastEcosystemTruth = LUNCBattle.DataTruth.LIVE;
@@ -529,7 +588,12 @@
             LUNCBattle.ui.lastEcosystemDetail = 'TVL ' + fmtUsd(terra.tvl);
           }
         }
-      } catch(e){ console.warn('[DefiLlama chain]',e.message||e); }
+      } catch(e){
+        console.warn('[DefiLlama chain]',e.message||e);
+        const m = String(e.message||e);
+        reportQFeed('defillama', classifyFeedHttp(0, m), 'chains '+m);
+        reportQFeed('terra', classifyFeedHttp(0, m), 'TVL '+m);
+      }
     }
     async function fetchProtocolTvl(slug,id) {
       try { const r=await fetch('https://api.llama.fi/tvl/'+slug,{cache:'no-store'}); const v=await r.json(); $(id).textContent=fmtUsd(typeof v==='number'?v:null); } catch(_) {}
@@ -617,6 +681,7 @@
       const snap = await LUNCBattle.market.fetchBinanceRestDepth(symbol, LUNCBattle.config.binanceRestDepthLimit || 1000);
       if (snap.truth !== LUNCBattle.DataTruth.LIVE) {
         console.warn('[Binance REST depth]', snap.reason || 'unavailable');
+        reportQFeed('binanceVision', classifyFeedHttp(snap && snap.status, snap && snap.reason), (snap && snap.reason) || 'depth unavailable');
         return;
       }
       localBids = {}; localAsks = {};
@@ -627,6 +692,7 @@
         depthSource = SRC.BINANCE;
         depthVendorLabel = 'Binance';
         lastDepthTs = Date.now();
+        reportQFeed('binanceVision', 'LIVE', 'REST depth');
         applyLiveBook(midPx, 'binance', 'Binance');
         updateStatusUI();
       }
@@ -644,7 +710,7 @@
       const streams=symbol+'@bookTicker/'+symbol+'@depth20@100ms';
       try {
         spotWs=new WebSocket('wss://stream.binance.com:9443/stream?streams='+streams);
-        spotWs.onopen=()=>{ reconnectAttempts=0; depthSource=SRC.BINANCE; depthVendorLabel='Binance'; if(window.LUNCBattle&&LUNCBattle.ui&&LUNCBattle.ui.updateHealthInput) LUNCBattle.ui.updateHealthInput({ reconnecting:false, binanceOk:true, depthLive:true }); updateStatusUI(); pushFeed('Binance order book connected','win'); };
+        spotWs.onopen=()=>{ reconnectAttempts=0; depthSource=SRC.BINANCE; depthVendorLabel='Binance'; reportQFeed('binanceWs', 'LIVE', 'bookTicker+depth20'); if(window.LUNCBattle&&LUNCBattle.ui&&LUNCBattle.ui.updateHealthInput) LUNCBattle.ui.updateHealthInput({ reconnecting:false, binanceOk:true, depthLive:true }); updateStatusUI(); pushFeed('Binance order book connected','win'); };
         spotWs.onmessage=evt=>{
           try {
             const raw=JSON.parse(evt.data), msg=raw.data||raw;
@@ -675,12 +741,13 @@
           if(zel && depthSource===SRC.SIM) zel.textContent='UNAVAILABLE — live order book disconnected';
           if(window.LUNCBattle&&LUNCBattle.ui){ LUNCBattle.ui.lastBookTruth=LUNCBattle.DataTruth.UNAVAILABLE; LUNCBattle.ui.lastZones=null; }
           if (priceTerritoryApi) priceTerritoryApi.updateLiquidityDefenses(null, price);
+          reportQFeed('binanceWs', 'RECONNECTING', 'socket closed');
           if (window.LUNCBattle && LUNCBattle.ui && LUNCBattle.ui.updateHealthInput) {
             LUNCBattle.ui.updateHealthInput({ reconnecting: true, depthLive: false });
           }
           updateStatusUI(); scheduleReconnect(symbol,futuresSymbol);
         };
-        spotWs.onerror=()=>{};
+        spotWs.onerror=()=>{ reportQFeed('binanceWs', 'DEGRADED', 'socket error'); };
       } catch(_) { scheduleReconnect(symbol,futuresSymbol); }
 
       // USD-M public liquidation stream → strength score + War Room + battlefield FX
@@ -751,6 +818,7 @@
     function scheduleReconnect(symbol,futuresSymbol=null) {
       if(reconnectTimer) return;
       reconnectAttempts++;
+      reportQFeed('binanceWs', 'RECONNECTING', 'attempt ' + reconnectAttempts);
       const delay=Math.min(20000,2000*Math.pow(1.5,reconnectAttempts));
       reconnectTimer=setTimeout(()=>{reconnectTimer=null; if(tokens[current].symbol===symbol)connectBinance(symbol,futuresSymbol);},delay);
     }
@@ -774,7 +842,15 @@
     async function pollApiSnapshot() {
       if (!window.LUNCBattle || !LUNCBattle.market) return;
       const snap = await LUNCBattle.market.fetchSnapshot();
-      if (snap.truth !== LUNCBattle.DataTruth.LIVE || !snap.data) return;
+      if (snap.truth !== LUNCBattle.DataTruth.LIVE || !snap.data) {
+        if (!LUNCBattle.config || !LUNCBattle.config.apiBase) {
+          reportQFeed('backend', 'UNAVAILABLE', 'no ?api=');
+        } else {
+          reportQFeed('backend', classifyFeedHttp(0, snap && snap.reason), (snap && snap.reason) || 'snapshot unavailable');
+        }
+        return;
+      }
+      reportQFeed('backend', 'LIVE', 'snapshot');
       const s = snap.data;
       try {
         if (s.market && s.market.price > 0) {
@@ -983,9 +1059,28 @@
 
     // -------------------- Animation --------------------
     const clock=new THREE.Clock();
+    let activeExplosionApprox = 0;
+    if (window.LUNCBattle && LUNCBattle.quality && LUNCBattle.quality.setCountsProvider) {
+      LUNCBattle.quality.setCountsProvider(function () {
+        let smokeN = 0;
+        for (let i = 0; i < particlePool.length; i++) {
+          if (particlePool[i].userData && particlePool[i].userData.smoke) smokeN++;
+        }
+        return {
+          units: bulls.length + bears.length,
+          projectiles: projectilePool.length,
+          particles: particlePool.length,
+          explosions: activeExplosionApprox,
+          smoke: smokeN
+        };
+      });
+    }
     function animate() {
       requestAnimationFrame(animate);
       const dt=Math.min(.04,clock.getDelta());
+      if (window.LUNCBattle && LUNCBattle.quality && LUNCBattle.quality.tick) {
+        LUNCBattle.quality.tick(dt, renderer);
+      }
       if (cameraCtrl) cameraShake = cameraCtrl.update(dt, keys, cameraShake);
       else controls.update();
       if (priceTerritoryApi) {
@@ -1026,7 +1121,10 @@
           u.userData.facing = side < 0 ? Math.PI / 2 : -Math.PI / 2;
           maybeFire(u, side<0?0xe4675f:tokens[current].color, dt);
           if (unitsApi && unitsApi.tickUnit) {
-            unitsApi.tickUnit(u, dt, now, { momentum: momentum, targetX: targetX, mobile: mobileGfx });
+            unitsApi.tickUnit(u, dt, now, {
+              momentum: momentum, targetX: targetX, mobile: mobileGfx,
+              cameraPos: camera.position
+            });
           }
           // v8.3: apply rootBob after tickUnit so infantry bob is same-frame
           u.position.y = terrainHeight(u.position.x, u.position.z) + (u.userData.rootBob || 0);
@@ -1062,10 +1160,18 @@
       renderer.render(scene,camera);
     }
 
-    addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio||1,innerWidth<760?1.35:1.8));});
+    addEventListener('resize',()=>{
+      camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth,innerHeight);
+      if (window.LUNCBattle && LUNCBattle.quality && LUNCBattle.quality.apply) {
+        LUNCBattle.quality.apply(renderer, scene, sun, { fillLight: fill, immediate: false });
+      } else {
+        renderer.setPixelRatio(Math.min(devicePixelRatio||1,innerWidth<760?1.35:1.8));
+      }
+    });
 
     updateStatusUI();
-    pushFeed('Battlefield ' + (window.LUNCBattle && LUNCBattle.config && LUNCBattle.config.BUILD) || 'v8' + ' · RTS command HUD & War Room','win');
+    pushFeed('Battlefield ' + ((window.LUNCBattle && LUNCBattle.config && LUNCBattle.config.BUILD) || 'v8') + ' · graphics quality system','win');
     pushFeed('Market pressure moves formations and the contested front','info');
     pushFeed('Public build uses HTTPS-safe data feeds','info');
     animate();

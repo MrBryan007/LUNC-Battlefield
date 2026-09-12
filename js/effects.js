@@ -13,9 +13,32 @@
     const mobile = !!ctx.mobile;
     const structuresApi = ctx.structuresApi || null;
 
-    const CAPS = mobile
-      ? { projectiles: 24, particles: 50, explosions: 4, smoke: 6, scorches: 10 }
-      : { projectiles: 48, particles: 120, explosions: 8, smoke: 16, scorches: 24 };
+    // v8.8 — caps from quality system when available (graphics-only; pooling unchanged)
+    const qCaps = (global.LUNCBattle && LUNCBattle.quality && typeof LUNCBattle.quality.getEffectCaps === 'function')
+      ? LUNCBattle.quality.getEffectCaps()
+      : null;
+    const CAPS = qCaps
+      ? {
+          projectiles: qCaps.projectiles,
+          particles: qCaps.particles,
+          explosions: qCaps.explosions,
+          smoke: qCaps.smoke,
+          scorches: qCaps.scorches
+        }
+      : (mobile
+        ? { projectiles: 24, particles: 50, explosions: 4, smoke: 6, scorches: 10 }
+        : { projectiles: 48, particles: 120, explosions: 8, smoke: 16, scorches: 24 });
+    let effectDurationScale = (qCaps && qCaps.effectDurationScale != null) ? qCaps.effectDurationScale : 1;
+    if (ctx.qualityCaps) {
+      Object.assign(CAPS, {
+        projectiles: ctx.qualityCaps.projectiles != null ? ctx.qualityCaps.projectiles : CAPS.projectiles,
+        particles: ctx.qualityCaps.particles != null ? ctx.qualityCaps.particles : CAPS.particles,
+        explosions: ctx.qualityCaps.explosions != null ? ctx.qualityCaps.explosions : CAPS.explosions,
+        smoke: ctx.qualityCaps.smoke != null ? ctx.qualityCaps.smoke : CAPS.smoke,
+        scorches: ctx.qualityCaps.scorches != null ? ctx.qualityCaps.scorches : CAPS.scorches
+      });
+      if (ctx.qualityCaps.effectDurationScale != null) effectDurationScale = ctx.qualityCaps.effectDurationScale;
+    }
 
     const inactiveProjectiles = [];
     const inactiveParticles = [];
@@ -247,7 +270,7 @@
           vx: (Math.random() - 0.5) * speed,
           vy: (isSmoke ? 0.45 : 1.2) + Math.random() * (isSmoke ? 0.55 : 2.8) * power,
           vz: (Math.random() - 0.5) * speed,
-          life: isSmoke ? (1.2 + Math.random() * 0.7) : (0.35 + Math.random() * 0.45),
+          life: (isSmoke ? (1.2 + Math.random() * 0.7) : (0.35 + Math.random() * 0.45)) * effectDurationScale,
           smoke: isSmoke,
           gravity: isSmoke ? 0.2 : 5.1
         };
@@ -814,9 +837,37 @@
       }
     }
 
+
+    if (global.addEventListener) {
+      global.addEventListener('lunc-quality-change', function () {
+        try {
+          if (global.LUNCBattle && LUNCBattle.quality && LUNCBattle.quality.getEffectCaps) {
+            setCaps(LUNCBattle.quality.getEffectCaps());
+          }
+        } catch (_) {}
+      });
+    }
+
+    function setCaps(next) {
+      if (!next) return CAPS;
+      if (next.projectiles != null) CAPS.projectiles = next.projectiles;
+      if (next.particles != null) CAPS.particles = next.particles;
+      if (next.explosions != null) CAPS.explosions = next.explosions;
+      if (next.smoke != null) CAPS.smoke = next.smoke;
+      if (next.scorches != null) CAPS.scorches = next.scorches;
+      if (next.effectDurationScale != null) effectDurationScale = next.effectDurationScale;
+      return CAPS;
+    }
+
+    function scaledLife(base) {
+      return Math.max(0.08, (base || 0) * effectDurationScale);
+    }
+
     return {
-      version: 'v8.4',
+      version: 'v8.8',
       caps: CAPS,
+      setCaps: setCaps,
+      getDurationScale: function () { return effectDurationScale; },
       scaleFromUsd: scaleFromUsd,
       scaleFromBurn: scaleFromBurn,
       fireWeapon: fireWeapon,
