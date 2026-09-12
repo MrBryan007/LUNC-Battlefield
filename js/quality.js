@@ -624,7 +624,7 @@
     overlayEl.className = 'perf-overlay';
     overlayEl.setAttribute('aria-hidden', 'true');
     overlayEl.innerHTML =
-      '<div class="perf-title">PERF · v9.4.3</div>' +
+      '<div class="perf-title">PERF · v9.4.4</div>' +
       '<div class="perf-section" id="perfGfx"></div>' +
       '<div class="perf-section" id="perfAssets"></div>' +
       '<div class="perf-section perf-feeds" id="perfFeeds"></div>';
