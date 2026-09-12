@@ -2,8 +2,10 @@
     'use strict';
 
     // =====================================================
-    // LUNC ECOSYSTEM BATTLEFIELD v7 — CLASSIC RTS REBUILD
+    // LUNC ECOSYSTEM BATTLEFIELD v8 — RTS GRAPHICS OVERHAUL
+    // v8.1–v8.7 + v8.8 performance / graphics quality system
     // Original procedural art only. No third-party game assets.
+    // Graphics-only: never alter market / Battle Strength / liq / burn math.
     // =====================================================
 
     const tokens = {
@@ -37,7 +39,28 @@
     const $ = id => document.getElementById(id);
     const feedEl = $('feed');
 
+    function reportQFeed(name, state, detail) {
+      try {
+        if (window.LUNCBattle && LUNCBattle.quality && LUNCBattle.quality.reportFeed) {
+          LUNCBattle.quality.reportFeed(name, state, detail);
+        }
+      } catch (_) {}
+    }
+    function classifyFeedHttp(status, errMsg) {
+      try {
+        if (window.LUNCBattle && LUNCBattle.quality && LUNCBattle.quality.classifyHttp) {
+          return LUNCBattle.quality.classifyHttp(status, errMsg);
+        }
+      } catch (_) {}
+      return 'UNAVAILABLE';
+    }
+
     function pushFeed(text, type = '') {
+      if (window.LUNCBattle && LUNCBattle.warRoom && typeof LUNCBattle.warRoom.pushText === 'function') {
+        LUNCBattle.warRoom.pushText(text, type);
+        return;
+      }
+      if (!feedEl) return;
       const div = document.createElement('div');
       div.className = 'feed-item ' + type;
       div.textContent = text;
@@ -74,15 +97,15 @@
 
     // -------------------- Scene --------------------
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x07100b);
-    scene.fog = new THREE.Fog(0x0a130d, 52, 125);
+    scene.background = new THREE.Color(0x0c140e);
+    scene.fog = new THREE.Fog(0x121a12, 48, 132);
 
     const camera = new THREE.PerspectiveCamera(43, innerWidth / innerHeight, .1, 250);
     camera.position.set(0, 38, 48);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     renderer.setSize(innerWidth, innerHeight);
-    renderer.setPixelRatio(Math.min(devicePixelRatio || 1, innerWidth < 760 ? 1.35 : 1.8));
+    // v8.8: pixel ratio + shadowMap applied via LUNCBattle.quality.apply (never recreate renderer)
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.outputEncoding = THREE.sRGBEncoding;
@@ -101,124 +124,97 @@
     controls.target.set(0, 1.2, 0);
 
     const keys = {};
-    addEventListener('keydown', e => keys[e.code] = true);
+    let cameraCtrl = null;
+    let minimapApi = null;
+    addEventListener('keydown', e => {
+      keys[e.code] = true;
+      if (e.code === 'KeyW' || e.code === 'KeyA' || e.code === 'KeyS' || e.code === 'KeyD' ||
+          e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
+        if (cameraCtrl) cameraCtrl.notifyUserInput();
+      }
+    });
     addEventListener('keyup', e => keys[e.code] = false);
-    function updateWASD(dt) {
-      const speed = (keys.ShiftLeft || keys.ShiftRight ? 24 : 12) * dt;
-      const forward = new THREE.Vector3();
-      camera.getWorldDirection(forward); forward.y = 0; forward.normalize();
-      const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0,1,0)).normalize();
-      if (keys.KeyW) { camera.position.addScaledVector(forward, speed); controls.target.addScaledVector(forward, speed); }
-      if (keys.KeyS) { camera.position.addScaledVector(forward,-speed); controls.target.addScaledVector(forward,-speed); }
-      if (keys.KeyA) { camera.position.addScaledVector(right,-speed); controls.target.addScaledVector(right,-speed); }
-      if (keys.KeyD) { camera.position.addScaledVector(right, speed); controls.target.addScaledVector(right, speed); }
-    }
 
-    scene.add(new THREE.HemisphereLight(0xcbd7bf, 0x10150f, .62));
-    const sun = new THREE.DirectionalLight(0xffe8bd, 1.35);
-    sun.position.set(-28, 48, 24);
+    scene.add(new THREE.HemisphereLight(0xd2dcc8, 0x1a1e14, .68));
+    const sun = new THREE.DirectionalLight(0xffe6c4, 1.28);
+    sun.position.set(-26, 50, 22);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(innerWidth < 760 ? 1024 : 2048, innerWidth < 760 ? 1024 : 2048);
+    sun.shadow.mapSize.set(1024, 1024);
     sun.shadow.camera.left = -62; sun.shadow.camera.right = 62; sun.shadow.camera.top = 44; sun.shadow.camera.bottom = -44;
     sun.shadow.camera.near = 8; sun.shadow.camera.far = 120; sun.shadow.bias = -.0003;
     scene.add(sun);
     const fill = new THREE.DirectionalLight(0x7aa5b0,.22); fill.position.set(35,18,-28); scene.add(fill);
 
+    // v8.8 quality bootstrap (AUTO default; localStorage preference)
+    if (window.LUNCBattle && LUNCBattle.quality) {
+      LUNCBattle.quality.apply(renderer, scene, sun, { fillLight: fill, immediate: true });
+    } else {
+      renderer.setPixelRatio(Math.min(devicePixelRatio || 1, innerWidth < 760 ? 1.35 : 1.8));
+    }
+
     const bullLight = new THREE.PointLight(tokens[current].color, 1.3, 45); bullLight.position.set(-34, 7, 0); scene.add(bullLight);
     const bearLight = new THREE.PointLight(0xe4675f, 1.15, 45); bearLight.position.set(34, 7, 0); scene.add(bearLight);
-
-    function terrainHeight(x,z) {
-      const rolling = Math.sin(x*.075)*.55 + Math.cos(z*.105)*.42 + Math.sin((x+z)*.052)*.34;
-      const edge = Math.max(0, (Math.abs(z)-24)/14) * .8;
-      const centerFlatten = 1 - Math.exp(-(x*x)/(2*14*14));
-      return rolling * (.35 + .65*centerFlatten) + edge;
-    }
-
-    const terrainGeo = new THREE.PlaneGeometry(138, 82, 92, 58);
-    terrainGeo.rotateX(-Math.PI/2);
-    const p = terrainGeo.attributes.position;
-    const colors = [];
-    const cLow = new THREE.Color(0x263526), cMid = new THREE.Color(0x354632), cHi = new THREE.Color(0x4a5436);
-    for (let i=0;i<p.count;i++) {
-      const x=p.getX(i), z=p.getZ(i), h=terrainHeight(x,z);
-      p.setY(i,h);
-      const t = THREE.MathUtils.clamp((h+1)/3,0,1);
-      const c = (t<.55 ? cLow.clone().lerp(cMid,t/.55) : cMid.clone().lerp(cHi,(t-.55)/.45));
-      const sideTint = x < 0 ? new THREE.Color(0x0b2a1e) : new THREE.Color(0x2b1614);
-      c.lerp(sideTint, .045 + Math.min(.05,Math.abs(x)/1000));
-      colors.push(c.r,c.g,c.b);
-    }
-    terrainGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors,3));
-    terrainGeo.computeVertexNormals();
-    const ground = new THREE.Mesh(terrainGeo, new THREE.MeshStandardMaterial({ vertexColors:true, roughness:.98, metalness:0 }));
-    ground.receiveShadow = true; scene.add(ground);
-
-    // Worn central road / no-man's-land. No visible grid.
-    const road = new THREE.Mesh(new THREE.PlaneGeometry(14,72), new THREE.MeshStandardMaterial({ color:0x3c3529, roughness:1, transparent:true, opacity:.72 }));
-    road.rotation.x = -Math.PI/2; road.position.set(0,.035,0); road.receiveShadow=true; scene.add(road);
-    const roadEdgeMat = new THREE.MeshBasicMaterial({ color:0x7e6a43, transparent:true, opacity:.16 });
-    [-7,7].forEach(x=>{ const e=new THREE.Mesh(new THREE.PlaneGeometry(.16,70),roadEdgeMat); e.rotation.x=-Math.PI/2; e.position.set(x,.045,0); scene.add(e); });
-
-    const rockMat = new THREE.MeshStandardMaterial({ color:0x4a4b3d, roughness:.95 });
-    const shrubMat = new THREE.MeshStandardMaterial({ color:0x243b24, roughness:1 });
-    const trunkMat = new THREE.MeshStandardMaterial({ color:0x4b3827, roughness:1 });
-    function rand(seed) { const x=Math.sin(seed*999.1)*43758.5453; return x-Math.floor(x); }
-    for (let i=0;i<52;i++) {
-      const x=(rand(i+4)-.5)*124, z=(rand(i+80)-.5)*72;
-      if (Math.abs(x)<11 || (Math.abs(x)>44 && Math.abs(z)<19)) continue;
-      if (rand(i+160)>.47) {
-        const s=.28+rand(i+250)*.7;
-        const rock=new THREE.Mesh(new THREE.DodecahedronGeometry(s,0),rockMat);
-        rock.scale.set(1.35,.7+rand(i+340)*.45,1); rock.rotation.y=rand(i+400)*Math.PI;
-        rock.position.set(x,terrainHeight(x,z)+s*.38,z); rock.castShadow=true; rock.receiveShadow=true; scene.add(rock);
-      } else {
-        const tree=new THREE.Group();
-        const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.09,.13,.7,6),trunkMat); trunk.position.y=.35;
-        const crown=new THREE.Mesh(new THREE.ConeGeometry(.42,.95,7),shrubMat); crown.position.y=.95;
-        tree.add(trunk,crown); tree.position.set(x,terrainHeight(x,z),z); tree.scale.setScalar(.72+rand(i+510)*.65); tree.rotation.y=rand(i+610)*Math.PI;
-        trunk.castShadow=crown.castShadow=true; scene.add(tree);
-      }
-    }
 
     function mat(color, rough=.72, metal=.08, emissive=0x000000, intensity=0) {
       return new THREE.MeshStandardMaterial({ color, roughness:rough, metalness:metal, emissive, emissiveIntensity:intensity });
     }
-    const stoneMat=mat(0x4e5446,.92,.02), darkMat=mat(0x18211a,.72,.18), woodMat=mat(0x493625,.9,.01), goldMat=mat(0xc8a85f,.5,.24);
 
-    function addWall(group,x,z,w,d,sideMat) {
-      const wall=new THREE.Mesh(new THREE.BoxGeometry(w,1.05,d),sideMat); wall.position.set(x,.56,z); wall.castShadow=wall.receiveShadow=true; group.add(wall);
-      for (let i=-1;i<=1;i+=2) { const cap=new THREE.Mesh(new THREE.CylinderGeometry(.32,.38,1.4,8),stoneMat); cap.position.set(x+i*w*.47,.7,z); cap.castShadow=true; group.add(cap); }
+    // v8.1 — modular terrain + environment (procedural, no GridHelper)
+    const mobileGfx = innerWidth < 760;
+    const terrainApi = (window.LUNCBattle && LUNCBattle.terrain)
+      ? LUNCBattle.terrain.createTerrain({ THREE, scene, mobile: mobileGfx })
+      : null;
+    if (!terrainApi) console.error('[LUNCBattle] terrain.js failed to load');
+    const terrainHeight = terrainApi
+      ? terrainApi.terrainHeight
+      : function (x, z) { return Math.sin(x * .075) * .4 + Math.cos(z * .1) * .3; };
+    const ground = terrainApi ? terrainApi.ground : null;
+
+    const envApi = (window.LUNCBattle && LUNCBattle.environment)
+      ? LUNCBattle.environment.createEnvironment({ THREE, scene, terrainHeight, mobile: mobileGfx, mat,
+          densityScale: (LUNCBattle.quality && LUNCBattle.quality.getDensityScale) ? LUNCBattle.quality.getDensityScale().env : undefined,
+          vegetationDensity: (LUNCBattle.quality && LUNCBattle.quality.getDensityScale) ? LUNCBattle.quality.getDensityScale().vegetation : undefined,
+          shadowCast: (LUNCBattle.quality && LUNCBattle.quality.getEffectivePreset) ? LUNCBattle.quality.getEffectivePreset().shadowCast : undefined
+        })
+      : null;
+    if (!envApi) console.error('[LUNCBattle] environment.js failed to load');
+    if (envApi && envApi.fog) {
+      scene.background = new THREE.Color(envApi.fog.background != null ? envApi.fog.background : 0x0c140e);
+      scene.fog = new THREE.Fog(envApi.fog.fogColor, envApi.fog.fogNear, envApi.fog.fogFar);
     }
+    const woodMat=mat(0x493625,.9,.01);
 
-    function createBase(side,color) {
-      const g=new THREE.Group();
-      const accent=mat(color,.48,.22,color,.12);
-      const x=side*48;
-      const keep=new THREE.Mesh(new THREE.CylinderGeometry(3.1,3.75,3.8,8),stoneMat); keep.position.set(x,1.9,0); keep.castShadow=keep.receiveShadow=true; g.add(keep);
-      const roof=new THREE.Mesh(new THREE.ConeGeometry(3.45,2.1,8),darkMat); roof.position.set(x,4.75,0); roof.castShadow=true; g.add(roof);
-      const core=new THREE.Mesh(new THREE.CylinderGeometry(.72,.95,2.1,10),accent); core.position.set(x,4.0,0); core.castShadow=true; g.add(core);
-      const banner=new THREE.Mesh(new THREE.PlaneGeometry(1.6,2.2),new THREE.MeshStandardMaterial({color,roughness:.8,side:THREE.DoubleSide})); banner.position.set(x-side*3.82,3.15,0); banner.rotation.y=side<0?Math.PI/2:-Math.PI/2; g.add(banner);
-      addWall(g,x-side*1.4,-7,8,.65,stoneMat); addWall(g,x-side*1.4,7,8,.65,stoneMat);
-      const towerZ=[-11,11];
-      towerZ.forEach(z=>{
-        const t=new THREE.Mesh(new THREE.CylinderGeometry(1.0,1.25,3.5,8),stoneMat); t.position.set(x-side*1.2,1.75,z); t.castShadow=t.receiveShadow=true; g.add(t);
-        const top=new THREE.Mesh(new THREE.ConeGeometry(1.35,1.25,8),darkMat); top.position.set(x-side*1.2,4.1,z); top.castShadow=true; g.add(top);
-        const lamp=new THREE.PointLight(color,.65,12); lamp.position.set(x-side*1.2,4.7,z); g.add(lamp);
+    // v8.3 — faction bases & structures (procedural, no GridHelper)
+    const structuresApi = (window.LUNCBattle && LUNCBattle.structures)
+      ? LUNCBattle.structures.createApi({ THREE, scene, terrainHeight, mat, mobile: mobileGfx,
+          densityScale: (LUNCBattle.quality && LUNCBattle.quality.getDensityScale) ? LUNCBattle.quality.getDensityScale().structure : undefined,
+          shadowCast: (LUNCBattle.quality && LUNCBattle.quality.getEffectivePreset) ? LUNCBattle.quality.getEffectivePreset().shadowCast : undefined
+        })
+      : null;
+    if (!structuresApi) console.error('[LUNCBattle] structures.js failed to load');
+    const bullBase = structuresApi
+      ? structuresApi.createFactionBase(-1, tokens[current].color)
+      : new THREE.Group();
+    const bearBase = structuresApi
+      ? structuresApi.createFactionBase(1, 0xe4675f)
+      : new THREE.Group();
+
+    // v8.5 — price territory mapping & contested frontline (replaces simple poles/rope)
+    const priceTerritoryApi = (window.LUNCBattle && LUNCBattle.priceTerritory)
+      ? LUNCBattle.priceTerritory.createApi({
+          THREE, scene, terrainHeight, mobile: mobileGfx, pushFeed,
+          DataTruth: (window.LUNCBattle && LUNCBattle.DataTruth) || null
+        })
+      : null;
+    if (!priceTerritoryApi) console.error('[LUNCBattle] price-territory.js failed to load');
+    else {
+      priceTerritoryApi.setToken({
+        symbol: current,
+        decimals: tokens[current].decimals,
+        base: tokens[current].base,
+        hasOrderBook: !!tokens[current].symbol
       });
-      g.userData={side,color}; scene.add(g); return g;
     }
-    const bullBase=createBase(-1,tokens[current].color), bearBase=createBase(1,0xe4675f);
-
-    // Soft frontier markers instead of a solid glowing wall.
-    const frontGroup=new THREE.Group(); scene.add(frontGroup);
-    const frontPosts=[];
-    const ropeMat=new THREE.LineBasicMaterial({color:0xc6a75f,transparent:true,opacity:.34});
-    for (let z=-28;z<=28;z+=7) {
-      const pole=new THREE.Mesh(new THREE.CylinderGeometry(.07,.1,1.6,7),woodMat); pole.position.set(0,.8,z); pole.castShadow=true; frontGroup.add(pole); frontPosts.push(pole);
-      const flag=new THREE.Mesh(new THREE.PlaneGeometry(.8,.46),new THREE.MeshBasicMaterial({color:0xd4b46d,side:THREE.DoubleSide,transparent:true,opacity:.68})); flag.position.set(.38,1.35,z); flag.rotation.y=Math.PI/2; frontGroup.add(flag);
-    }
-    const ropePts=[]; for(let z=-28;z<=28;z+=1) ropePts.push(new THREE.Vector3(0,.26,z));
-    const rope=new THREE.Line(new THREE.BufferGeometry().setFromPoints(ropePts),ropeMat); frontGroup.add(rope);
 
     // -------------------- Units / effects (extracted modules) --------------------
     const bulls=[], bears=[];
@@ -230,7 +226,14 @@
     const effectsApi = (window.LUNCBattle && LUNCBattle.effects)
       ? LUNCBattle.effects.createApi({
           THREE, scene, terrainHeight, projectilePool, particlePool,
-          onShake: (amp, power) => { cameraShake = Math.min(1.1, cameraShake + amp * power); }
+          mobile: mobileGfx,
+          structuresApi: structuresApi,
+          qualityCaps: (LUNCBattle.quality && LUNCBattle.quality.getEffectCaps) ? LUNCBattle.quality.getEffectCaps() : null,
+          onShake: (amp, power) => {
+            // Tier caps: small≈0, tank≈0.15, large≈0.35, massive≈0.55
+            const add = Math.min(0.55, (amp || 0) * Math.min(1.35, power || 1));
+            cameraShake = Math.min(0.7, cameraShake + add);
+          }
         })
       : null;
     if (!unitsApi || !effectsApi) {
@@ -242,6 +245,21 @@
     function disposeArmy(arr) { unitsApi.disposeArmy(arr); }
     function launchStrike(fromX,toX,z,color,power=1) { effectsApi.launchStrike(fromX,toX,z,color,power); }
     function createExplosion(x,z,color,power=1,isBurn=false) { effectsApi.createExplosion(x,z,color,power,isBurn); }
+    function muzzleWorld(u) {
+      const off = u.userData && u.userData.muzzleOffset;
+      if (off && u.localToWorld) {
+        const v = off.clone();
+        u.updateMatrixWorld(true);
+        u.localToWorld(v);
+        return v;
+      }
+      const side = u.userData.side || -1;
+      return new THREE.Vector3(
+        u.position.x + side * -1.0,
+        u.position.y + 1.1,
+        u.position.z
+      );
+    }
 
     function rebuildUnits() {
       disposeArmy(bulls); disposeArmy(bears);
@@ -258,6 +276,50 @@
       lastRebuild=Date.now();
     }
     rebuildUnits();
+
+    // v8.6 — classic 3/4 RTS camera + Canvas 2D minimap (after units exist for getUnits)
+    cameraCtrl = (window.LUNCBattle && LUNCBattle.cameraCtrl)
+      ? LUNCBattle.cameraCtrl.createApi({
+          THREE: THREE, camera: camera, controls: controls, renderer: renderer,
+          domElement: renderer.domElement,
+          getFrontlineX: function () {
+            return priceTerritoryApi ? priceTerritoryApi.getFrontlineX() : targetX;
+          },
+          getWorldBounds: { minX: -70, maxX: 70, minZ: -45, maxZ: 45 }
+        })
+      : null;
+    if (!cameraCtrl) console.error('[LUNCBattle] camera.js failed to load');
+
+    minimapApi = (window.LUNCBattle && LUNCBattle.minimap)
+      ? LUNCBattle.minimap.createApi({
+          mobile: mobileGfx,
+          drawHz: (LUNCBattle.quality && LUNCBattle.quality.getEffectivePreset) ? LUNCBattle.quality.getEffectivePreset().minimapHz : 10,
+          worldBounds: { minX: -70, maxX: 70, minZ: -45, maxZ: 45 },
+          getFrontlineX: function () {
+            return priceTerritoryApi ? priceTerritoryApi.getFrontlineX() : targetX;
+          },
+          getViewportWorldRect: function () {
+            return cameraCtrl ? cameraCtrl.getViewportWorldRect() : null;
+          },
+          getUnits: function () { return { bulls: bulls, bears: bears }; },
+          onFocusWorld: function (x, z, smooth) {
+            if (cameraCtrl) cameraCtrl.focusWorld(x, z, smooth);
+          },
+          onFocusFrontline: function (smooth) {
+            if (cameraCtrl) cameraCtrl.focusFrontline(smooth);
+          },
+          onFocusBull: function (smooth) {
+            if (cameraCtrl) cameraCtrl.focusBullBase(smooth);
+          },
+          onFocusBear: function (smooth) {
+            if (cameraCtrl) cameraCtrl.focusBearBase(smooth);
+          },
+          notifyUserInput: function () {
+            if (cameraCtrl) cameraCtrl.notifyUserInput();
+          }
+        })
+      : null;
+    if (!minimapApi) console.error('[LUNCBattle] minimap.js failed to load');
 
     function showVictory(bull) {
       const el=$('victoryFlash'); el.className=bull?'show':'show bear'; setTimeout(()=>el.className='',430); playVictory(bull);
@@ -287,11 +349,38 @@
       else if (depthSource===SRC.API) depthLabel = (depthVendorLabel || 'Backend API') + ' depth (LIVE)';
       else depthLabel = 'Estimated walls (NOT live order book)';
       const live = priceSource!==SRC.SIM;
-      $('dataMode').textContent=live?('LIVE · '+priceLabel.toUpperCase()):'SIMULATION — price not live';
-      $('dataMode').className=live?'live':'error';
-      $('agentStatus').textContent='Depth: '+depthLabel+' · build v7';
-      $('pair').textContent=tokens[current].name+' · '+priceLabel;
-      if (window.LUNCBattle && LUNCBattle.ui) LUNCBattle.ui.lastDepthSourceLabel = depthLabel;
+      const build = (window.LUNCBattle && LUNCBattle.config && LUNCBattle.config.BUILD) || '';
+      const dm = $('dataMode');
+      if (dm) {
+        dm.textContent = live ? ('LIVE · ' + priceLabel.toUpperCase()) : 'SIMULATION — price not live';
+        dm.className = live ? 'live' : 'error';
+      }
+      const ag = $('agentStatus');
+      if (ag) ag.textContent = 'Depth: ' + depthLabel + ' · ' + build;
+      const pair = $('pair');
+      if (pair) pair.textContent = tokens[current].name + ' · ' + priceLabel;
+      if (window.LUNCBattle && LUNCBattle.ui) {
+        LUNCBattle.ui.lastDepthSourceLabel = depthLabel;
+        if (typeof LUNCBattle.ui.updateHealthInput === 'function') {
+          const reconnecting = !!(reconnectAttempts > 0 && (!spotWs || spotWs.readyState !== 1)
+            && tokens[current] && tokens[current].symbol);
+          LUNCBattle.ui.updateHealthInput({
+            priceLive: live,
+            priceSource: priceLabel,
+            priceAgeMs: Date.now() - lastPriceTs,
+            depthLive: depthSource === SRC.BINANCE || depthSource === SRC.API,
+            depthLabel: depthLabel,
+            depthAgeMs: lastDepthTs ? (Date.now() - lastDepthTs) : null,
+            binanceOk: depthSource === SRC.BINANCE || priceSource === SRC.BINANCE,
+            geckoOk: priceSource === SRC.GECKO || priceSource === SRC.LLAMA ? true : null,
+            apiOk: depthSource === SRC.API || priceSource === SRC.API || priceSource === SRC.BRIDGE,
+            backendExpected: !!(LUNCBattle.config && LUNCBattle.config.apiBase),
+            backendOffline: !!(LUNCBattle.config && LUNCBattle.config.apiBase && !live && depthSource === SRC.SIM),
+            reconnecting: reconnecting,
+            token: current
+          });
+        }
+      }
       updateWallLabels();
     }
 
@@ -304,6 +393,19 @@
       priceHistory.push(price); if(priceHistory.length>48) priceHistory.shift();
       priceSource=source;
       isLive = source!==SRC.SIM;
+      if (priceTerritoryApi) {
+        const truth = source===SRC.SIM
+          ? ((window.LUNCBattle&&LUNCBattle.DataTruth&&LUNCBattle.DataTruth.SIMULATED)||'SIMULATED')
+          : ((window.LUNCBattle&&LUNCBattle.DataTruth&&LUNCBattle.DataTruth.LIVE)||'LIVE');
+        const label = source===SRC.GECKO?'CoinGecko':source===SRC.BINANCE?'Binance'
+          :source===SRC.LLAMA?'DefiLlama':source===SRC.API?'Backend API'
+          :source===SRC.BRIDGE?'Backend API':'Simulation';
+        priceTerritoryApi.updateCurrentPrice(price, { truth: truth, sourceLabel: label });
+        if (priceTerritoryApi.getDisplayedRange) {
+          const dr = priceTerritoryApi.getDisplayedRange();
+          if (dr && dr.low > 0 && dr.high > dr.low) { rangeLow = dr.low; rangeHigh = dr.high; }
+        }
+      }
     }
 
 
@@ -315,13 +417,17 @@
         const spot = await LUNCBattle.market.fetchBinanceSpotPrice(symbol);
         if (!spot || spot.truth !== LUNCBattle.DataTruth.LIVE || !(spot.mid > 0)) {
           if (spot && spot.reason) console.warn('[Binance REST price]', spot.reason);
+          const st = classifyFeedHttp(spot && spot.status, spot && spot.reason);
+          reportQFeed('binanceVision', st, (spot && spot.reason) || 'no price');
           return false;
         }
+        reportQFeed('binanceVision', 'LIVE', 'spot');
         applySpot(spot.mid, SRC.BINANCE);
         updateStatusUI();
         return true;
       } catch (e) {
         console.warn('[Binance REST price]', e.message || e);
+        reportQFeed('binanceVision', classifyFeedHttp(0, e.message || e), String(e.message || e));
         return false;
       }
     }
@@ -332,7 +438,23 @@
       priceSource=SRC.SIM; isLive=false; lastPriceTs=Date.now();
       depthSource=SRC.SIM; depthVendorLabel='Unavailable';
       bullLight.color.setHex(t.color);
+      if (structuresApi && structuresApi.setAccentColor) structuresApi.setAccentColor(-1, t.color);
+      if (priceTerritoryApi) {
+        priceTerritoryApi.setToken({
+          symbol: sym,
+          decimals: t.decimals,
+          base: t.base,
+          hasOrderBook: !!t.symbol
+        });
+        if (priceTerritoryApi.getDisplayedRange) {
+          const dr = priceTerritoryApi.getDisplayedRange();
+          if (dr && dr.low > 0 && dr.high > dr.low) { rangeLow = dr.low; rangeHigh = dr.high; }
+        }
+      }
       document.querySelectorAll('.token-btn').forEach(b=>b.classList.toggle('active',b.dataset.token===sym));
+      if (window.LUNCBattle && LUNCBattle.ui && typeof LUNCBattle.ui.clearForTokenSwitch === 'function') {
+        LUNCBattle.ui.clearForTokenSwitch(sym);
+      }
       rebuildUnits(); pushFeed('Command switched to '+sym,'win');
       if(t.symbol) connectBinance(t.symbol,t.futures); else closeExchangeSockets();
       // Immediate multi-source refresh so USTC/LUNC don't sit on stale base
@@ -351,6 +473,7 @@
       if(futWs){try{futWs.onclose=null;futWs.close();}catch(_){} futWs=null;}
       if(reconnectTimer){clearTimeout(reconnectTimer);reconnectTimer=null;}
       depthSource=SRC.SIM; depthVendorLabel='Unavailable';
+      reportQFeed('binanceWs', 'OFFLINE', 'sockets closed');
       if(restDepthTimer){clearInterval(restDepthTimer);restDepthTimer=null;}
     }
 
@@ -362,8 +485,15 @@
         if(!r.ok) throw new Error('HTTP '+r.status);
         const d=await r.json(), coin=d.coins&&d.coins[id];
         if(!coin||!(coin.price>0)) throw new Error('No price');
+        reportQFeed('defillama', 'LIVE', 'price');
         applySpot(coin.price,SRC.LLAMA); updateStatusUI(); return true;
-      } catch(e){ console.warn('[DefiLlama price]',e.message||e); return false; }
+      } catch(e){
+        console.warn('[DefiLlama price]',e.message||e);
+        const m = String(e.message||e);
+        const http = /HTTP\s+(\d+)/i.exec(m);
+        reportQFeed('defillama', classifyFeedHttp(http ? http[1] : 0, m), m);
+        return false;
+      }
     }
 
     async function fetchGecko() {
@@ -372,6 +502,7 @@
         const u='https://api.coingecko.com/api/v3/simple/price?ids='+encodeURIComponent(t.gecko)+'&vs_currencies=usd&include_24hr_vol=true&include_24hr_change=true&include_market_cap=true';
         const r=await fetch(u,{cache:'no-store'}); if(!r.ok) throw new Error('HTTP '+r.status);
         const d=await r.json(), coin=d[t.gecko]; if(!coin||!(coin.usd>0)) throw new Error('No price');
+        reportQFeed('coingecko', 'LIVE', 'simple/price');
         applySpot(coin.usd,SRC.GECKO);
         if(coin.usd_market_cap>0) $('marketCap').textContent=fmtUsd(coin.usd_market_cap);
         if (coin.usd_24h_vol > 0 && window.LUNCBattle && LUNCBattle.market) {
@@ -379,6 +510,12 @@
           if (LUNCBattle.ui) {
             LUNCBattle.ui.lastVolumeUsd = coin.usd_24h_vol;
             LUNCBattle.ui.lastVolumeTruth = LUNCBattle.DataTruth.LIVE;
+          }
+          const mv = $('marketVolume'); if (mv) mv.textContent = fmtUsd(coin.usd_24h_vol);
+        }
+        if (window.LUNCBattle && LUNCBattle.ui && typeof LUNCBattle.ui.setPriceChange === 'function') {
+          if (coin.usd_24h_change != null && isFinite(coin.usd_24h_change)) {
+            LUNCBattle.ui.setPriceChange(coin.usd_24h_change, LUNCBattle.DataTruth.LIVE);
           }
         }
         // Estimated walls only when no live book — clearly ESTIMATED, never labeled Binance
@@ -388,7 +525,13 @@
           depthVendorLabel = 'Estimated (CoinGecko vol proxy)';
         }
         updateStatusUI(); return true;
-      } catch(e){ console.warn('[CoinGecko]',e.message||e); return false; }
+      } catch(e){
+        console.warn('[CoinGecko]',e.message||e);
+        const m = String(e.message||e);
+        const http = /HTTP\s+(\d+)/i.exec(m);
+        reportQFeed('coingecko', classifyFeedHttp(http ? http[1] : 0, m), m);
+        return false;
+      }
     }
 
     async function fetchMarketContext() {
@@ -399,14 +542,58 @@
         const rows=await r.json(), coin=Array.isArray(rows)?rows[0]:null; if(!coin) return;
         if(coin.market_cap>0) $('marketCap').textContent=fmtUsd(coin.market_cap);
         $('marketRank').textContent=coin.market_cap_rank?('#'+coin.market_cap_rank):'—';
-      } catch(e){ console.warn('[Market context]',e.message||e); }
+        if (coin.total_volume > 0) {
+          const mv = $('marketVolume'); if (mv) mv.textContent = fmtUsd(coin.total_volume);
+          if (window.LUNCBattle && LUNCBattle.market) {
+            LUNCBattle.market.setVolume24h(coin.total_volume, LUNCBattle.DataTruth.LIVE);
+            if (LUNCBattle.ui) {
+              LUNCBattle.ui.lastVolumeUsd = coin.total_volume;
+              LUNCBattle.ui.lastVolumeTruth = LUNCBattle.DataTruth.LIVE;
+            }
+          }
+        }
+        if (coin.circulating_supply > 0) {
+          const ms = $('marketSupply');
+          if (ms) {
+            const s = coin.circulating_supply;
+            ms.textContent = s >= 1e12 ? (s/1e12).toFixed(2)+'T'
+              : s >= 1e9 ? (s/1e9).toFixed(2)+'B'
+              : s >= 1e6 ? (s/1e6).toFixed(2)+'M'
+              : String(Math.round(s));
+          }
+        }
+        if (coin.price_change_percentage_24h != null && window.LUNCBattle && LUNCBattle.ui && LUNCBattle.ui.setPriceChange) {
+          LUNCBattle.ui.setPriceChange(coin.price_change_percentage_24h, LUNCBattle.DataTruth.LIVE);
+        }
+      } catch(e){
+        console.warn('[Market context]',e.message||e);
+        const m = String(e.message||e);
+        const http = /HTTP\s+(\d+)/i.exec(m);
+        reportQFeed('coingecko', classifyFeedHttp(http ? http[1] : 0, m), 'markets '+m);
+      }
     }
 
     async function fetchChainTvl() {
       try {
         const r=await fetch('https://api.llama.fi/v2/chains',{cache:'no-store'}), rows=await r.json();
-        const terra=rows.find(c=>c.name==='Terra Classic'); if(terra) $('tvlValue').textContent=fmtUsd(terra.tvl);
-      } catch(e){ console.warn('[DefiLlama chain]',e.message||e); }
+        const terra=rows.find(c=>c.name==='Terra Classic');
+        if(terra) {
+          $('tvlValue').textContent=fmtUsd(terra.tvl);
+          reportQFeed('defillama', 'LIVE', 'chains');
+          reportQFeed('terra', 'LIVE', 'Terra Classic TVL');
+          if (window.LUNCBattle && LUNCBattle.ui) {
+            // Ecosystem bias stays neutral — TVL presence is informational LIVE, not directional
+            LUNCBattle.ui.lastEcosystemTruth = LUNCBattle.DataTruth.LIVE;
+            LUNCBattle.ui.lastEcosystemBias = 0;
+            LUNCBattle.ui.lastEcosystemDetail = 'TVL ' + fmtUsd(terra.tvl);
+          }
+        }
+      } catch(e){
+        console.warn('[DefiLlama chain]',e.message||e);
+        const m = String(e.message||e);
+        reportQFeed('defillama', classifyFeedHttp(0, m), 'chains '+m);
+        reportQFeed('terra', classifyFeedHttp(0, m), 'TVL '+m);
+      }
     }
     async function fetchProtocolTvl(slug,id) {
       try { const r=await fetch('https://api.llama.fi/tvl/'+slug,{cache:'no-store'}); const v=await r.json(); $(id).textContent=fmtUsd(typeof v==='number'?v:null); } catch(_) {}
@@ -430,10 +617,17 @@
           : LUNCBattle.DataTruth.LIVE;
         LUNCBattle.ui.lastZones = st.zones;
       }
+      if (priceTerritoryApi && st.zones) {
+        priceTerritoryApi.updateLiquidityDefenses(st.zones, mid);
+      }
       renderLiquidityHud(st.zones, sourceLabel);
     }
 
     function renderLiquidityHud(zones, sourceLabel) {
+      if (window.LUNCBattle && LUNCBattle.ui && typeof LUNCBattle.ui.renderLiquidityBands === 'function') {
+        LUNCBattle.ui.renderLiquidityBands(zones, sourceLabel, { noBook: !(tokens[current] && tokens[current].symbol) });
+        return;
+      }
       const el = document.getElementById('liquidityZones');
       if (!el) return;
       if (!zones || zones.truth === 'UNAVAILABLE') {
@@ -487,6 +681,7 @@
       const snap = await LUNCBattle.market.fetchBinanceRestDepth(symbol, LUNCBattle.config.binanceRestDepthLimit || 1000);
       if (snap.truth !== LUNCBattle.DataTruth.LIVE) {
         console.warn('[Binance REST depth]', snap.reason || 'unavailable');
+        reportQFeed('binanceVision', classifyFeedHttp(snap && snap.status, snap && snap.reason), (snap && snap.reason) || 'depth unavailable');
         return;
       }
       localBids = {}; localAsks = {};
@@ -497,6 +692,7 @@
         depthSource = SRC.BINANCE;
         depthVendorLabel = 'Binance';
         lastDepthTs = Date.now();
+        reportQFeed('binanceVision', 'LIVE', 'REST depth');
         applyLiveBook(midPx, 'binance', 'Binance');
         updateStatusUI();
       }
@@ -514,7 +710,7 @@
       const streams=symbol+'@bookTicker/'+symbol+'@depth20@100ms';
       try {
         spotWs=new WebSocket('wss://stream.binance.com:9443/stream?streams='+streams);
-        spotWs.onopen=()=>{ reconnectAttempts=0; depthSource=SRC.BINANCE; depthVendorLabel='Binance'; updateStatusUI(); pushFeed('Binance order book connected','win'); };
+        spotWs.onopen=()=>{ reconnectAttempts=0; depthSource=SRC.BINANCE; depthVendorLabel='Binance'; reportQFeed('binanceWs', 'LIVE', 'bookTicker+depth20'); if(window.LUNCBattle&&LUNCBattle.ui&&LUNCBattle.ui.updateHealthInput) LUNCBattle.ui.updateHealthInput({ reconnecting:false, binanceOk:true, depthLive:true }); updateStatusUI(); pushFeed('Binance order book connected','win'); };
         spotWs.onmessage=evt=>{
           try {
             const raw=JSON.parse(evt.data), msg=raw.data||raw;
@@ -544,9 +740,14 @@
           const zel=document.getElementById('liquidityZones');
           if(zel && depthSource===SRC.SIM) zel.textContent='UNAVAILABLE — live order book disconnected';
           if(window.LUNCBattle&&LUNCBattle.ui){ LUNCBattle.ui.lastBookTruth=LUNCBattle.DataTruth.UNAVAILABLE; LUNCBattle.ui.lastZones=null; }
+          if (priceTerritoryApi) priceTerritoryApi.updateLiquidityDefenses(null, price);
+          reportQFeed('binanceWs', 'RECONNECTING', 'socket closed');
+          if (window.LUNCBattle && LUNCBattle.ui && LUNCBattle.ui.updateHealthInput) {
+            LUNCBattle.ui.updateHealthInput({ reconnecting: true, depthLive: false });
+          }
           updateStatusUI(); scheduleReconnect(symbol,futuresSymbol);
         };
-        spotWs.onerror=()=>{};
+        spotWs.onerror=()=>{ reportQFeed('binanceWs', 'DEGRADED', 'socket error'); };
       } catch(_) { scheduleReconnect(symbol,futuresSymbol); }
 
       // USD-M public liquidation stream → strength score + War Room + battlefield FX
@@ -562,26 +763,48 @@
             const side=(o.S||'').toUpperCase();
             const sym=(o.s||futuresSymbol||'').toUpperCase();
             const ts = o.T || Date.now();
-            const power=Math.min(2.5,.7+usd/500000), zz=(Math.random()-.5)*14;
+            const zz=(Math.random()-.5)*14;
             const entry = (window.LUNCBattle && LUNCBattle.ui && LUNCBattle.ui.recordLiquidation)
               ? LUNCBattle.ui.recordLiquidation({
                   symbol: sym, side, amount, usd, timestamp: ts,
                   source: 'Binance Futures'
                 })
               : { classification: side==='SELL'?'LONG_LIQ':'SHORT_LIQ' };
-            const when = new Date(ts).toISOString().slice(11,19) + 'Z';
+            // War Room card emitted by ui.recordLiquidation → warRoom.pushLiquidation
             if(side==='SELL') {
               // Longs liquidated → forced sells → bearish pressure on bulls
-              pushFeed('LIVE LIQ · '+sym+' · LONG · qty '+amount+' · ~'+fmtUsd(usd)+' · '+when+' · Binance Futures','loss');
-              launchStrike(targetX+12,targetX-6,zz,0xe4675f,power);
-              createExplosion(targetX-6.5,zz,0xe4675f,power);
               buyWall=Math.max(.25,buyWall*.93);
             } else {
               // Shorts liquidated → forced buys → bullish pressure on bears
-              pushFeed('LIVE LIQ · '+sym+' · SHORT · qty '+amount+' · ~'+fmtUsd(usd)+' · '+when+' · Binance Futures','liq');
-              launchStrike(targetX-12,targetX+6,zz,tokens[current].color,power);
-              createExplosion(targetX+6.5,zz,tokens[current].color,power);
               sellWall=Math.max(.25,sellWall*.93);
+            }
+            if (effectsApi && effectsApi.playLiquidationFX) {
+              effectsApi.playLiquidationFX({
+                side: side,
+                usd: usd,
+                classification: entry.classification,
+                targetX: targetX,
+                z: zz,
+                bullColor: tokens[current].color,
+                bearColor: 0xe4675f
+              });
+              // v8.6: brief cinematic ONLY for massive tier — user input cancels
+              if (effectsApi.scaleFromUsd && cameraCtrl && cameraCtrl.requestCinematic) {
+                const scaled = effectsApi.scaleFromUsd(usd);
+                if (scaled && scaled.tier === 'massive') {
+                  const cx = targetX + (side === 'SELL' ? -4 : 4);
+                  cameraCtrl.requestCinematic({ x: cx, z: zz, duration: 0.85, zoom: 42 });
+                }
+              }
+              if (minimapApi && minimapApi.pulseEvent) {
+                minimapApi.pulseEvent({ x: targetX, z: zz, kind: 'liq' });
+              }
+            } else if (side==='SELL') {
+              launchStrike(targetX+12,targetX-6,zz,0xe4675f,Math.min(2.5,.7+usd/500000));
+              createExplosion(targetX-6.5,zz,0xe4675f,Math.min(2.5,.7+usd/500000));
+            } else {
+              launchStrike(targetX-12,targetX+6,zz,tokens[current].color,Math.min(2.5,.7+usd/500000));
+              createExplosion(targetX+6.5,zz,tokens[current].color,Math.min(2.5,.7+usd/500000));
             }
             playLiq();
             if (window.LUNCBattle && LUNCBattle.ui && typeof LUNCBattle.ui.tickStrength==='function') {
@@ -595,6 +818,7 @@
     function scheduleReconnect(symbol,futuresSymbol=null) {
       if(reconnectTimer) return;
       reconnectAttempts++;
+      reportQFeed('binanceWs', 'RECONNECTING', 'attempt ' + reconnectAttempts);
       const delay=Math.min(20000,2000*Math.pow(1.5,reconnectAttempts));
       reconnectTimer=setTimeout(()=>{reconnectTimer=null; if(tokens[current].symbol===symbol)connectBinance(symbol,futuresSymbol);},delay);
     }
@@ -618,7 +842,15 @@
     async function pollApiSnapshot() {
       if (!window.LUNCBattle || !LUNCBattle.market) return;
       const snap = await LUNCBattle.market.fetchSnapshot();
-      if (snap.truth !== LUNCBattle.DataTruth.LIVE || !snap.data) return;
+      if (snap.truth !== LUNCBattle.DataTruth.LIVE || !snap.data) {
+        if (!LUNCBattle.config || !LUNCBattle.config.apiBase) {
+          reportQFeed('backend', 'UNAVAILABLE', 'no ?api=');
+        } else {
+          reportQFeed('backend', classifyFeedHttp(0, snap && snap.reason), (snap && snap.reason) || 'snapshot unavailable');
+        }
+        return;
+      }
+      reportQFeed('backend', 'LIVE', 'snapshot');
       const s = snap.data;
       try {
         if (s.market && s.market.price > 0) {
@@ -654,6 +886,9 @@
             LUNCBattle.ui.lastBookTruth = (st.zones && st.zones.truth === LUNCBattle.DataTruth.PARTIAL)
               ? LUNCBattle.DataTruth.PARTIAL : LUNCBattle.DataTruth.LIVE;
             LUNCBattle.ui.lastZones = st.zones;
+          }
+          if (priceTerritoryApi && st.zones) {
+            priceTerritoryApi.updateLiquidityDefenses(st.zones, s.market.price);
           }
           renderLiquidityHud(st.zones, bookLabel);
         } else if (s.walls) {
@@ -701,6 +936,7 @@
         const zel=document.getElementById('liquidityZones');
         if(zel) zel.textContent='UNAVAILABLE — order book stale';
         if(window.LUNCBattle&&LUNCBattle.ui){ LUNCBattle.ui.lastBookTruth=LUNCBattle.DataTruth.UNAVAILABLE; LUNCBattle.ui.lastZones=null; }
+        if (priceTerritoryApi) priceTerritoryApi.updateLiquidityDefenses(null, price);
         updateStatusUI();
       }
     },3500);
@@ -718,6 +954,17 @@
         if(Math.random()<.1){buyWall=Math.max(.6,Math.min(6,buyWall+(Math.random()-.5)*.35));sellWall=Math.max(.6,Math.min(6,sellWall+(Math.random()-.5)*.35));}
       }
 
+      if (priceTerritoryApi) {
+        const truth = priceSource===SRC.SIM
+          ? ((window.LUNCBattle&&LUNCBattle.DataTruth&&LUNCBattle.DataTruth.SIMULATED)||'SIMULATED')
+          : ((window.LUNCBattle&&LUNCBattle.DataTruth&&LUNCBattle.DataTruth.LIVE)||'LIVE');
+        priceTerritoryApi.updateCurrentPrice(price, { truth: truth, sourceLabel: priceSource });
+        if (priceTerritoryApi.getDisplayedRange) {
+          const dr = priceTerritoryApi.getDisplayedRange();
+          if (dr && dr.low > 0 && dr.high > dr.low) { rangeLow = dr.low; rangeHigh = dr.high; }
+        }
+      }
+
       if(price>rangeHigh) {
         pushFeed('BULLS CAPTURE THE RANGE','win'); showVictory(true); const span=(rangeHigh-rangeLow)*.5; rangeLow=price-span; rangeHigh=price+span; createExplosion(targetX,0,tokens[current].color,1.7); buyWall=Math.min(6,buyWall+.28);
       } else if(price<rangeLow) {
@@ -726,70 +973,205 @@
 
       const t=tokens[current];
       $('battleRange').textContent='BATTLE '+rangeLow.toFixed(t.decimals)+' – '+rangeHigh.toFixed(t.decimals)+' · BEARS '+rangeLow.toFixed(t.decimals)+' · BULLS '+rangeHigh.toFixed(t.decimals);
+      var _brp=document.getElementById('battleRangePanel'); if(_brp)_brp.textContent='BATTLE '+rangeLow.toFixed(t.decimals)+' – '+rangeHigh.toFixed(t.decimals);
       $('price').textContent='$'+price.toFixed(t.decimals);
       const tickVal=(momentum*55).toFixed(2), tick=$('tick'); tick.textContent=(momentum>=0?'+':'')+tickVal+'%'; tick.style.color=momentum>=0?'var(--bull)':'var(--bear)';
       const press=$('pressure'); if(momentum>.07){press.textContent='Buyers advancing';press.className='pressure buyers';}else if(momentum<-.07){press.textContent='Sellers advancing';press.className='pressure sellers';}else{press.textContent='Contested';press.className='pressure contested';}
       $('buyWall').textContent='$'+buyWall.toFixed(2)+'M'; $('sellWall').textContent='$'+sellWall.toFixed(2)+'M';
+      if (window.LUNCBattle && LUNCBattle.ui && typeof LUNCBattle.ui.updateFrontlineHud === 'function') {
+        let levels = [];
+        if (priceTerritoryApi && typeof priceTerritoryApi.getVisiblePriceLevels === 'function') {
+          try { levels = priceTerritoryApi.getVisiblePriceLevels() || []; } catch (_) {}
+        }
+        LUNCBattle.ui.updateFrontlineHud({
+          price: price,
+          rangeLow: rangeLow,
+          rangeHigh: rangeHigh,
+          decimals: t.decimals,
+          levels: levels,
+          frontlineX: priceTerritoryApi ? priceTerritoryApi.getFrontlineX() : targetX
+        });
+      }
 
       if(Date.now()-lastRebuild>7000 && Math.random()<.17) rebuildUnits();
-      if(!isLive&&t.hasBurns&&Math.random()<.055){pushFeed('Simulated burn flare · not a chain event','burn');createExplosion(targetX+(Math.random()-.5)*8,(Math.random()-.5)*14,0xffbf47,1.2,true);playBurn();}
+      if(!isLive&&t.hasBurns&&Math.random()<.055){
+        pushFeed('Simulated burn flare · not a chain event','burn');
+        if (effectsApi && effectsApi.playBurnFX) {
+          const bx = targetX+(Math.random()-.5)*8;
+          const bz = (Math.random()-.5)*14;
+          const burnScaled = effectsApi.playBurnFX({
+            amountLunc: 1e6,
+            truth: (window.LUNCBattle && LUNCBattle.DataTruth && LUNCBattle.DataTruth.SIMULATED) || 'SIMULATED',
+            x: bx,
+            z: bz
+          });
+          if (minimapApi && minimapApi.pulseEvent) minimapApi.pulseEvent({ x: bx, z: bz, kind: 'burn' });
+          // Massive-tier burns only — user input cancels; sim 1e6 flare is not massive
+          if (burnScaled && burnScaled.tier === 'massive' && cameraCtrl && cameraCtrl.requestCinematic) {
+            cameraCtrl.requestCinematic({ x: bx, z: bz, duration: 0.9, zoom: 40 });
+          }
+        } else {
+          createExplosion(targetX+(Math.random()-.5)*8,(Math.random()-.5)*14,0xffbf47,1.2,true);
+        }
+        playBurn();
+      }
     }
     setInterval(updateBattleLogic,760);
 
     function maybeFire(u,enemyColor,dt) {
       u.userData.shot-=dt;
-      if(u.userData.shot>0) return;
+      if(u.userData.shot>0) return false;
       const front=Math.abs(u.position.x-targetX);
       const base=u.userData.type===2?3.7:u.userData.type===1?2.5:1.7;
       u.userData.shot=base+Math.random()*base*1.8;
       if(front<24 && Math.random()<.42) {
-        const side=u.userData.side, to=targetX+side*(Math.random()*5-2.5), z=u.position.z+(Math.random()-.5)*4;
-        launchStrike(u.position.x+side*-1.0,to,z,side<0?tokens[current].color:0xe4675f,u.userData.type===2?1.1:.55);
+        const side=u.userData.side;
+        const toX=targetX+side*(Math.random()*5-2.5);
+        const z=u.position.z+(Math.random()-.5)*4;
+        const kind = u.userData.type===2 ? 'arty' : (u.userData.type===1 ? 'shell' : 'tracer');
+        const power = u.userData.type===2 ? 1.1 : (u.userData.type===1 ? 0.85 : 0.55);
+        const color = side<0 ? tokens[current].color : 0xe4675f;
+        const muz = muzzleWorld(u);
+        if (effectsApi && effectsApi.fireWeapon) {
+          effectsApi.fireWeapon({
+            from: { x: muz.x, y: muz.y, z: muz.z },
+            to: { x: toX, y: terrainHeight(toX, z) + 0.35, z: z },
+            kind: kind,
+            color: color,
+            power: power,
+            side: side
+          });
+        } else {
+          launchStrike(u.position.x+side*-1.0,toX,z,color,power);
+        }
+        if (unitsApi && unitsApi.setAnimState) {
+          unitsApi.setAnimState(u, (window.LUNCBattle && LUNCBattle.animations && LUNCBattle.animations.STATES.FIRE) || 'FIRE', performance.now()*.001);
+        } else {
+          u.userData.animState = 'FIRE';
+          u.userData.fireUntil = performance.now()*.001 + (u.userData.type===2?0.28:0.18);
+          u.userData.reloadUntil = u.userData.fireUntil + (u.userData.type===2?1.6:0.7);
+          u.userData.recoil = 1;
+        }
+        return true;
       }
+      return false;
     }
 
     // -------------------- Animation --------------------
     const clock=new THREE.Clock();
+    let activeExplosionApprox = 0;
+    if (window.LUNCBattle && LUNCBattle.quality && LUNCBattle.quality.setCountsProvider) {
+      LUNCBattle.quality.setCountsProvider(function () {
+        let smokeN = 0;
+        for (let i = 0; i < particlePool.length; i++) {
+          if (particlePool[i].userData && particlePool[i].userData.smoke) smokeN++;
+        }
+        return {
+          units: bulls.length + bears.length,
+          projectiles: projectilePool.length,
+          particles: particlePool.length,
+          explosions: activeExplosionApprox,
+          smoke: smokeN
+        };
+      });
+    }
     function animate() {
       requestAnimationFrame(animate);
-      const dt=Math.min(.04,clock.getDelta()); updateWASD(dt); controls.update();
-      const mid=(rangeLow+rangeHigh)/2, span=Math.max(rangeHigh-rangeLow,1e-12); targetX=THREE.MathUtils.clamp(((price-mid)/span)*28,-25,25);
-      frontGroup.position.x+=(targetX-frontGroup.position.x)*.07;
+      const dt=Math.min(.04,clock.getDelta());
+      if (window.LUNCBattle && LUNCBattle.quality && LUNCBattle.quality.tick) {
+        LUNCBattle.quality.tick(dt, renderer);
+      }
+      if (cameraCtrl) cameraShake = cameraCtrl.update(dt, keys, cameraShake);
+      else controls.update();
+      if (priceTerritoryApi) {
+        priceTerritoryApi.updateFrontline(dt);
+        targetX = priceTerritoryApi.getFrontlineX();
+      } else {
+        const mid=(rangeLow+rangeHigh)/2, span=Math.max(rangeHigh-rangeLow,1e-12);
+        targetX=THREE.MathUtils.clamp(((price-mid)/span)*28,-25,25);
+      }
 
       const now=performance.now()*.001;
       function moveArmy(arr,side) {
+        const momAbs = Math.abs(momentum);
+        const contested = momAbs < 0.055;
+        const urgent = momAbs > 0.12;
         arr.forEach(u=>{
           const type=u.userData.type, rank=type===0?0:type===1?1:2;
-          const desired=targetX+side*(7.8+rank*6.2+Math.floor((u.userData.index||0)/(type===0?8:5))*1.6);
-          const dx=desired-u.position.x; u.position.x+=dx*Math.min(1,dt*(type===0?1.45:.85));
-          const baseY=terrainHeight(u.position.x,u.position.z);
-          u.position.y=baseY+(type===0?Math.abs(Math.sin(now*3.1+u.userData.phase))*.035:0);
-          if(type===0) u.rotation.z=Math.sin(now*3.3+u.userData.phase)*.025;
-          maybeFire(u,side<0?0xe4675f:tokens[current].color,dt);
+          let desired=targetX+side*(7.8+rank*6.2+Math.floor((u.userData.index||0)/(type===0?8:5))*1.6);
+          // Keep staging: bulls west / bears east; infantry may only slightly overrun frontline
+          const maxOver = type===0 ? 2.2 : (type===1 ? 1.2 : 0.4);
+          if (side < 0) desired = Math.min(desired, targetX - 0.6 + maxOver);
+          else desired = Math.max(desired, targetX + 0.6 - maxOver);
+          const dx=desired-u.position.x;
+          // Speed from momentum urgency: stronger |momentum| → faster approach
+          let rate;
+          if (type === 0) rate = urgent ? 2.1 : contested ? 0.55 : 1.35;
+          else if (type === 1) rate = urgent ? 0.95 : contested ? 0.35 : 0.7;
+          else rate = contested ? 0.12 : 0.28; // arty mostly holds rear
+          // Near desired + contested → idle more (slow crawl)
+          if (contested && Math.abs(dx) < 1.2) rate *= 0.25;
+          const step = dx * Math.min(1, dt * rate);
+          const prevX = u.position.x;
+          u.position.x += step;
+          const speed = Math.abs(step) / Math.max(dt, 1e-4);
+          u.userData.speed = speed;
+          u.userData.velX = (u.position.x - prevX) / Math.max(dt, 1e-4);
+          // Orient toward enemy frontline (±x)
+          u.userData.facing = side < 0 ? Math.PI / 2 : -Math.PI / 2;
+          maybeFire(u, side<0?0xe4675f:tokens[current].color, dt);
+          if (unitsApi && unitsApi.tickUnit) {
+            unitsApi.tickUnit(u, dt, now, {
+              momentum: momentum, targetX: targetX, mobile: mobileGfx,
+              cameraPos: camera.position
+            });
+          }
+          // v8.3: apply rootBob after tickUnit so infantry bob is same-frame
+          u.position.y = terrainHeight(u.position.x, u.position.z) + (u.userData.rootBob || 0);
         });
       }
       moveArmy(bulls,-1); moveArmy(bears,1);
 
-      for(let i=projectilePool.length-1;i>=0;i--){
-        const b=projectilePool[i],dx=b.userData.tx-b.position.x,step=Math.sign(dx)*b.userData.speed*dt;
-        b.position.x+=Math.abs(step)>Math.abs(dx)?dx:step; b.position.y+=Math.sin(now*10+i)*.015; b.userData.life-=dt;
-        if(Math.abs(dx)<.25||b.userData.life<=0){createExplosion(b.position.x,b.position.z,b.userData.color,b.userData.power*.75);scene.remove(b);projectilePool.splice(i,1);}
+      if (effectsApi && typeof effectsApi.tick === 'function') {
+        effectsApi.tick(dt, now);
+      } else {
+        for(let i=projectilePool.length-1;i>=0;i--){
+          const b=projectilePool[i],dx=b.userData.tx-b.position.x,step=Math.sign(dx)*b.userData.speed*dt;
+          b.position.x+=Math.abs(step)>Math.abs(dx)?dx:step; b.position.y+=Math.sin(now*10+i)*.015; b.userData.life-=dt;
+          if(Math.abs(dx)<.25||b.userData.life<=0){createExplosion(b.position.x,b.position.z,b.userData.color,b.userData.power*.75);scene.remove(b);projectilePool.splice(i,1);}
+        }
+        for(let i=particlePool.length-1;i>=0;i--){
+          const q=particlePool[i]; q.userData.life-=dt; q.position.x+=q.userData.vx*dt; q.position.y+=q.userData.vy*dt; q.position.z+=q.userData.vz*dt;
+          if(!q.userData.smoke) q.userData.vy-=5.1*dt; else q.scale.multiplyScalar(1+dt*.45);
+          q.material.opacity=Math.max(0,q.userData.smoke?q.userData.life*.19:q.userData.life*1.2);
+          if(q.userData.life<=0){scene.remove(q);particlePool.splice(i,1);}
+        }
       }
-      for(let i=particlePool.length-1;i>=0;i--){
-        const q=particlePool[i]; q.userData.life-=dt; q.position.x+=q.userData.vx*dt; q.position.y+=q.userData.vy*dt; q.position.z+=q.userData.vz*dt;
-        if(!q.userData.smoke) q.userData.vy-=5.1*dt; else q.scale.multiplyScalar(1+dt*.45);
-        q.material.opacity=Math.max(0,q.userData.smoke?q.userData.life*.19:q.userData.life*1.2);
-        if(q.userData.life<=0){scene.remove(q);particlePool.splice(i,1);}
-      }
-      if(cameraShake>.01){camera.position.x+=(Math.random()-.5)*cameraShake*.14;camera.position.y+=(Math.random()-.5)*cameraShake*.08;cameraShake*=.9;}
+      // camera shake applied inside cameraCtrl.update (no permanent target drift)
       bullLight.intensity=1.1+Math.sin(now*1.3)*.16; bearLight.intensity=1.05+Math.cos(now*1.25)*.14;
+      if (envApi && typeof envApi.update === 'function') envApi.update(dt, now);
+      if (structuresApi && typeof structuresApi.updateStructures === 'function') structuresApi.updateStructures(dt, now);
+      if (minimapApi) {
+        if (priceTerritoryApi && priceTerritoryApi.getDefenseMarkers) {
+          minimapApi.setDefenses(priceTerritoryApi.getDefenseMarkers());
+        }
+        minimapApi.draw();
+      }
       renderer.render(scene,camera);
     }
 
-    addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio||1,innerWidth<760?1.35:1.8));});
+    addEventListener('resize',()=>{
+      camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth,innerHeight);
+      if (window.LUNCBattle && LUNCBattle.quality && LUNCBattle.quality.apply) {
+        LUNCBattle.quality.apply(renderer, scene, sun, { fillLight: fill, immediate: false });
+      } else {
+        renderer.setPixelRatio(Math.min(devicePixelRatio||1,innerWidth<760?1.35:1.8));
+      }
+    });
 
     updateStatusUI();
-    pushFeed('LUNC Battlefield v7 · classic RTS rebuild','win');
+    pushFeed('Battlefield ' + ((window.LUNCBattle && LUNCBattle.config && LUNCBattle.config.BUILD) || 'v8') + ' · graphics quality system','win');
     pushFeed('Market pressure moves formations and the contested front','info');
     pushFeed('Public build uses HTTPS-safe data feeds','info');
     animate();
