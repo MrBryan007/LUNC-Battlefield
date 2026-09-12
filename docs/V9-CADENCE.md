@@ -32,6 +32,8 @@ Whenever the real frame is **≥ 40 ms**, PERF could never show worse than **exa
 - **PERF / `quality.tick`** receives **wall-clock RAF interval**: `performance.now()` delta between `animate()` entries.
 - Do **not** pass the sim-capped `dt` into `quality.tick`.
 
+Also removed: `if (frameMs > 100) frameMs = 100` in `quality.tick` (that forced PERF to **10 / 100.0 ms** while CADENCE RAF/s was ~6).
+
 This does **not** invent 60 FPS. It only stops lying when frames are slower than 40 ms. If the environment’s `requestAnimationFrame` is itself ~25 Hz, PERF will still read ~25 — use the RAF probe to prove that.
 
 ---

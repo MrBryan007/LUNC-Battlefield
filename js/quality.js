@@ -557,7 +557,8 @@
     var frameMs;
     if (dt > 0 && dt < 2) frameMs = dt * 1000;
     else frameMs = 16.7;
-    if (frameMs > 100) frameMs = 100; // EMA clamp only — does not cap RAF
+    // v9.4.7: never clamp frameMs for PERF — a 100ms cap lied as "FPS 10 / 100.0ms"
+    // when true RAF was ~5–7/s. Cadence overlay remains the independent check.
     pushFrameSample(frameMs);
     frameAccum += dt;
     frameCount++;
