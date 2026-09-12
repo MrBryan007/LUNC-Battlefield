@@ -2,7 +2,7 @@
 
 Classic-RTS-inspired Terra Classic intelligence battlefield.
 
-**Build:** v8.5 — price territory mapping & contested frontline (see `docs/V8-GRAPHICS.md`).
+**Build:** v8.6 — RTS minimap and camera navigation (see `docs/V8-GRAPHICS.md`).
 
 **Live site:** https://mrbryan007.github.io/LUNC-Battlefield/
 

@@ -2,6 +2,8 @@
 
 ## Status
 
+**v8.6 done** — RTS minimap (Canvas 2D) + classic 3/4 camera navigation; frontline terrain grounding fix.
+
 **v8.5 done** — price territory mapping and contested frontline (markers, capture, liquidity defenses).
 
 **v8.4 done** — event-scaled combat effects with pooling (projectiles, impacts, liq/burn FX).
@@ -24,8 +26,39 @@ All meshes are **original procedural Three.js r128** geometry. No third-party ga
 | `js/units.js` | Articulated unit builders, shared GEO/materials, formations, `tickUnit` / `setAnimState` |
 | `js/structures.js` | Faction bases: HQ, barracks, depot/hangar, arty, supply, radar, comms, towers, bunkers, walls |
 | `js/effects.js` | v8.4 pooled projectiles / particles / explosions / scorches / shockwaves + liq/burn hooks |
-| `js/price-territory.js` | v8.5 price↔world X mapping, markers, contested frontline, liquidity defense props |
-| `js/battle-engine.js` | Wires terrain / environment / units / structures / effects / price-territory; keeps market / Binance / strength paths |
+| `js/price-territory.js` | v8.5 price↔world X mapping, markers, contested frontline, liquidity defense props; v8.6 grounded frontline seating |
+| `js/camera.js` | v8.6 classic 3/4 RTS camera (WASD pan, OrbitControls, focus helpers, optional cinematic) |
+| `js/minimap.js` | v8.6 Canvas 2D overlay minimap (~10 Hz) + FRONT/BULL/BEAR focus |
+| `js/battle-engine.js` | Wires terrain / environment / units / structures / effects / price-territory / camera / minimap; keeps market / Binance / strength paths |
+
+## v8.6 minimap & camera
+
+### Camera (`LUNCBattle.cameraCtrl.createApi`)
+Returns `{ update, focusFrontline, focusBullBase, focusBearBase, focusWorld, getViewportWorldRect, requestCinematic, notifyUserInput, getBounds, version:'v8.6' }`.
+
+- Classic **3/4 RTS** pose default ~(0, 38, 48) looking at frontline; **no FPS free-fly**
+- WASD pan (Shift = fast) + OrbitControls orbit/zoom; polar & distance limits unchanged
+- Bounds clamp target ≈ **X [−70,70] · Z [−45,45]**
+- Shake applied as temporary position offset (no permanent target drift)
+- Focus helpers: frontline / bull base x≈−48 / bear base x≈+48 / arbitrary world XZ
+- `requestCinematic` — short interruptible pan; **only hooked for massive liq/burn**; `notifyUserInput` cancels
+- `getViewportWorldRect` — approx FOV×distance rectangle for minimap
+
+### Minimap (`LUNCBattle.minimap.createApi`)
+- **Canvas 2D** DOM overlay (not a second Three.js renderer), bottom-right above status tray
+- Draw throttle **~10 Hz** (8–12 Hz band)
+- Field tint split by `frontlineX`; HQ diamonds at ±48; frontline stroke; defense dots; unit dots (cluster when crowded); camera viewport rect; optional FX pulses (1–2s)
+- Click/tap → `focusWorld`; desktop drag supported; `stopPropagation` so HUD/orbit are not stolen
+- Mobile: smaller canvas + `#minimapToggle` collapse; usable near 390px width
+- Focus buttons **FRONT / BULL / BEAR** beside minimap
+
+### Frontline grounding fix (v8.5 follow-up)
+v8.5 sampled `terrainHeight(0, z)` then translated the frontline group in X — pieces floated/sank on hills.
+**Fix:** each piece stores local XZ + yOff; `updateFrontline` reseats with `terrainHeight(frontlineX + localX, z)`. Capture hysteresis unchanged.
+
+**Capture flip-flop watch:** level capture still uses ±0.35×step hysteresis and ≥3s feed debounce. Watch live books for rapid flip-flop noise if mid sits on a level; tighten threshold only if observed.
+
+---
 
 ## v8.5 price territory & frontline
 
@@ -45,9 +78,11 @@ All meshes are **original procedural Three.js r128** geometry. No third-party ga
 - Capture when price crosses level by **>0.35×step** (debounce ≥3s): `PRICE BREAKOUT · Bulls captured $x` / `PRICE BREAKDOWN · Bears reclaimed $x`
 
 ### Frontline
-- Contested strip Group: trenches/berms, sandbags, smoke wisps, contested flags, shell holes on `terrainHeight`
+- Contested strip: trenches/berms, sandbags, smoke wisps, contested flags, shell holes on `terrainHeight`
 - `frontlineX` smooth-follows `priceToWorldX(price)` (lerp); armies sync via `getFrontlineX()`
+- **v8.6:** pieces re-seated each tick at world `(frontlineX+localX, terrainHeight(...), z)` — no translating-group Y bug
 - Sparse Bull/Bear territory flags; contested mid wreck/crater accents — no bright floor paint
+- `getDefenseMarkers()` exposes defense dots for minimap
 
 ### Liquidity defenses
 - From market zones (immediate/near/major); **skip UNAVAILABLE**
@@ -166,9 +201,11 @@ Barrel elevates toward target; longer reload; holds rear ranks.
 ## Known follow-ups
 
 1. rootBob one-frame lag — **fixed in v8.3** (`moveArmy` now `tickUnit` then `y = terrainHeight + rootBob`)
-2. HIT anim not combat-driven yet
-3. draw-call optimization deferred to v8.8
-4. LIVE burn indexer / whale FX still need HTTPS `?api=` — stubs ready in effects
+2. Frontline float/sink from group translate — **fixed in v8.6** (per-piece terrain reseat)
+3. HIT anim not combat-driven yet
+4. draw-call optimization deferred to v8.8
+5. LIVE burn indexer / whale FX still need HTTPS `?api=` — stubs ready in effects
+6. Capture flip-flop watch if mid sits on a price level (hysteresis already present)
 
 ## License / assets
 
@@ -184,9 +221,9 @@ Barrel elevates toward target; longer reload; holds rear ranks.
 | **8.2** | Unit visual polish / formations / animations |
 | **8.3** | Base architecture refresh |
 | **8.4** | VFX / strikes / atmosphere |
-| **8.5** | Frontline / capture markers (this release) |
-| 8.6 | Lighting / post / camera |
-| 8.7 | Mobile perf pass |
+| **8.5** | Frontline / capture markers |
+| **8.6** | Minimap + camera navigation (this release) |
+| 8.7 | Mobile perf pass / lighting polish |
 | 8.8 | Final art QA + docs |
 
 Market data, Binance depth, Battle Strength, liquidations, and `?api=` bridge must remain intact across all stages. Do **not** fabricate LIVE burns / whales / liquidations.

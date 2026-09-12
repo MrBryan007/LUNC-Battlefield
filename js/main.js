@@ -4,7 +4,7 @@
   const LB = global.LUNCBattle;
   function boot() {
     const tag = document.getElementById('buildTag');
-    if (tag) tag.textContent = 'BATTLEFIELD v8';
+    if (tag) tag.textContent = 'BATTLEFIELD ' + ((LB.config && LB.config.BUILD) || 'v8');
     const title = document.querySelector('title');
     if (title) title.textContent = LB.config.TITLE;
     if (LB.config.apiBase) {

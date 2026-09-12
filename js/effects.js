@@ -818,6 +818,7 @@
       version: 'v8.4',
       caps: CAPS,
       scaleFromUsd: scaleFromUsd,
+      scaleFromBurn: scaleFromBurn,
       fireWeapon: fireWeapon,
       fireBarrage: fireBarrage,
       muzzleFlash: muzzleFlash,

@@ -1,4 +1,4 @@
-/* LUNC Battlefield v8.5 — price territory mapping & contested frontline */
+/* LUNC Battlefield v8.5/v8.6 — price territory + grounded frontline */
 (function (global) {
   'use strict';
 
@@ -437,50 +437,78 @@
     }
 
     // ---- Frontline visual ----
+    // Pieces store local XZ offsets; Y is re-seated each updateFrontline via
+    // terrainHeight(frontlineX + localX, z) so translating the strip never floats/sinks.
+    const frontlinePieces = []; // { mesh, localX, localZ, yOff }
+
+    function addFrontlinePiece(mesh, localX, localZ, yOff) {
+      frontlineGroup.add(mesh);
+      frontlinePieces.push({ mesh: mesh, localX: localX, localZ: localZ, yOff: yOff });
+    }
+
+    function seatFrontlinePieces() {
+      const fx = frontlineX;
+      for (let i = 0; i < frontlinePieces.length; i++) {
+        const p = frontlinePieces[i];
+        const wx = fx + p.localX;
+        const wz = p.localZ;
+        const ty = terrainHeight(wx, wz);
+        p.mesh.position.set(wx, ty + p.yOff, wz);
+      }
+      for (let i = 0; i < smokeWisps.length; i++) {
+        const s = smokeWisps[i];
+        const wx = fx + s.localX;
+        const wz = s.localZ;
+        const ty = terrainHeight(wx, wz);
+        s.baseY = ty + s.yOff;
+        // Keep current bob relative to re-seated base (caller may overwrite y)
+        s.mesh.position.x = wx;
+        s.mesh.position.z = wz;
+        s.mesh.position.y = s.baseY;
+      }
+    }
+
     function buildFrontlineVisual() {
       clearGroup(frontlineGroup);
       smokeWisps.length = 0;
       contestedFlags.length = 0;
+      frontlinePieces.length = 0;
+      // Group stays at origin; pieces are placed in world space each update
+      frontlineGroup.position.set(0, 0, 0);
 
       const zMin = -26;
       const zMax = 26;
       const stepZ = mobile ? 5.5 : 4.2;
 
       for (let z = zMin; z <= zMax; z += stepZ) {
-        const ty = terrainHeight(0, z);
-        // Trench berm (elongated)
+        // Trench berm (elongated) — local offsets only; Y grounded later
         const berm = new THREE.Mesh(GEO.bermLong, MAT.earth);
-        berm.position.set((z % 8 === 0 ? -0.35 : 0.25), ty + 0.2, z);
         berm.rotation.y = (z * 0.07) % 0.2;
         berm.castShadow = !mobile;
         berm.receiveShadow = true;
-        frontlineGroup.add(berm);
+        addFrontlinePiece(berm, (z % 8 === 0 ? -0.35 : 0.25), z, 0.2);
 
         // Sandbags
         const bag = new THREE.Mesh(GEO.bag, MAT.sandbag);
-        bag.position.set((z % 9 > 4 ? 0.55 : -0.55), ty + 0.28, z + 0.4);
         bag.rotation.y = Math.PI / 2 + (z * 0.03);
         bag.castShadow = !mobile;
-        frontlineGroup.add(bag);
+        addFrontlinePiece(bag, (z % 9 > 4 ? 0.55 : -0.55), z + 0.4, 0.28);
 
         // Contested flag post
         if (!mobile || (Math.abs(z) % 11 < 6)) {
           const post = new THREE.Mesh(GEO.postThin, MAT.woodDark);
-          post.position.set(0.1, ty + 0.55, z - 0.3);
-          frontlineGroup.add(post);
+          addFrontlinePiece(post, 0.1, z - 0.3, 0.55);
           const fl = new THREE.Mesh(GEO.flag, MAT.contestedFlag);
-          fl.position.set(0.35, ty + 1.05, z - 0.3);
           fl.rotation.y = Math.PI / 2;
-          frontlineGroup.add(fl);
+          addFrontlinePiece(fl, 0.35, z - 0.3, 1.05);
           contestedFlags.push(fl);
         }
 
         // Shell hole
         if (Math.abs(z) % 7 < 3) {
           const hole = new THREE.Mesh(GEO.crater, MAT.scorch);
-          hole.position.set((z % 5) * 0.15 - 0.2, ty + 0.04, z + 1.1);
           hole.receiveShadow = true;
-          frontlineGroup.add(hole);
+          addFrontlinePiece(hole, (z % 5) * 0.15 - 0.2, z + 1.1, 0.04);
         }
       }
 
@@ -490,12 +518,16 @@
         const sm = new THREE.Mesh(GEO.smoke, MAT.smoke.clone());
         sm.material.userData = { _owned: true };
         const z = -18 + i * (36 / Math.max(1, smokeN - 1));
-        const ty = terrainHeight(0, z);
-        sm.position.set((i % 2 ? 0.4 : -0.3), ty + 0.9 + i * 0.15, z);
+        const localX = (i % 2 ? 0.4 : -0.3);
+        const yOff = 0.9 + i * 0.15;
         sm.scale.setScalar(0.8 + i * 0.15);
         frontlineGroup.add(sm);
-        smokeWisps.push({ mesh: sm, phase: i * 1.7, baseY: sm.position.y });
+        smokeWisps.push({
+          mesh: sm, phase: i * 1.7,
+          localX: localX, localZ: z, yOff: yOff, baseY: yOff
+        });
       }
+      seatFrontlinePieces();
     }
 
     function rebuildTerritoryCues() {
@@ -553,6 +585,8 @@
       return 3; // tower
     }
 
+    const defenseMarkers = []; // { x, z, side, strength, partial } for minimap
+
     function placeDefenseProp(x, z, tier, partial, uncertain) {
       const ty = terrainHeight(x, z);
       const g = new THREE.Group();
@@ -582,12 +616,19 @@
       g.position.set(x, ty, z);
       g.scale.setScalar(uncertain ? 0.75 : (partial ? 0.85 : 1));
       defensesGroup.add(g);
+      defenseMarkers.push({
+        x: x, z: z,
+        side: x < frontlineX ? 'bull' : 'bear',
+        strength: tier,
+        partial: !!partial || !!uncertain
+      });
     }
 
     function updateLiquidityDefenses(zones, mid) {
       const midPx = mid > 0 ? mid : currentPrice;
       if (!(midPx > 0)) {
         clearGroup(defensesGroup);
+        defenseMarkers.length = 0;
         lastDefenseSig = '';
         return;
       }
@@ -596,17 +637,20 @@
       // Never invent fortresses for UNAVAILABLE; skip ESTIMATED-only fortress walls
       if (!zones || truth === DataTruth.UNAVAILABLE) {
         clearGroup(defensesGroup);
+        defenseMarkers.length = 0;
         lastDefenseSig = 'none';
         return;
       }
       // Prefer skip for ESTIMATED-only (no live/calc/partial zones object from book)
       if (truth === DataTruth.ESTIMATED || truth === DataTruth.SIMULATED) {
         clearGroup(defensesGroup);
+        defenseMarkers.length = 0;
         lastDefenseSig = 'est-skip';
         return;
       }
       if (truth !== DataTruth.LIVE && truth !== DataTruth.CALCULATED && truth !== DataTruth.PARTIAL) {
         clearGroup(defensesGroup);
+        defenseMarkers.length = 0;
         lastDefenseSig = 'skip';
         return;
       }
@@ -622,6 +666,7 @@
       }
 
       clearGroup(defensesGroup);
+      defenseMarkers.length = 0;
       lastDefenseToken = token.symbol;
       lastDefenseSig = token.symbol + '|' + truth + '|' + Math.round(total / 1000);
 
@@ -675,6 +720,7 @@
       clearGroup(markersGroup);
       markers.length = 0;
       clearGroup(defensesGroup);
+      defenseMarkers.length = 0;
       lastDefenseSig = '';
       lastDefenseToken = '';
       displayedLow = token.base * 0.92;
@@ -682,7 +728,6 @@
       recomputeRange(true);
       frontlineX = priceToWorldX(currentPrice);
       desiredFrontlineX = frontlineX;
-      frontlineGroup.position.x = frontlineX;
       rebuildMarkers();
       buildFrontlineVisual();
     }
@@ -716,10 +761,10 @@
     function updateFrontline(dt) {
       const t = Math.min(1, (dt || 0.016) * 2.8);
       frontlineX += (desiredFrontlineX - frontlineX) * t;
-      // Soft lerp group
-      frontlineGroup.position.x += (frontlineX - frontlineGroup.position.x) * Math.min(1, t * 1.2);
-      // Settle berms on terrain as we move (sample a few)
-      // Animate smoke
+      // Re-seat every piece on terrain at current frontlineX + local offset
+      // (fixes v8.5 float/sink from sampling terrainHeight(0,z) then translating group)
+      seatFrontlinePieces();
+      // Animate smoke (bob after seating)
       const now = performance.now() * 0.001;
       for (let i = 0; i < smokeWisps.length; i++) {
         const s = smokeWisps[i];
@@ -749,6 +794,8 @@
       clearGroup(frontlineGroup);
       clearGroup(territoryGroup);
       clearGroup(defensesGroup);
+      defenseMarkers.length = 0;
+      frontlinePieces.length = 0;
       markers.length = 0;
       smokeWisps.length = 0;
       contestedFlags.length = 0;
@@ -773,7 +820,7 @@
     rebuildMarkers();
     frontlineX = priceToWorldX(currentPrice);
     desiredFrontlineX = frontlineX;
-    frontlineGroup.position.x = frontlineX;
+    seatFrontlinePieces();
 
     return {
       priceToWorldX: priceToWorldX,
@@ -788,6 +835,7 @@
       dispose: dispose,
       getFrontlineX: getFrontlineX,
       getDisplayedRange: getDisplayedRange,
+      getDefenseMarkers: function () { return defenseMarkers.slice(); },
       version: 'v8.5'
     };
   }

@@ -18,7 +18,7 @@
       user-select: none;
       touch-action: none;
     }
-    canvas { position: fixed; inset: 0; display: block; }
+    body > canvas { position: fixed; inset: 0; display: block; }
     #vignette {
       position: fixed; inset: 0; z-index: 5; pointer-events: none;
       background:
@@ -170,3 +170,86 @@
 .truth-partial { color: #c9a227; }
 .row .bull { color: var(--bull); }
 .row .bear { color: var(--bear); }
+
+/* v8.6 — minimap + camera focus (RTS command feel) */
+.minimap-wrap {
+  position: fixed;
+  right: 10px;
+  bottom: max(52px, calc(env(safe-area-inset-bottom) + 48px));
+  z-index: 27;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  padding: 6px;
+  background: linear-gradient(180deg, rgba(10,15,12,0.92), rgba(7,11,8,0.88));
+  border: 1px solid rgba(198, 176, 120, 0.28);
+  border-radius: 6px;
+  box-shadow: 0 8px 22px rgba(0,0,0,.4), inset 0 1px rgba(255,255,255,.04);
+  backdrop-filter: blur(8px);
+  pointer-events: auto;
+  touch-action: none;
+}
+.minimap-wrap.mobile {
+  right: 6px;
+  bottom: max(44px, calc(env(safe-area-inset-bottom) + 40px));
+  padding: 4px;
+}
+.minimap-canvas {
+  display: block;
+  position: relative !important;
+  inset: auto !important;
+  width: 168px;
+  height: 112px;
+  border-radius: 3px;
+  cursor: crosshair;
+  background: #0a100c;
+  border: 1px solid rgba(255,255,255,.06);
+}
+.minimap-wrap.mobile .minimap-canvas {
+  width: 118px;
+  height: 78px;
+}
+.minimap-focus {
+  display: flex;
+  gap: 3px;
+}
+.minimap-focus button,
+.minimap-toggle {
+  appearance: none;
+  border: 1px solid rgba(198, 176, 120, 0.28);
+  background: rgba(18, 26, 20, 0.92);
+  color: #c9b07a;
+  font: 700 9px Rajdhani, sans-serif;
+  letter-spacing: 0.6px;
+  padding: 3px 7px;
+  border-radius: 3px;
+  cursor: pointer;
+  text-transform: uppercase;
+}
+.minimap-focus button:hover,
+.minimap-toggle:hover {
+  background: rgba(40, 52, 36, 0.95);
+  color: #f0e0b0;
+  border-color: rgba(215, 181, 109, 0.45);
+}
+.minimap-focus button:active {
+  background: rgba(73, 211, 154, 0.18);
+  color: var(--bull);
+}
+.minimap-toggle {
+  align-self: flex-end;
+  margin-bottom: 2px;
+}
+.minimap-wrap.collapsed .minimap-canvas,
+.minimap-wrap.collapsed .minimap-focus {
+  display: none;
+}
+@media (max-width: 720px) {
+  .minimap-wrap {
+    right: 5px;
+    bottom: max(38px, calc(env(safe-area-inset-bottom) + 34px));
+  }
+  #dataTruthLegend { bottom: 118px; max-width: 160px; }
+  #statusTray { right: 5px; }
+}

@@ -3,7 +3,7 @@
 
     // =====================================================
     // LUNC ECOSYSTEM BATTLEFIELD v8 — RTS GRAPHICS OVERHAUL
-    // v8.1 terrain · v8.2 units/anim · v8.3 bases · v8.4 combat effects · v8.5 price territory
+    // v8.1 terrain · v8.2 units/anim · v8.3 bases · v8.4 combat effects · v8.5 price territory · v8.6 minimap+camera
     // Original procedural art only. No third-party game assets.
     // =====================================================
 
@@ -102,18 +102,16 @@
     controls.target.set(0, 1.2, 0);
 
     const keys = {};
-    addEventListener('keydown', e => keys[e.code] = true);
+    let cameraCtrl = null;
+    let minimapApi = null;
+    addEventListener('keydown', e => {
+      keys[e.code] = true;
+      if (e.code === 'KeyW' || e.code === 'KeyA' || e.code === 'KeyS' || e.code === 'KeyD' ||
+          e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
+        if (cameraCtrl) cameraCtrl.notifyUserInput();
+      }
+    });
     addEventListener('keyup', e => keys[e.code] = false);
-    function updateWASD(dt) {
-      const speed = (keys.ShiftLeft || keys.ShiftRight ? 24 : 12) * dt;
-      const forward = new THREE.Vector3();
-      camera.getWorldDirection(forward); forward.y = 0; forward.normalize();
-      const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0,1,0)).normalize();
-      if (keys.KeyW) { camera.position.addScaledVector(forward, speed); controls.target.addScaledVector(forward, speed); }
-      if (keys.KeyS) { camera.position.addScaledVector(forward,-speed); controls.target.addScaledVector(forward,-speed); }
-      if (keys.KeyA) { camera.position.addScaledVector(right,-speed); controls.target.addScaledVector(right,-speed); }
-      if (keys.KeyD) { camera.position.addScaledVector(right, speed); controls.target.addScaledVector(right, speed); }
-    }
 
     scene.add(new THREE.HemisphereLight(0xd2dcc8, 0x1a1e14, .68));
     const sun = new THREE.DirectionalLight(0xffe6c4, 1.28);
@@ -241,6 +239,49 @@
       lastRebuild=Date.now();
     }
     rebuildUnits();
+
+    // v8.6 — classic 3/4 RTS camera + Canvas 2D minimap (after units exist for getUnits)
+    cameraCtrl = (window.LUNCBattle && LUNCBattle.cameraCtrl)
+      ? LUNCBattle.cameraCtrl.createApi({
+          THREE: THREE, camera: camera, controls: controls, renderer: renderer,
+          domElement: renderer.domElement,
+          getFrontlineX: function () {
+            return priceTerritoryApi ? priceTerritoryApi.getFrontlineX() : targetX;
+          },
+          getWorldBounds: { minX: -70, maxX: 70, minZ: -45, maxZ: 45 }
+        })
+      : null;
+    if (!cameraCtrl) console.error('[LUNCBattle] camera.js failed to load');
+
+    minimapApi = (window.LUNCBattle && LUNCBattle.minimap)
+      ? LUNCBattle.minimap.createApi({
+          mobile: mobileGfx,
+          worldBounds: { minX: -70, maxX: 70, minZ: -45, maxZ: 45 },
+          getFrontlineX: function () {
+            return priceTerritoryApi ? priceTerritoryApi.getFrontlineX() : targetX;
+          },
+          getViewportWorldRect: function () {
+            return cameraCtrl ? cameraCtrl.getViewportWorldRect() : null;
+          },
+          getUnits: function () { return { bulls: bulls, bears: bears }; },
+          onFocusWorld: function (x, z, smooth) {
+            if (cameraCtrl) cameraCtrl.focusWorld(x, z, smooth);
+          },
+          onFocusFrontline: function (smooth) {
+            if (cameraCtrl) cameraCtrl.focusFrontline(smooth);
+          },
+          onFocusBull: function (smooth) {
+            if (cameraCtrl) cameraCtrl.focusBullBase(smooth);
+          },
+          onFocusBear: function (smooth) {
+            if (cameraCtrl) cameraCtrl.focusBearBase(smooth);
+          },
+          notifyUserInput: function () {
+            if (cameraCtrl) cameraCtrl.notifyUserInput();
+          }
+        })
+      : null;
+    if (!minimapApi) console.error('[LUNCBattle] minimap.js failed to load');
 
     function showVictory(bull) {
       const el=$('victoryFlash'); el.className=bull?'show':'show bear'; setTimeout(()=>el.className='',430); playVictory(bull);
@@ -602,6 +643,17 @@
                 bullColor: tokens[current].color,
                 bearColor: 0xe4675f
               });
+              // v8.6: brief cinematic ONLY for massive tier — user input cancels
+              if (effectsApi.scaleFromUsd && cameraCtrl && cameraCtrl.requestCinematic) {
+                const scaled = effectsApi.scaleFromUsd(usd);
+                if (scaled && scaled.tier === 'massive') {
+                  const cx = targetX + (side === 'SELL' ? -4 : 4);
+                  cameraCtrl.requestCinematic({ x: cx, z: zz, duration: 0.85, zoom: 42 });
+                }
+              }
+              if (minimapApi && minimapApi.pulseEvent) {
+                minimapApi.pulseEvent({ x: targetX, z: zz, kind: 'liq' });
+              }
             } else if (side==='SELL') {
               launchStrike(targetX+12,targetX-6,zz,0xe4675f,Math.min(2.5,.7+usd/500000));
               createExplosion(targetX-6.5,zz,0xe4675f,Math.min(2.5,.7+usd/500000));
@@ -776,12 +828,19 @@
       if(!isLive&&t.hasBurns&&Math.random()<.055){
         pushFeed('Simulated burn flare · not a chain event','burn');
         if (effectsApi && effectsApi.playBurnFX) {
-          effectsApi.playBurnFX({
+          const bx = targetX+(Math.random()-.5)*8;
+          const bz = (Math.random()-.5)*14;
+          const burnScaled = effectsApi.playBurnFX({
             amountLunc: 1e6,
             truth: (window.LUNCBattle && LUNCBattle.DataTruth && LUNCBattle.DataTruth.SIMULATED) || 'SIMULATED',
-            x: targetX+(Math.random()-.5)*8,
-            z: (Math.random()-.5)*14
+            x: bx,
+            z: bz
           });
+          if (minimapApi && minimapApi.pulseEvent) minimapApi.pulseEvent({ x: bx, z: bz, kind: 'burn' });
+          // Massive-tier burns only — user input cancels; sim 1e6 flare is not massive
+          if (burnScaled && burnScaled.tier === 'massive' && cameraCtrl && cameraCtrl.requestCinematic) {
+            cameraCtrl.requestCinematic({ x: bx, z: bz, duration: 0.9, zoom: 40 });
+          }
         } else {
           createExplosion(targetX+(Math.random()-.5)*8,(Math.random()-.5)*14,0xffbf47,1.2,true);
         }
@@ -833,7 +892,9 @@
     const clock=new THREE.Clock();
     function animate() {
       requestAnimationFrame(animate);
-      const dt=Math.min(.04,clock.getDelta()); updateWASD(dt); controls.update();
+      const dt=Math.min(.04,clock.getDelta());
+      if (cameraCtrl) cameraShake = cameraCtrl.update(dt, keys, cameraShake);
+      else controls.update();
       if (priceTerritoryApi) {
         priceTerritoryApi.updateFrontline(dt);
         targetX = priceTerritoryApi.getFrontlineX();
@@ -895,17 +956,23 @@
           if(q.userData.life<=0){scene.remove(q);particlePool.splice(i,1);}
         }
       }
-      if(cameraShake>.01){camera.position.x+=(Math.random()-.5)*cameraShake*.14;camera.position.y+=(Math.random()-.5)*cameraShake*.08;cameraShake*=.9;}
+      // camera shake applied inside cameraCtrl.update (no permanent target drift)
       bullLight.intensity=1.1+Math.sin(now*1.3)*.16; bearLight.intensity=1.05+Math.cos(now*1.25)*.14;
       if (envApi && typeof envApi.update === 'function') envApi.update(dt, now);
       if (structuresApi && typeof structuresApi.updateStructures === 'function') structuresApi.updateStructures(dt, now);
+      if (minimapApi) {
+        if (priceTerritoryApi && priceTerritoryApi.getDefenseMarkers) {
+          minimapApi.setDefenses(priceTerritoryApi.getDefenseMarkers());
+        }
+        minimapApi.draw();
+      }
       renderer.render(scene,camera);
     }
 
     addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio||1,innerWidth<760?1.35:1.8));});
 
     updateStatusUI();
-    pushFeed('Battlefield v8.5 · price territory & frontline','win');
+    pushFeed('Battlefield v8.6 · minimap & camera navigation','win');
     pushFeed('Market pressure moves formations and the contested front','info');
     pushFeed('Public build uses HTTPS-safe data feeds','info');
     animate();
