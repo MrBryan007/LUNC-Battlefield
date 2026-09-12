@@ -103,14 +103,46 @@
     const camera = new THREE.PerspectiveCamera(43, innerWidth / innerHeight, .1, 250);
     camera.position.set(0, 38, 48);
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    // v9.1: renderer abstraction — default WebGL (r128), optional WebGPU try/fallback
+    let rendererHandle = null;
+    let rendererBackend = 'webgl';
+    let rendererFallbackReason = null;
+    if (window.LUNCBattle && LUNCBattle.renderer && typeof LUNCBattle.renderer.create === 'function') {
+      rendererHandle = LUNCBattle.renderer.create({
+        THREE: THREE,
+        antialias: true,
+        powerPreference: 'high-performance'
+      });
+    } else {
+      rendererHandle = {
+        renderer: new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' }),
+        backend: 'webgl',
+        webgpuAvailable: null,
+        fallbackReason: 'LUNCBattle.renderer missing — direct WebGLRenderer',
+        capabilities: null,
+        dispose: function () {}
+      };
+    }
+    const renderer = rendererHandle.renderer;
+    rendererBackend = rendererHandle.backend || 'webgl';
+    rendererFallbackReason = rendererHandle.fallbackReason || null;
+    window.LUNCBattle = window.LUNCBattle || {};
+    LUNCBattle.activeRendererBackend = rendererBackend;
+    LUNCBattle.rendererFallbackReason = rendererFallbackReason;
     renderer.setSize(innerWidth, innerHeight);
-    // v8.8: pixel ratio + shadowMap applied via LUNCBattle.quality.apply (never recreate renderer)
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    renderer.outputEncoding = THREE.sRGBEncoding;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.02;
+    // v8.8/v9.1: pixel ratio + shadowMap via quality.apply (never recreate renderer)
+    // Shadow / encoding / toneMapping are WebGLRenderer APIs — safe on default path
+    if (renderer.shadowMap) {
+      renderer.shadowMap.enabled = true;
+      if (THREE.PCFSoftShadowMap) renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    }
+    if ('outputEncoding' in renderer && THREE.sRGBEncoding != null) {
+      renderer.outputEncoding = THREE.sRGBEncoding;
+    }
+    if ('toneMapping' in renderer && THREE.ACESFilmicToneMapping != null) {
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.02;
+    }
     document.body.insertBefore(renderer.domElement, document.body.firstChild);
 
     const controls = new THREE.OrbitControls(camera, renderer.domElement);

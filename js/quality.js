@@ -1,4 +1,4 @@
-/* LUNC Battlefield v8.8 — graphics quality + performance scaling (graphics-only) */
+/* LUNC Battlefield v9.1 — graphics quality + performance scaling (graphics-only) */
 (function (global) {
   'use strict';
 
@@ -366,7 +366,11 @@
 
     if (rendererRef) {
       try {
-        rendererRef.setPixelRatio(currentPixelRatio);
+        if (LB.renderer && typeof LB.renderer.applyPixelRatio === 'function') {
+          LB.renderer.applyPixelRatio(rendererRef, currentPixelRatio);
+        } else {
+          rendererRef.setPixelRatio(currentPixelRatio);
+        }
         // Keep buffer size at CSS pixels; pixel ratio carries dyn-res
         rendererRef.setSize(global.innerWidth, global.innerHeight, false);
       } catch (_) {}
@@ -504,7 +508,11 @@
       var capped = Math.min(dpr, applied.pixelRatioCap);
       currentPixelRatio = Math.max(0.5, capped * currentRenderScale);
       try {
-        rendererRef.setPixelRatio(currentPixelRatio);
+        if (LB.renderer && typeof LB.renderer.applyPixelRatio === 'function') {
+          LB.renderer.applyPixelRatio(rendererRef, currentPixelRatio);
+        } else {
+          rendererRef.setPixelRatio(currentPixelRatio);
+        }
       } catch (_) {}
     }
 
@@ -560,7 +568,7 @@
     overlayEl.className = 'perf-overlay';
     overlayEl.setAttribute('aria-hidden', 'true');
     overlayEl.innerHTML =
-      '<div class="perf-title">PERF · v8.8</div>' +
+      '<div class="perf-title">PERF · v9.1</div>' +
       '<div class="perf-section" id="perfGfx"></div>' +
       '<div class="perf-section perf-feeds" id="perfFeeds"></div>';
     document.body.appendChild(overlayEl);
@@ -575,11 +583,23 @@
     var gfx = document.getElementById('perfGfx');
     var feedEl = document.getElementById('perfFeeds');
     if (gfx) {
+      var rs = (LB.renderer && LB.renderer.getState) ? LB.renderer.getState() : null;
+      var gpuAvail = rs ? rs.webgpuAvailable : null;
+      var gpuLabel = gpuAvail === true ? 'yes' : (gpuAvail === false ? 'no' : 'unknown');
+      var activeBackend = (rs && rs.activeBackend) || LB.activeRendererBackend || 'webgl';
+      var preferLabel = (rs && rs.rendererType) || (rs && rs.preferResolved) || 'webgl';
+      var fb = (rs && rs.fallbackReason) || LB.rendererFallbackReason || '';
+      if (fb && fb.length > 72) fb = fb.slice(0, 69) + '…';
+      var infoSrc = info;
+      if (!infoSrc && LB.renderer && LB.renderer.getInfo) infoSrc = LB.renderer.getInfo(rendererRef);
       gfx.innerHTML =
         '<div>FPS <b>' + st.fps.toFixed(0) + '</b> · avg <b>' + st.frameMs.toFixed(1) + 'ms</b> · 1%low≈ <b>' + st.low1pctMs.toFixed(1) + 'ms</b></div>' +
         '<div>Scale <b>' + st.renderScale.toFixed(2) + '</b> · dPR <b>' + st.pixelRatio.toFixed(2) + '</b> · <b>' + st.label + '</b></div>' +
-        '<div>Calls <b>' + (info && info.render ? info.render.calls : '—') + '</b> · Tris <b>' + (info && info.render ? info.render.triangles : '—') + '</b></div>' +
-        '<div>Tex <b>' + (info && info.memory ? info.memory.textures : '—') + '</b> · Geo <b>' + (info && info.memory ? info.memory.geometries : '—') + '</b></div>' +
+        '<div>Renderer prefer <b>' + preferLabel + '</b> · Active <b>' + activeBackend + '</b></div>' +
+        '<div>WebGPU available <b>' + gpuLabel + '</b></div>' +
+        (fb ? '<div>Fallback <b>' + String(fb).replace(/[<>]/g, '') + '</b></div>' : '') +
+        '<div>Calls <b>' + (infoSrc && infoSrc.render ? infoSrc.render.calls : '—') + '</b> · Tris <b>' + (infoSrc && infoSrc.render ? infoSrc.render.triangles : '—') + '</b></div>' +
+        '<div>Tex <b>' + (infoSrc && infoSrc.memory ? infoSrc.memory.textures : '—') + '</b> · Geo <b>' + (infoSrc && infoSrc.memory ? infoSrc.memory.geometries : '—') + '</b></div>' +
         '<div>Units <b>' + (counts.units != null ? counts.units : '—') + '</b> · Proj <b>' + (counts.projectiles != null ? counts.projectiles : '—') + '</b></div>' +
         '<div>Parts <b>' + (counts.particles != null ? counts.particles : '—') + '</b> · Expl <b>' + (counts.explosions != null ? counts.explosions : '—') + '</b> · Smoke <b>' + (counts.smoke != null ? counts.smoke : '—') + '</b></div>' +
         '<div>Minimap <b>' + (st.preset.minimapHz || '—') + ' Hz</b></div>';
@@ -740,7 +760,7 @@
 
   // Public API
   var api = {
-    version: 'v8.8',
+    version: 'v9.1',
     MODES: MODES,
     PRESETS: PRESETS,
     FEED_STATES: FEED_STATES,
