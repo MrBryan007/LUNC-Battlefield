@@ -135,3 +135,40 @@ Suggested soak checklist:
 - Implementation: v8.8 quality system complete on `feat/v8-rts-graphics-overhaul`
 - **Do not merge to main** until product owner approval
 - **Do not start v9** in this PR
+
+
+---
+
+## Sustained performance soak (box browser, 2026-09-11)
+
+**Tip under test:** `c04ffaf` (+ follow-up quality-UI fix if present)  
+**URL:** `?perf=1` · quality AUTO · desktop ~1280  
+
+| Metric | Value |
+| --- | --- |
+| Duration | ~15.3 min (185 samples @ 5s) |
+| FPS avg / min / max | 25 / 25 / 25 (flat; no progressive decline) |
+| frameMs | ~40 |
+| Final quality | `AUTO · LOW` · renderScale `0.56` |
+| Final renderer.info | ~982 calls · ~57.7k tris · 9 textures · 407 geometries |
+| Decline | **0** (start-half FPS = end-half FPS) |
+
+**Caveat:** Flat 25 FPS on the shared box VM may reflect compositor/throttle limits more than phone/desktop silicon. Adaptive scale did settle LOW under load; quality cycling still applied scales 0.72→1.0 correctly.
+
+### Quality UI fix (v8.8.1)
+Graphics picker was mounted in `#statusTray` under the minimap (`z-index` 26 vs 27) and was not clickable. Moved to **fixed top-right** (`z-index` 45) with visible `AUTO · X` chip; menu opens downward.
+
+### Provider / feed health (soak environment)
+| Feed | Observed |
+| --- | --- |
+| Binance Vision REST | LIVE |
+| Binance WS | RECONNECTING / blocked (451-class) |
+| CoinGecko | CORS_BLOCKED |
+| DefiLlama | LIVE |
+| Backend/API | UNAVAILABLE |
+| Terra | LIVE where wired |
+
+Feed failures are diagnostics only — not graphics failures. App continues with Vision REST + fallbacks.
+
+### Merge recommendation
+**Branch ready for independent final review.** Do **not** merge until Bryan approves. Known UI occlusion fixed in v8.8.1; re-verify quality gear click on desktop + ~390px before merge decision.

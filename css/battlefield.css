@@ -536,6 +536,13 @@
 
 
 /* ===== v8.8 graphics quality picker + perf overlay ===== */
+.quality-picker-fixed {
+  position: fixed;
+  top: max(8px, env(safe-area-inset-top));
+  right: max(10px, env(safe-area-inset-right));
+  z-index: 45; /* above minimap (27) + trays — must stay clickable */
+  pointer-events: auto;
+}
 .quality-picker {
   position: relative;
   display: flex;
@@ -543,29 +550,47 @@
   gap: 6px;
   pointer-events: auto;
 }
-.quality-gear {
-  width: 28px; height: 28px;
+.quality-chip {
+  max-width: 110px;
+  padding: 4px 8px;
   border-radius: 6px;
-  border: 1px solid rgba(255,255,255,.1);
-  background: rgba(7,11,8,.88);
+  border: 1px solid rgba(215,181,109,.28);
+  background: rgba(7,11,8,.9);
+  color: #d7b56d;
+  font: 700 10px Rajdhani, sans-serif;
+  letter-spacing: .35px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  backdrop-filter: blur(8px);
+  pointer-events: none;
+}
+.quality-gear {
+  width: 30px; height: 30px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,.14);
+  background: rgba(7,11,8,.92);
   color: #c9d4cc;
-  font-size: 14px;
+  font-size: 15px;
   cursor: pointer;
   backdrop-filter: blur(8px);
   line-height: 1;
+  pointer-events: auto;
+  touch-action: manipulation;
 }
 .quality-gear:hover { border-color: rgba(215,181,109,.45); color: #f0e2b8; }
 .quality-menu {
   position: absolute;
-  right: 0; bottom: calc(100% + 6px);
-  min-width: 148px;
+  right: 0; top: calc(100% + 6px); bottom: auto;
+  min-width: 168px;
   padding: 8px 10px;
   border-radius: 8px;
   border: 1px solid rgba(255,255,255,.1);
-  background: rgba(7,11,8,.94);
+  background: rgba(7,11,8,.96);
   backdrop-filter: blur(10px);
   box-shadow: 0 8px 24px rgba(0,0,0,.45);
-  z-index: 40;
+  z-index: 46;
+  pointer-events: auto;
 }
 .quality-menu[hidden] { display: none !important; }
 .quality-menu-label {
@@ -653,7 +678,12 @@
 .feed-row.state-UNAVAILABLE b { color: #ed7d74; }
 
 @media (max-width: 720px) {
-  .quality-menu { min-width: 132px; right: -4px; }
+  .quality-picker-fixed {
+    top: max(8px, env(safe-area-inset-top));
+    right: max(6px, env(safe-area-inset-right));
+  }
+  .quality-chip { max-width: 88px; font-size: 9px; padding: 3px 6px; }
+  .quality-menu { min-width: 148px; right: 0; }
   .perf-overlay {
     max-width: min(280px, 88vw);
     font-size: 10px;

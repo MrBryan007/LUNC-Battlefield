@@ -627,25 +627,27 @@
 
   function updateQualityUi() {
     var label = document.getElementById('qualityLabel');
+    var chip = document.getElementById('qualityChip');
     var sel = document.getElementById('qualitySelect');
     var st = getState();
     if (label) label.textContent = st.label;
+    if (chip) chip.textContent = st.label;
     if (sel && sel.value !== userMode) sel.value = userMode;
   }
 
   function mountQualityUi() {
     if (document.getElementById('qualityPicker')) return;
-    var tray = document.getElementById('statusTray');
-    if (!tray) return;
+    // Fixed top-right — must stay above minimap/statusTray (was occluded in tray)
     var wrap = document.createElement('div');
     wrap.id = 'qualityPicker';
-    wrap.className = 'quality-picker';
+    wrap.className = 'quality-picker quality-picker-fixed';
     wrap.innerHTML =
-      '<button type="button" id="qualityGear" class="quality-gear" title="Graphics quality" aria-label="Graphics quality">⚙</button>' +
+      '<button type="button" id="qualityGear" class="quality-gear" title="Graphics quality" aria-label="Graphics quality" aria-expanded="false">⚙</button>' +
+      '<span class="quality-chip" id="qualityChip" aria-hidden="true">AUTO</span>' +
       '<div class="quality-menu" id="qualityMenu" hidden>' +
       '<label class="quality-menu-label">Graphics</label>' +
       '<select id="qualitySelect" aria-label="Graphics quality mode">' +
-      '<option value="AUTO">AUTO</option>' +
+      '<option value="AUTO">AUTO (recommended)</option>' +
       '<option value="LOW">LOW</option>' +
       '<option value="MEDIUM">MEDIUM</option>' +
       '<option value="HIGH">HIGH</option>' +
@@ -653,7 +655,7 @@
       '</select>' +
       '<div class="quality-active" id="qualityLabel">AUTO · MEDIUM</div>' +
       '</div>';
-    tray.insertBefore(wrap, tray.firstChild);
+    document.body.appendChild(wrap);
 
     var gear = document.getElementById('qualityGear');
     var menu = document.getElementById('qualityMenu');
@@ -662,15 +664,23 @@
       e.preventDefault();
       e.stopPropagation();
       var open = menu.hasAttribute('hidden');
-      if (open) menu.removeAttribute('hidden');
-      else menu.setAttribute('hidden', '');
+      if (open) {
+        menu.removeAttribute('hidden');
+        gear.setAttribute('aria-expanded', 'true');
+      } else {
+        menu.setAttribute('hidden', '');
+        gear.setAttribute('aria-expanded', 'false');
+      }
     });
     sel.value = userMode;
     sel.addEventListener('change', function () {
       setMode(sel.value);
     });
     document.addEventListener('pointerdown', function (e) {
-      if (!wrap.contains(e.target)) menu.setAttribute('hidden', '');
+      if (!wrap.contains(e.target)) {
+        menu.setAttribute('hidden', '');
+        gear.setAttribute('aria-expanded', 'false');
+      }
     });
     updateQualityUi();
   }
