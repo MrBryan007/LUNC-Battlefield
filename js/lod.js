@@ -1,4 +1,4 @@
-/* LUNC Battlefield v9.4.5 — true LOD + staggered eval + shared impostor pool
+/* LUNC Battlefield v9.4.6 — true LOD + impostor-only LOD3 + mesh-merge companion
  * LUNCBattle.lod — camera distance → LOD0–3; never despawns simulation state.
  * Missing LOD / GLB → procedural SAFE FALLBACK forever. No black canvas.
  */
@@ -343,12 +343,13 @@
 
     if (groups) {
       if (band >= 3) {
-        // LOD3: hide all procedural groups; show impostor stub (no despawn / no teleport)
+        // LOD3: hide all procedural groups; show impostor stub only (v9.4.6: no ground blob)
         setGroupVis(groups.detail, false);
         setGroupVis(groups.major, false);
         setGroupVis(groups.limbs, false);
         setGroupVis(groups.core, false);
         setGroupVis(groups.silhouette, false);
+        setProceduralChildrenVisible(unit, false, { keepGroundShadow: false });
         ensureImpostorStub(unit, THREE);
         if (ud.impostorStub) ud.impostorStub.visible = true;
         ud.impostorReady = true;
@@ -356,6 +357,8 @@
       } else {
         ud.impostorReady = false;
         if (ud.impostorStub) ud.impostorStub.visible = false;
+        // Restore any children hidden at LOD3 (ground blob shadow, etc.)
+        setProceduralChildrenVisible(unit, true, { keepGroundShadow: true });
         setGroupVis(groups.detail, showDetail);
         setGroupVis(groups.major, showMajor);
         setGroupVis(groups.limbs, showLimbs);
@@ -413,16 +416,20 @@
     }
   }
 
-  /** Hide/show non-impostor children (procedural or GLTF visual) without removing from scene. */
-  function setProceduralChildrenVisible(unit, on) {
+  /** Hide/show non-impostor children (procedural or GLTF visual) without removing from scene.
+   *  v9.4.6: LOD3 impostor-only — hide ground blob too (opts.keepGroundShadow).
+   */
+  function setProceduralChildrenVisible(unit, on, opts) {
+    opts = opts || {};
+    var keepShadow = opts.keepGroundShadow !== false && !!on;
+    if (!on) keepShadow = !!opts.keepGroundShadow; // default false when hiding
     if (!unit || !unit.children) return;
     for (var i = 0; i < unit.children.length; i++) {
       var ch = unit.children[i];
       if (ch && ch.userData && ch.userData.luncImpostor) continue;
-      // Keep ground blob shadow visible at all bands except we still show it at LOD3 under stub
       if (ch && ch.isMesh && ch.material && ch.material.transparent && ch.rotation &&
           Math.abs(ch.rotation.x + Math.PI / 2) < 0.01) {
-        ch.visible = true;
+        ch.visible = keepShadow;
         continue;
       }
       if (ch) ch.visible = !!on;
@@ -776,7 +783,7 @@
   }
 
   LB.lod = {
-    version: 'v9.4.5',
+    version: 'v9.4.6',
     DEFAULT_ENTER: DEFAULT_ENTER,
     getEnterThresholds: getEnterThresholds,
     getHysteresis: getHysteresis,

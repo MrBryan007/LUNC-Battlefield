@@ -1,4 +1,4 @@
-/* LUNC Battlefield v9.4.5 — graphics quality + PERF recovery (throttled UI) */
+/* LUNC Battlefield v9.4.6 — graphics quality + mesh-merge PERF (throttled UI) */
 (function (global) {
   'use strict';
 
@@ -99,11 +99,11 @@
       unitDetail: 'medium',
       envDensity: 0.60,
       vegetationDensity: 0.55,
-      particles: 70,
-      smoke: 8,
-      explosions: 5,
-      projectiles: 32,
-      scorches: 14,
+      particles: 55,
+      smoke: 6,
+      explosions: 4,
+      projectiles: 28,
+      scorches: 12,
       minimapHz: 8,
       animComplexity: 'medium',
       lightingComplexity: 'medium',
@@ -123,11 +123,11 @@
       unitDetail: 'high',
       envDensity: 0.85,
       vegetationDensity: 0.85,
-      particles: 120,
-      smoke: 16,
-      explosions: 8,
-      projectiles: 48,
-      scorches: 24,
+      particles: 90,
+      smoke: 10,
+      explosions: 6,
+      projectiles: 40,
+      scorches: 18,
       minimapHz: 8,
       animComplexity: 'high',
       lightingComplexity: 'high',
@@ -147,11 +147,11 @@
       unitDetail: 'ultra',
       envDensity: 1.0,
       vegetationDensity: 1.0,
-      particles: 160,
-      smoke: 20,
-      explosions: 10,
-      projectiles: 56,
-      scorches: 28,
+      particles: 120,
+      smoke: 14,
+      explosions: 8,
+      projectiles: 48,
+      scorches: 22,
       minimapHz: 10,
       animComplexity: 'ultra',
       lightingComplexity: 'ultra',
@@ -624,7 +624,7 @@
     overlayEl.className = 'perf-overlay';
     overlayEl.setAttribute('aria-hidden', 'true');
     overlayEl.innerHTML =
-      '<div class="perf-title">PERF · v9.4.5</div>' +
+      '<div class="perf-title">PERF · v9.4.6</div>' +
       '<div class="perf-section" id="perfGfx"></div>' +
       '<div class="perf-section" id="perfAssets"></div>' +
       '<div class="perf-section perf-feeds" id="perfFeeds"></div>';
@@ -851,7 +851,7 @@
 
   // Public API
   var api = {
-    version: 'v9.4.5',
+    version: 'v9.4.6',
     MODES: MODES,
     PRESETS: PRESETS,
     FEED_STATES: FEED_STATES,

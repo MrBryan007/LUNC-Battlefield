@@ -1,66 +1,68 @@
-# LUNC Battlefield v9.4.5 — PERFORMANCE RECOVERY
+# LUNC Battlefield v9.4.6 — REAL PERF via mesh merging
 
-**Status:** v9.4.5 on `feat/v9-next-gen-renderer` only. **Not merged to main.** No Pages deploy from this milestone.
+**Status:** v9.4.6 on `feat/v9-next-gen-renderer` only. **Not merged to main.** No Pages deploy from this milestone.
 
-**Baseline (v9.4.4 acceptance):** sustained ~**25 FPS / 40ms**, Calls ~**600–940**, Tris ~**36–44k**, Units ~**48–74**. Visual OK; too slow to add next art.
+**Baseline (v9.4.4 acceptance):** sustained ~**25 FPS / 40ms**, Calls ~**600–940**, Tris ~**36–44k**, Units ~**48–74**.
 
-**Goals:** Recover substantial FPS / draw calls **without** emptying the battlefield, reverting tanks to slabs, disabling air combat, making the scene look obviously worse, or changing market/data-truth.
+**v9.4.5 result (FAILED soft opts):** selective shadows, LOD stagger, FX/impostor pools, frustum hide, throttled minimap/PERF — **measured NO FPS gain** (~25 FPS, Calls still **600–1018**). Root remaining cost: **main-pass multi-mesh procedural units** (~12–18 meshes × ~50–70 units).
 
-**Targets:** normal cam **50–60 FPS** if realistic; heavy combat **>45**; minimum = major measurable improvement from ~25 FPS. Materially cut ~600–940 calls.
+**Goals:** Material FPS + Calls improvement while PRESERVING density ~48–74, tank hull+turret+cannon through useful LOD, distinct artillery, helis+jets+tracers+explosions, faction colors, minimap, frontline, price territory, semantic LOD, and v9.4.3–5 lifecycle/PERF snapshot.
+
+**Targets:** normal **50–60 FPS** if realistic; heavy **>45**; minimum = clear measurable jump from ~25. Cut Calls well below the 600–940 band.
 
 ---
 
-## Profile first (code + renderer.info)
+## Why v9.4.5 did not move the needle
 
-Inspected `renderer.info`, material/geo construction, FX pools, LOD tick, lights/shadows, minimap Hz, and per-frame allocations.
+| Soft opt | Intent | Why Calls stayed high |
+| --- | --- | --- |
+| Selective shadows | Cut shadow-map draws | Main pass still issued **one draw per tiny box/cyl** |
+| LOD stagger / frustum hide | CPU + some hide | On-screen armies still ~12–18 meshes each |
+| FX / impostor pools | GC + mat churn | Secondary vs unit mesh spam |
+| Throttled UI | Overlay noise | Not in `renderer.info.render.calls` hot path |
 
-| Rank | Bottleneck | Evidence | Why it hurts |
+**Conclusion:** Must reduce **meshes per unit** (merge same-material static parts), not only shadow policy.
+
+---
+
+## v9.4.6 approach (narrow — not a rewrite)
+
+1. **Per-unit / shared baked mesh merge** for static parts sharing a material (`bakeGeo` + `mergeGeos`, r128-safe, no BufferGeometryUtils CDN).
+2. Prefer **one mesh per material per semantic LOD group**; keep Separate Groups where animation requires it.
+3. **Shared merged geometries** cached once (`_mergedGeoCache`) — no per-unit geo clone of merged results; primitive `GEO.*` still shared.
+4. Stronger **LOD3 impostor-only** (`visible` hide of procedural children + ground blob).
+5. **LOW** still `shadowMap.enabled = false` (unchanged); HIGH keeps selective casters.
+6. Harder simultaneous transparent FX caps after mesh cut.
+
+### Exact mesh strategies
+
+| Unit | Kept separate (anim / LOD / caster) | Merged (same mat) | Approx mesh Δ @ LOD0 |
 | --- | --- | --- | --- |
-| **1** | **Shadow-map draw spam** | Every procedural mesh used `castShadow=true` via `meshFrom` (~12–18 meshes/unit × ~60 units ≈ 700+ casters) | Shadow pass ≈ one extra draw per caster → dominates Calls ~600–940 |
-| **2** | **Main-pass mesh count** | Infantry/armor/arty multi-mesh; LOD hides groups but far units still drawn when off-frustum | Frustum only skipped **anim**, not `visible` |
-| **3** | **LOD CPU every frame** | `updateUnitLod` + env `traverse` every frame for all units/props | Distance + hysteresis + group toggles on 60+ objects @ 25 FPS compounds frame time |
-| **4** | **FX / light alloc** | New `MeshBasicMaterial` per scorch/shockwave; new `PointLight` per muzzle/explosion | GC + unique mats; unbounded flash lights |
-| **5** | **Unique LOD3 stub mats/geos** | `ensureImpostorStub` allocated per unit | Inflates `info.memory.geometries` / materials |
-| **6** | **Minimap + PERF UI** | `getDefenseMarkers` every frame; overlay refresh 0.35s; HIGH minimap 12 Hz | CPU noise under combat |
-| **7** | **Per-shot matrix / clone** | `muzzleWorld` cloned Vector3 + `updateMatrixWorld(true)`; heli rotor / air shadow `.clone()` mats | Allocations + unique transparent mats |
+| **Infantry** | Limb roots (upper/lower Groups), torso accent caster, pelvis, chest, head skin, weapon, backpack | lowerLeg+boot → 1; bull helmCap+disc → 1; bear ridge+stub → 1 | ~19 → ~15 |
+| **Armor** | Hull / bevel / skirt (diff mats), turret Group, cannon recoil, turret accent caster | **8 wheels → 1**; **2 track rows → 1** | ~17 → ~10 |
+| **Artillery** | Base caster, shield, barrel Group + breech | sides L+R → 1; wheels → 1; trails → 1; feet → 1 | ~12 → ~8 |
+| **Heli** | Cabin caster, nose, boom, rotor Group, tail rotor | skids → 1; pods → 1 | ~10 → ~8 |
+| **Jet** | Fuse caster, nose, fin | wings → 1; engines → 1 | ~8 → ~6 |
 
-Transparent FX (smoke/sparks, `depthWrite:false`) remain secondary vs shadow spam. Population intentionally kept (Units ~48–74).
+**Preserved:** turret yaw, cannon/barrel recoil, infantry walk limbs, heli rotor spin, jet engine pulse (scales merged engine mesh), faction accents, semantic LOD groups, army density, air combat.
+
+**Avoided:** emptying armies, slab tanks, disabling air, Three upgrade, SkeletonUtils / authored kit (v9.5).
 
 ---
 
-## Optimizations shipped (v9.4.5)
+## Expected Calls impact
 
-1. **Selective unit shadows (largest expected Calls win)**  
-   - Only **core** meshes cast (torso/hull/turret/cabin/fuse). Limbs, wheels, detail, ground blobs: never cast.  
-   - Runtime `LUNCBattle.lod.applyShadowPolicy`: cast only at **LOD0–1**; LOD2+/culled → off.  
-   - Tighter sun shadow camera frustum (battlefield center).
+- Main pass: roughly **−4 to −8 draws/unit** on screen → on ~50–70 units often **−200 to −500** calls vs multi-mesh baseline (before counting LOD hides).
+- Combined with v9.4.5 selective shadows + frustum/LOD3 hide: aim to leave the **600–940** band (toward ~**250–450** in typical HIGH camera, load-dependent).
+- FPS: material recovery from ~25 toward **50–60** normal / **>45** heavy if GPU was draw-bound; if CPU-bound elsewhere, still expect a **clear** jump.
 
-2. **Frustum hide (not despawn)**  
-   - Band ≥2 + out of view → `unit.visible = false` (sim continues). Structures same.
+Profile with `renderer.info` / PERF overlay (`?perf=1`, fixed Graphics **HIGH**).
 
-3. **LOD CPU stagger**  
-   - LOD0–1: every frame. LOD2: every 2 frames. LOD3: every 4. Bucketed by `userData.index`.  
-   - Env LOD traverse every 3rd frame. No intentional visible “delayed LOD” pop (hysteresis retained).
+---
 
-4. **Shared LOD3 impostor pool**  
-   - Shared stub geos + 2 faction `MeshBasic` mats (bull/bear).
+## BUILD
 
-5. **FX lifecycle**  
-   - Scorch / shockwave mesh pools; flash `PointLight` pool capped (2 mobile / 4 desktop).  
-   - Projectile/particle mats cloned once at pool create (no per-spawn `new Material`).  
-   - Air combat + heli/jet kept.
-
-6. **Shared unit transparent mats**  
-   - Heli rotor disc + air ground-shadow: shared basics (no per-unit `.clone()`).
-
-7. **Minimap / PERF throttle**  
-   - HIGH minimap **8 Hz**, ULTRA **10**, MEDIUM **8**, LOW **7**.  
-   - Defense markers ~2 Hz; PERF overlay refresh **0.5s**; label **v9.4.5**.
-
-8. **Cheaper muzzle**  
-   - Scratch `Vector3`; no forced `updateMatrixWorld(true)` per shot.
-
-**BUILD:** `v9.4.5` · cache `?v=20260912v945` · PERF label `v9.4.5`.
+`v9.4.6` · cache `?v=20260912v946` · PERF label `v9.4.6`.
 
 ---
 
@@ -71,22 +73,25 @@ Transparent FX (smoke/sparks, `depthWrite:false`) remain secondary vs shadow spa
 - Disable air combat  
 - Change market / Battle Strength / data-truth  
 - Start v9.5 authored unit kit / SkeletonUtils / KTX2  
-- Merge to `main` / deploy Pages  
+- Merge to `main` / deploy Pages / merge PR #4  
 
 ---
 
-## Before / after measurement notes (parent browser verify)
+## Before / after measurement notes (parent browser A/B)
 
-Use `?perf=1` (or Shift+P). Prefer fixed Graphics **HIGH** (not AUTO) for A/B.
+Compare tip **v9.4.6** vs:
 
-| Metric | v9.4.4 baseline | v9.4.5 expect |
+- `654c5d4` — v9.4.5 soft opts (failed FPS)  
+- `26e1e341` — v9.4.4 visual baseline (~25 FPS / Calls 600–940)
+
+Use `?perf=1` (or Shift+P). Prefer fixed Graphics **HIGH** (not AUTO).
+
+| Metric | v9.4.4 / v9.4.5 | v9.4.6 expect |
 | --- | --- | --- |
 | FPS / frame ms | ~25 / ~40ms | major ↑ (aim 50–60 normal; >45 heavy) |
-| Calls | ~600–940 | material cut (often ~½ from shadow policy alone) |
-| Tris | ~36–44k | mild ↓ (frustum hide + LOD) |
+| Calls | ~600–940 (v9.4.5 still 600–1018) | clear cut below that band |
+| Tris | ~36–44k | similar (merge ≠ decimate) |
 | Units | ~48–74 | **unchanged density** |
-| Visual | tank hull+turret+cannon; air OK | same silhouettes; close shadows still present |
+| Visual | tank hull+turret+cannon; air OK | same silhouettes; wheels no longer spin independently (merged) |
 
-**Single opt expected to help most:** selective + distance LOD shadow casting (shadow-map draw elimination).
-
-Regression checks: tanks still read as tanks at LOD2; heli/jet still fire; no empty battlefield.
+Regression checks: tanks read as tanks at LOD2; heli/jet still fire; no empty battlefield; PERF shows **v9.4.6**.

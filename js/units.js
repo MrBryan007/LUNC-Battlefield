@@ -1,4 +1,4 @@
-/* Unit builders / formations — v9.4.5 perf: selective shadows + shared FX mats */
+/* Unit builders / formations — v9.4.6 mesh merge: fewer draws / shared baked geos */
 (function (global) {
   'use strict';
   const LB = global.LUNCBattle;
@@ -108,7 +108,187 @@
           color: 0x3a4640, transparent: true, opacity: 0.55, depthWrite: false
         });
 
-    // v9.4.5: default NO cast — only explicit core casters (huge draw-call win on shadow map)
+    // ---- v9.4.6: bake+merge helpers (r128-safe, no BufferGeometryUtils CDN) ----
+    const _bakeM = new THREE.Matrix4();
+    const _bakeP = new THREE.Vector3();
+    const _bakeQ = new THREE.Quaternion();
+    const _bakeS = new THREE.Vector3();
+    const _bakeE = new THREE.Euler();
+    const _mergedGeoCache = Object.create(null);
+
+    /** Clone src geo and bake local TRS into vertex positions (shared primitives stay intact). */
+    function bakeGeo(srcGeo, px, py, pz, rx, ry, rz, sx, sy, sz) {
+      const g = srcGeo.clone();
+      _bakeP.set(px || 0, py || 0, pz || 0);
+      _bakeE.set(rx || 0, ry || 0, rz || 0, 'XYZ');
+      _bakeQ.setFromEuler(_bakeE);
+      _bakeS.set(sx != null ? sx : 1, sy != null ? sy : 1, sz != null ? sz : 1);
+      _bakeM.compose(_bakeP, _bakeQ, _bakeS);
+      g.applyMatrix4(_bakeM);
+      return g;
+    }
+
+    /** Merge BufferGeometries that share the same attribute layout (position/normal/uv + index). */
+    function mergeGeos(geos) {
+      if (!geos || !geos.length) return null;
+      if (geos.length === 1) return geos[0];
+      const names = Object.keys(geos[0].attributes);
+      const buckets = {};
+      let n, name;
+      for (n = 0; n < names.length; n++) buckets[names[n]] = [];
+      const indexList = [];
+      let indexOffset = 0;
+      let i, j, geo, attr, arr, vc, TypeArray, itemSize, total, offset, mergedArr, out;
+      for (i = 0; i < geos.length; i++) {
+        geo = geos[i];
+        if (!geo.attributes.normal) {
+          try { geo.computeVertexNormals(); } catch (_) {}
+        }
+        for (n = 0; n < names.length; n++) {
+          name = names[n];
+          attr = geo.attributes[name];
+          if (!attr) continue;
+          buckets[name].push(attr.array);
+        }
+        vc = geo.attributes.position.count;
+        if (geo.index) {
+          arr = geo.index.array;
+          for (j = 0; j < arr.length; j++) indexList.push(arr[j] + indexOffset);
+        } else {
+          for (j = 0; j < vc; j++) indexList.push(indexOffset + j);
+        }
+        indexOffset += vc;
+      }
+      out = new THREE.BufferGeometry();
+      for (n = 0; n < names.length; n++) {
+        name = names[n];
+        if (!geos[0].attributes[name] || !buckets[name].length) continue;
+        attr = geos[0].attributes[name];
+        itemSize = attr.itemSize;
+        TypeArray = attr.array.constructor;
+        total = 0;
+        for (i = 0; i < buckets[name].length; i++) total += buckets[name][i].length;
+        mergedArr = new TypeArray(total);
+        offset = 0;
+        for (i = 0; i < buckets[name].length; i++) {
+          mergedArr.set(buckets[name][i], offset);
+          offset += buckets[name][i].length;
+        }
+        out.setAttribute(name, new THREE.BufferAttribute(mergedArr, itemSize));
+      }
+      out.setIndex(indexList);
+      try { out.computeBoundingSphere(); } catch (_) {}
+      return out;
+    }
+
+    function cachedMerged(key, buildFn) {
+      if (_mergedGeoCache[key]) return _mergedGeoCache[key];
+      _mergedGeoCache[key] = buildFn();
+      return _mergedGeoCache[key];
+    }
+
+
+    // Pre-bake shared merged geos (one allocation, reused by every unit)
+    function geoLowerLegBoot() {
+      return cachedMerged('inf.lowerLegBoot', function () {
+        return mergeGeos([
+          bakeGeo(GEO.lowerLeg, 0, -0.16, 0, 0, 0, 0, 1, 1, 1),
+          bakeGeo(GEO.boot, 0, -0.34, 0.02, 0, 0, 0, 1, 1, 1)
+        ]);
+      });
+    }
+    function geoArmorWheels() {
+      return cachedMerged('armor.wheels', function () {
+        const parts = [];
+        [-0.52, 0.52].forEach(function (z) {
+          [-0.55, -0.18, 0.18, 0.55].forEach(function (x) {
+            parts.push(bakeGeo(GEO.wheel, x, 0.22, z, 0, 0, Math.PI / 2, 1, 1, 1));
+          });
+        });
+        return mergeGeos(parts);
+      });
+    }
+    function geoArmorTracks() {
+      return cachedMerged('armor.tracks', function () {
+        return mergeGeos([
+          bakeGeo(GEO.trackBlock, 0, 0.2, -0.52, 0, 0, 0, 4.2, 1, 1),
+          bakeGeo(GEO.trackBlock, 0, 0.2, 0.52, 0, 0, 0, 4.2, 1, 1)
+        ]);
+      });
+    }
+    function geoArtySides() {
+      return cachedMerged('arty.sides', function () {
+        return mergeGeos([
+          bakeGeo(GEO.carriageSide, 0, 0.45, 0.32, 0, 0, 0, 1, 1, 1),
+          bakeGeo(GEO.carriageSide, 0, 0.45, -0.32, 0, 0, 0, 1, 1, 1)
+        ]);
+      });
+    }
+    function geoArtyWheels() {
+      return cachedMerged('arty.wheels', function () {
+        return mergeGeos([
+          bakeGeo(GEO.artyWheel, 0.05, 0.32, -0.42, 0, 0, Math.PI / 2, 1, 1, 1),
+          bakeGeo(GEO.artyWheel, 0.05, 0.32, 0.42, 0, 0, Math.PI / 2, 1, 1, 1)
+        ]);
+      });
+    }
+    function geoArtyTrails() {
+      return cachedMerged('arty.trails', function () {
+        return mergeGeos([
+          bakeGeo(GEO.trailLeg, -0.55, 0.2, 0.28, 0, 0.35, Math.PI / 2, 1, 1, 1),
+          bakeGeo(GEO.trailLeg, -0.55, 0.2, -0.28, 0, -0.35, Math.PI / 2, 1, 1, 1)
+        ]);
+      });
+    }
+    function geoArtyFeet() {
+      return cachedMerged('arty.feet', function () {
+        return mergeGeos([
+          bakeGeo(GEO.trailFoot, -1.05, 0.06, 0.42, 0, 0, 0, 1, 1, 1),
+          bakeGeo(GEO.trailFoot, -1.05, 0.06, -0.42, 0, 0, 0, 1, 1, 1)
+        ]);
+      });
+    }
+    function geoHeliSkids() {
+      return cachedMerged('heli.skids', function () {
+        return mergeGeos([
+          bakeGeo(GEO.heliSkid, 0.05, 0.22, -0.22, 0, 0, 0, 1, 1, 1),
+          bakeGeo(GEO.heliSkid, 0.05, 0.22, 0.22, 0, 0, 0, 1, 1, 1)
+        ]);
+      });
+    }
+    function geoHeliPods() {
+      return cachedMerged('heli.pods', function () {
+        return mergeGeos([
+          bakeGeo(GEO.trailFoot, 0.1, 0.32, 0.28, 0, 0, 0, 1.4, 0.7, 0.7),
+          bakeGeo(GEO.trailFoot, 0.1, 0.32, -0.28, 0, 0, 0, 1.4, 0.7, 0.7)
+        ]);
+      });
+    }
+    function geoJetWings() {
+      return cachedMerged('jet.wings', function () {
+        return mergeGeos([
+          bakeGeo(GEO.jetWing, -0.1, 0.38, 0.55, 0, 0.35, 0, 1, 1, 1),
+          bakeGeo(GEO.jetWing, -0.1, 0.38, -0.55, 0, -0.35, 0, 1, 1, 1)
+        ]);
+      });
+    }
+    function geoJetEngines() {
+      return cachedMerged('jet.engines', function () {
+        return mergeGeos([
+          bakeGeo(GEO.jetEngine, -0.55, 0.28, 0.28, 0, 0, Math.PI / 2, 1, 1, 1),
+          bakeGeo(GEO.jetEngine, -0.55, 0.28, -0.28, 0, 0, Math.PI / 2, 1, 1, 1)
+        ]);
+      });
+    }
+    function geoBullHelm() {
+      return cachedMerged('inf.helmBull', function () {
+        return mergeGeos([
+          bakeGeo(GEO.helmCap, 0, 0.04, 0, 0, 0, 0, 1, 1, 1),
+          bakeGeo(GEO.helmDisc, 0, 0.02, 0, 0, 0, 0, 1, 1, 1)
+        ]);
+      });
+    }
+    // v9.4.5/6: default NO cast — only explicit core casters (shadow-map draw win)
     function setShadow(mesh, cast) {
       mesh.castShadow = !!cast;
       mesh.receiveShadow = true;
@@ -128,16 +308,23 @@
       return mesh;
     }
 
-    function limbGroup(upperGeo, lowerGeo, matU, matL, upperLen) {
+    function limbGroup(upperGeo, lowerGeo, matU, matL, upperLen, opts) {
+      opts = opts || {};
       const g = new THREE.Group();
       const upper = meshFrom(upperGeo, matU);
       upper.position.y = -upperLen * 0.5;
       g.add(upper);
       const lower = new THREE.Group();
       lower.position.y = -upperLen;
-      const lowerMesh = meshFrom(lowerGeo, matL);
-      const lowerLen = lowerGeo.parameters ? lowerGeo.parameters.height : 0.3;
-      lowerMesh.position.y = -(lowerLen || 0.3) * 0.5;
+      let lowerMesh;
+      if (opts.bakedLower) {
+        // Already baked in parent-local space of lower group (y=0 at hip hinge)
+        lowerMesh = meshFrom(opts.bakedLower, matL);
+      } else {
+        lowerMesh = meshFrom(lowerGeo, matL);
+        const lowerLen = lowerGeo.parameters ? lowerGeo.parameters.height : 0.3;
+        lowerMesh.position.y = -(lowerLen || 0.3) * 0.5;
+      }
       lower.add(lowerMesh);
       g.add(lower);
       g.userData.upper = upper;
@@ -164,17 +351,12 @@
       parts.hips = hips;
       parts.pelvis = pelvis;
 
-      // Legs (pivot at hips)
-      const L_leg = limbGroup(GEO.upperLeg, GEO.lowerLeg, cloth, darkMat, 0.34);
+      // Legs (pivot at hips) — v9.4.6: lowerLeg+boot baked into one mesh per leg
+      const lowerBootGeo = geoLowerLegBoot();
+      const L_leg = limbGroup(GEO.upperLeg, GEO.lowerLeg, cloth, darkMat, 0.34, { bakedLower: lowerBootGeo });
       L_leg.group.position.set(-0.11, 0, 0);
-      const R_leg = limbGroup(GEO.upperLeg, GEO.lowerLeg, cloth, darkMat, 0.34);
+      const R_leg = limbGroup(GEO.upperLeg, GEO.lowerLeg, cloth, darkMat, 0.34, { bakedLower: lowerBootGeo });
       R_leg.group.position.set(0.11, 0, 0);
-      const L_boot = meshFrom(GEO.boot, darkMat);
-      L_boot.position.set(0, -0.34, 0.02);
-      L_leg.lower.add(L_boot);
-      const R_boot = meshFrom(GEO.boot, darkMat);
-      R_boot.position.set(0, -0.34, 0.02);
-      R_leg.lower.add(R_boot);
       hips.add(L_leg.group, R_leg.group);
       parts.L_upperLeg = L_leg.group;
       parts.R_upperLeg = R_leg.group;
@@ -200,20 +382,30 @@
       const head = meshFrom(GEO.headSphere, skinMat);
       head.position.y = 0;
       headG.add(head);
-      const helm = meshFrom(GEO.helmCap, metalMat);
-      helm.position.y = 0.04;
-      headG.add(helm);
-      const helmDisc = meshFrom(GEO.helmDisc, isBull ? metalMat : metalMatDark);
-      helmDisc.position.y = 0.02;
-      headG.add(helmDisc);
+      let helm, helmDisc;
+      if (isBull) {
+        // v9.4.6: bull helmCap+disc share metalMat → one draw
+        helm = meshFrom(geoBullHelm(), metalMat);
+        helmDisc = helm; // same mesh ref for LOD detail list
+        headG.add(helm);
+      } else {
+        helm = meshFrom(GEO.helmCap, metalMat);
+        helm.position.y = 0.04;
+        headG.add(helm);
+        helmDisc = meshFrom(GEO.helmDisc, metalMatDark);
+        helmDisc.position.y = 0.02;
+        headG.add(helmDisc);
+      }
       if (!isBull) {
-        // Bear: taller ridge
-        const ridge = meshFrom(GEO.helmRidge, accent);
-        ridge.position.set(0, 0.14, 0);
+        // Bear: merge ridge+stub (same accent) into one detail mesh
+        const ridgeGeo = cachedMerged('inf.bearRidgeStub', function () {
+          return mergeGeos([
+            bakeGeo(GEO.helmRidge, 0, 0.14, 0, 0, 0, 0, 1, 1, 1),
+            bakeGeo(GEO.bannerStub, 0.02, 0.22, -0.12, 0, 0, 0, 1, 1, 1)
+          ]);
+        });
+        const ridge = meshFrom(ridgeGeo, accent);
         headG.add(ridge);
-        const stub = meshFrom(GEO.bannerStub, accent);
-        stub.position.set(0.02, 0.22, -0.12);
-        headG.add(stub);
       } else {
         const ridge = meshFrom(GEO.helmRidge, accent);
         ridge.scale.set(1, 0.6, 0.8);
@@ -259,7 +451,13 @@
         core: [hips, torso],
         silhouette: [hips, torso],
         major: [headG],
-        detail: parts.backpack ? [parts.backpack, helm, helmDisc] : [helm, helmDisc],
+        detail: (function () {
+          const d = [];
+          if (parts.backpack) d.push(parts.backpack);
+          d.push(helm);
+          if (helmDisc && helmDisc !== helm) d.push(helmDisc);
+          return d;
+        })(),
         limbs: [L_leg.group, R_leg.group, L_arm.group, R_arm.group]
       };
       if (global.LUNCBattle && LUNCBattle.lod && LUNCBattle.lod.registerLodGroups) {
@@ -309,24 +507,14 @@
       hullG.add(hull, bevel, skirt);
       parts.hull = hullG;
 
-      // Tracks / wheels L/R
-      const wheels = [];
-      const tracks = [];
-      [-0.52, 0.52].forEach(function (z) {
-        const trackRow = meshFrom(GEO.trackBlock, trackMat);
-        trackRow.scale.set(4.2, 1, 1);
-        trackRow.position.set(0, 0.2, z);
-        trackRow.userData.baseY = 0.2;
-        hullG.add(trackRow);
-        tracks.push(trackRow);
-        [-0.55, -0.18, 0.18, 0.55].forEach(function (x, i) {
-          const w = meshFrom(GEO.wheel, trackMat);
-          w.rotation.z = Math.PI / 2;
-          w.position.set(x, 0.22, z);
-          hullG.add(w);
-          wheels.push(w);
-        });
-      });
+      // v9.4.6: merge all wheels (1 mesh) + both track rows (1 mesh) — same trackMat
+      const wheelsMerged = meshFrom(geoArmorWheels(), trackMat);
+      hullG.add(wheelsMerged);
+      const tracksMerged = meshFrom(geoArmorTracks(), trackMat);
+      tracksMerged.userData.baseY = 0.2;
+      hullG.add(tracksMerged);
+      const wheels = [wheelsMerged];
+      const tracks = [tracksMerged];
       parts.wheels = wheels;
       parts.tracks = tracks;
 
@@ -419,40 +607,26 @@
       const carriage = new THREE.Group();
       const base = trackCaster(casters, meshFrom(GEO.carriage, darkMat, true));
       base.position.y = 0.38;
-      const sideL = meshFrom(GEO.carriageSide, body);
-      sideL.position.set(0, 0.45, 0.32);
-      const sideR = meshFrom(GEO.carriageSide, body);
-      sideR.position.set(0, 0.45, -0.32);
+      // v9.4.6: sides / wheels / trails / feet → one mesh each (matched materials)
+      const sides = meshFrom(geoArtySides(), body);
       const shield = meshFrom(GEO.shield, accent);
       shield.position.set(0.35, 0.62, 0);
-      carriage.add(base, sideL, sideR, shield);
+      carriage.add(base, sides, shield);
       parts.carriage = carriage;
 
-      const wheels = [];
-      [-0.42, 0.42].forEach(function (z) {
-        const w = meshFrom(GEO.artyWheel, trackMat);
-        w.rotation.z = Math.PI / 2;
-        w.position.set(0.05, 0.32, z);
-        carriage.add(w);
-        wheels.push(w);
-      });
+      const wheelsMerged = meshFrom(geoArtyWheels(), trackMat);
+      carriage.add(wheelsMerged);
+      const wheels = [wheelsMerged];
       parts.wheels = wheels;
 
-      // Trail legs (rear)
-      const trail1 = meshFrom(GEO.trailLeg, darkMat);
-      trail1.rotation.z = Math.PI / 2;
-      trail1.rotation.y = 0.35;
-      trail1.position.set(-0.55, 0.2, 0.28);
-      const trail2 = meshFrom(GEO.trailLeg, darkMat);
-      trail2.rotation.z = Math.PI / 2;
-      trail2.rotation.y = -0.35;
-      trail2.position.set(-0.55, 0.2, -0.28);
-      const foot1 = meshFrom(GEO.trailFoot, metalMatDark);
-      foot1.position.set(-1.05, 0.06, 0.42);
-      const foot2 = meshFrom(GEO.trailFoot, metalMatDark);
-      foot2.position.set(-1.05, 0.06, -0.42);
-      carriage.add(trail1, trail2, foot1, foot2);
-      parts.trails = [trail1, trail2];
+      const trailsMerged = meshFrom(geoArtyTrails(), darkMat);
+      const feetMerged = meshFrom(geoArtyFeet(), metalMatDark);
+      carriage.add(trailsMerged, feetMerged);
+      parts.trails = [trailsMerged];
+      const trail1 = trailsMerged;
+      const trail2 = trailsMerged;
+      const foot1 = feetMerged;
+      const foot2 = feetMerged;
 
       // Barrel group — elevate (rotation.x) + recoil (position.z)
       const barrelG = new THREE.Group();
@@ -480,8 +654,8 @@
         core: [carriage, barrelG],
         silhouette: [carriage, barrelG],
         major: [],
-        detail: wheels.concat([trail1, trail2, foot1, foot2, shield]),
-        limbs: [trail1, trail2]
+        detail: [wheelsMerged, trailsMerged, feetMerged, shield],
+        limbs: [trailsMerged]
       };
       if (global.LUNCBattle && LUNCBattle.lod && LUNCBattle.lod.registerLodGroups) {
         LUNCBattle.lod.registerLodGroups(g, lodGroups);
@@ -526,12 +700,9 @@
       nose.position.set(0.5, 0.5, 0);
       const boom = meshFrom(GEO.heliTail, darkMat);
       boom.position.set(-0.85, 0.58, 0);
-      cabinG.add(cabin, nose, boom);
-      [-0.22, 0.22].forEach(function (z) {
-        const skid = meshFrom(GEO.heliSkid, metalMatDark);
-        skid.position.set(0.05, 0.22, z);
-        cabinG.add(skid);
-      });
+      // v9.4.6: skids merged; pods merged (matched mats)
+      const skids = meshFrom(geoHeliSkids(), metalMatDark);
+      cabinG.add(cabin, nose, boom, skids);
       parts.cabin = cabinG;
 
       const rotorG = new THREE.Group();
@@ -546,15 +717,11 @@
       cabinG.add(tailRotor);
       parts.tailRotor = tailRotor;
 
-      // stub rocket pods under cabin
-      const podL = meshFrom(GEO.trailFoot, metalMat);
-      podL.scale.set(1.4, 0.7, 0.7);
-      podL.position.set(0.1, 0.32, 0.28);
-      const podR = meshFrom(GEO.trailFoot, metalMat);
-      podR.scale.set(1.4, 0.7, 0.7);
-      podR.position.set(0.1, 0.32, -0.28);
-      cabinG.add(podL, podR);
-      parts.pods = [podL, podR];
+      const podsMerged = meshFrom(geoHeliPods(), metalMat);
+      cabinG.add(podsMerged);
+      parts.pods = [podsMerged];
+      const podL = podsMerged;
+      const podR = podsMerged;
 
       // Nose was modeled along +X; rotate to local +Z to match facing convention
       cabinG.rotation.y = -Math.PI / 2;
@@ -565,7 +732,7 @@
         core: [cabinG, rotorG],
         silhouette: [cabinG, rotorG],
         major: [],
-        detail: [tailRotor, podL, podR],
+        detail: [tailRotor, podsMerged],
         limbs: []
       };
       if (global.LUNCBattle && LUNCBattle.lod && LUNCBattle.lod.registerLodGroups) {
@@ -616,28 +783,21 @@
       nose.position.set(1.15, 0.4, 0);
       fuseG.add(fuse, nose);
 
-      const wingL = meshFrom(GEO.jetWing, metalMat);
-      wingL.position.set(-0.1, 0.38, 0.55);
-      wingL.rotation.y = 0.35;
-      const wingR = meshFrom(GEO.jetWing, metalMat);
-      wingR.position.set(-0.1, 0.38, -0.55);
-      wingR.rotation.y = -0.35;
-      fuseG.add(wingL, wingR);
+      // v9.4.6: wings merged; engines merged
+      const wingsMerged = meshFrom(geoJetWings(), metalMat);
+      fuseG.add(wingsMerged);
 
       const fin = meshFrom(GEO.jetTailFin, accent);
       fin.position.set(-0.75, 0.62, 0);
       fuseG.add(fin);
 
-      const engL = meshFrom(GEO.jetEngine, darkMat);
-      engL.rotation.z = Math.PI / 2;
-      engL.position.set(-0.55, 0.28, 0.28);
-      const engR = meshFrom(GEO.jetEngine, darkMat);
-      engR.rotation.z = Math.PI / 2;
-      engR.position.set(-0.55, 0.28, -0.28);
-      fuseG.add(engL, engR);
+      const enginesMerged = meshFrom(geoJetEngines(), darkMat);
+      fuseG.add(enginesMerged);
       parts.fuselage = fuseG;
-      parts.wings = [wingL, wingR];
-      parts.engines = [engL, engR];
+      parts.wings = [wingsMerged];
+      parts.engines = [enginesMerged];
+      const engL = enginesMerged;
+      const engR = enginesMerged;
 
       // Nose along +X in mesh space → local +Z for facing
       fuseG.rotation.y = -Math.PI / 2;
@@ -648,7 +808,7 @@
         core: [fuseG],
         silhouette: [fuseG],
         major: [],
-        detail: [engL, engR, fin],
+        detail: [enginesMerged, fin],
         limbs: []
       };
       if (global.LUNCBattle && LUNCBattle.lod && LUNCBattle.lod.registerLodGroups) {
@@ -890,7 +1050,7 @@
       setAnimState: setAnimState,
       tickUnit: tickUnit,
       GEO: GEO,
-      version: 'v9.4.5'
+      version: 'v9.4.6'
     };
   }
 

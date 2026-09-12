@@ -1,6 +1,6 @@
 # LUNC Battlefield v9.4.4 — True LOD system
 
-**Status:** v9.4.5 PERFORMANCE RECOVERY on `feat/v9-next-gen-renderer` (see `docs/V9-PERF.md`). LOD semantics from v9.4.4 retained.
+**Status:** v9.4.6 mesh-merge PERF on `feat/v9-next-gen-renderer` (see `docs/V9-PERF.md`). LOD semantics from v9.4.4 retained; LOD3 impostor-only tightened.
 
 **Prior:** v9.4.4 on `feat/v9-next-gen-renderer` only. **Not merged to main.** Live Pages remains v8.x.
 

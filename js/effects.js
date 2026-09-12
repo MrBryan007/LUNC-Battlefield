@@ -1,4 +1,4 @@
-/* LUNC Battlefield v9.4.5 — combat effects pooling + shared mats + light pool */
+/* LUNC Battlefield v9.4.6 — combat effects pooling + tighter transparent FX caps */
 (function (global) {
   'use strict';
   const LB = global.LUNCBattle;
@@ -77,7 +77,7 @@
     const inactiveScorches = [];
     const inactiveRings = [];
     const inactiveLights = [];
-    const MAX_FLASH_LIGHTS = mobile ? 2 : 4;
+    const MAX_FLASH_LIGHTS = mobile ? 1 : 3;
 
     const tmpV = new THREE.Vector3();
     const tmpV2 = new THREE.Vector3();
@@ -921,7 +921,7 @@
     }
 
     return {
-      version: 'v9.4.5',
+      version: 'v9.4.6',
       caps: CAPS,
       setCaps: setCaps,
       getDurationScale: function () { return effectDurationScale; },
