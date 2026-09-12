@@ -573,7 +573,9 @@
     throttle.primaryAt = now;
     const dec = info.decimals != null ? info.decimals : 8;
     const detail = document.getElementById('frontlineDetail');
-    if (!detail) return;
+    const detailPanel = document.getElementById('frontlineDetailPanel');
+    const rangePanel = document.getElementById('battleRangePanel');
+    if (!detail && !detailPanel) return;
     const px = info.price;
     const levels = info.levels || [];
     let nearestContested = null;
@@ -597,7 +599,14 @@
     if (below != null) bits.push('▼ $' + Number(below).toFixed(dec));
     if (above != null && above !== below) bits.push('▲ $' + Number(above).toFixed(dec));
     if (nearestContested != null) bits.push('contested ~$' + Number(nearestContested).toFixed(dec));
-    detail.textContent = bits.join(' · ');
+    const line = bits.join(' · ');
+    if (detail) detail.textContent = line;
+    if (detailPanel) detailPanel.textContent = line;
+    if (rangePanel && info.rangeLow != null && info.rangeHigh != null) {
+      const dec = info.decimals != null ? info.decimals : 8;
+      rangePanel.textContent = 'BATTLE ' + Number(info.rangeLow).toFixed(dec)
+        + ' – ' + Number(info.rangeHigh).toFixed(dec);
+    }
   }
 
   function clearForTokenSwitch(token) {
@@ -633,6 +642,8 @@
         : 'UNAVAILABLE — waiting for live book';
     }
     setText('frontlineDetail', 'Frontline —');
+    setText('frontlineDetailPanel', 'Frontline —');
+    setText('battleRangePanel', '—');
     renderDataHealth(true);
     tickStrength();
   }
