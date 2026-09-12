@@ -1,4 +1,4 @@
-/* LUNC Battlefield v9.4.3 — graphics quality + authoritative LOD thresholds */
+/* LUNC Battlefield v9.4.5 — graphics quality + PERF recovery (throttled UI) */
 (function (global) {
   'use strict';
 
@@ -104,7 +104,7 @@
       explosions: 5,
       projectiles: 32,
       scorches: 14,
-      minimapHz: 10,
+      minimapHz: 8,
       animComplexity: 'medium',
       lightingComplexity: 'medium',
       structureDetail: 'medium',
@@ -128,7 +128,7 @@
       explosions: 8,
       projectiles: 48,
       scorches: 24,
-      minimapHz: 12,
+      minimapHz: 8,
       animComplexity: 'high',
       lightingComplexity: 'high',
       structureDetail: 'high',
@@ -152,7 +152,7 @@
       explosions: 10,
       projectiles: 56,
       scorches: 28,
-      minimapHz: 12,
+      minimapHz: 10,
       animComplexity: 'ultra',
       lightingComplexity: 'ultra',
       structureDetail: 'ultra',
@@ -574,7 +574,7 @@
 
     if (overlayVisible) {
       overlayAccum += dt;
-      if (overlayAccum >= 0.35) {
+      if (overlayAccum >= 0.5) {
         overlayAccum = 0;
         refreshOverlay();
       }
@@ -624,7 +624,7 @@
     overlayEl.className = 'perf-overlay';
     overlayEl.setAttribute('aria-hidden', 'true');
     overlayEl.innerHTML =
-      '<div class="perf-title">PERF · v9.4.4</div>' +
+      '<div class="perf-title">PERF · v9.4.5</div>' +
       '<div class="perf-section" id="perfGfx"></div>' +
       '<div class="perf-section" id="perfAssets"></div>' +
       '<div class="perf-section perf-feeds" id="perfFeeds"></div>';
@@ -851,7 +851,7 @@
 
   // Public API
   var api = {
-    version: 'v9.4.3',
+    version: 'v9.4.5',
     MODES: MODES,
     PRESETS: PRESETS,
     FEED_STATES: FEED_STATES,

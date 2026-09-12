@@ -4,7 +4,7 @@ Classic-RTS-inspired Terra Classic intelligence battlefield.
 
 **Build (main / live):** v8.x — RTS Command HUD + War Room (see `docs/V8-GRAPHICS.md`).
 
-**v9 (feature branch only):** `feat/v9-next-gen-renderer` — **v9.4.4** async asset lifecycle (generation tokens) + single-source LOD thresholds + structure LOD3 stub (on v9.4.2 semantic groups / v9.4 true LOD / v9.3 glTF / v9.2 PBR / v9.1 renderer). Default remains WebGL (Three **r128**) with procedural SAFE FALLBACK. Impostors / SkeletonUtils / KTX2 deferred to v9.5. See `docs/V9-LOD.md`. Air units: type 3 heli / type 4 jet (procedural). Not merged to main; live Pages stays on v8 until an explicit merge.
+**v9 (feature branch only):** `feat/v9-next-gen-renderer` — **v9.4.5 PERFORMANCE RECOVERY** (selective shadows, LOD stagger, shared FX/impostor pools, frustum hide, throttled minimap/PERF) on v9.4.4 tank silhouettes + air combat / denser armies. Default remains WebGL (Three **r128**) with procedural SAFE FALLBACK. Impostors / SkeletonUtils / KTX2 deferred to v9.5. See `docs/V9-PERF.md` + `docs/V9-LOD.md`. Not merged to main; live Pages stays on v8 until an explicit merge.
 
 **Live site:** https://mrbryan007.github.io/LUNC-Battlefield/
 
@@ -17,7 +17,8 @@ js/config.js
 js/quality.js
 js/renderer.js  # v9.1+ feature branch
 js/materials.js # v9.2 PBR registry
-js/lod.js  # v9.4.4 LOD (quality-owned thresholds)
+js/lod.js  # v9.4.5 LOD + stagger/shadow policy
+js/…  # see docs/V9-PERF.md
 js/assets.js / js/asset-loader.js  # v9.3–v9.4.4 glTF + generation-token lifecycle
 js/main.js
 js/market.js

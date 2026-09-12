@@ -1,4 +1,4 @@
-/* LUNC Battlefield v9.4.4 — combat effects with pooling & event scaling */
+/* LUNC Battlefield v9.4.5 — combat effects pooling + shared mats + light pool */
 (function (global) {
   'use strict';
   const LB = global.LUNCBattle;
@@ -66,6 +66,19 @@
     GEO.shell.rotateX(Math.PI / 2);
     GEO.rocket.rotateX(Math.PI / 2);
 
+    // Shared MeshBasic mats — color/opacity mutated per spawn; meshes keep own mat instance from pool create
+    const SHARED = {
+      scorch: new THREE.MeshBasicMaterial({ color: 0x1a1612, transparent: true, opacity: 0.55, depthWrite: false }),
+      ring: new THREE.MeshBasicMaterial({ color: 0xffe6a8, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false }),
+      spark: new THREE.MeshBasicMaterial({ color: 0xffcc66, transparent: true, opacity: 0.85, depthWrite: false }),
+      smoke: new THREE.MeshBasicMaterial({ color: 0x3b4039, transparent: true, opacity: 0.85, depthWrite: false }),
+      proj: new THREE.MeshBasicMaterial({ color: 0xffffff })
+    };
+    const inactiveScorches = [];
+    const inactiveRings = [];
+    const inactiveLights = [];
+    const MAX_FLASH_LIGHTS = mobile ? 2 : 4;
+
     const tmpV = new THREE.Vector3();
     const tmpV2 = new THREE.Vector3();
 
@@ -100,7 +113,10 @@
         if (kind === 'shell') geo = GEO.shell;
         else if (kind === 'arty') geo = GEO.arty;
         else if (kind === 'rocket') geo = GEO.rocket;
-        mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: 0xffffff }));
+        // One mat per pooled mesh (reused forever) — avoids alloc storm
+        mesh = new THREE.Mesh(geo, SHARED.proj.clone());
+        mesh.castShadow = false;
+        mesh.receiveShadow = false;
         mesh.userData._poolKind = kind;
       }
       mesh.visible = true;
@@ -128,13 +144,10 @@
       if (!mesh) {
         mesh = new THREE.Mesh(
           isSmoke ? GEO.smoke : GEO.spark,
-          new THREE.MeshBasicMaterial({
-            color: isSmoke ? 0x3b4039 : 0xffcc66,
-            transparent: true,
-            opacity: 0.85,
-            depthWrite: false
-          })
+          (isSmoke ? SHARED.smoke : SHARED.spark).clone()
         );
+        mesh.castShadow = false;
+        mesh.receiveShadow = false;
         mesh.userData._poolKind = want;
       }
       mesh.visible = true;
@@ -237,10 +250,33 @@
       };
       particlePool.push(flash);
 
-      const light = new THREE.PointLight(color || 0xffe08a, 2.2 * scale, 8 + 4 * scale);
+      acquireFlashLight(color || 0xffe08a, 2.2 * scale, 8 + 4 * scale, x, y, z, 0.09);
+    }
+
+    function releaseFlashLight(entry) {
+      if (!entry || !entry.light) return;
+      const light = entry.light;
+      light.intensity = 0;
+      if (light.parent) scene.remove(light);
+      if (inactiveLights.length < MAX_FLASH_LIGHTS * 2) inactiveLights.push(light);
+    }
+
+    function acquireFlashLight(color, intensity, distance, x, y, z, life) {
+      while (flashLights.length >= MAX_FLASH_LIGHTS) {
+        const oldest = flashLights.shift();
+        releaseFlashLight(oldest);
+      }
+      let light = inactiveLights.pop() || null;
+      if (!light) {
+        light = new THREE.PointLight(0xffffff, 1, 10);
+        light.castShadow = false;
+      }
+      light.color.setHex(color);
+      light.intensity = intensity;
+      light.distance = distance;
       light.position.set(x, y, z);
-      scene.add(light);
-      flashLights.push({ light: light, life: 0.09 });
+      if (!light.parent) scene.add(light);
+      flashLights.push({ light: light, life: life });
     }
 
     function spawnParticleBurst(x, y, z, opts) {
@@ -283,39 +319,44 @@
       scale = scale == null ? 1 : scale;
       while (scorches.length >= CAPS.scorches) {
         const old = scorches.shift();
-        if (old && old.parent) scene.remove(old);
+        if (old) {
+          old.visible = false;
+          if (old.parent) scene.remove(old);
+          if (inactiveScorches.length < CAPS.scorches * 2) inactiveScorches.push(old);
+        }
       }
-      const mat = new THREE.MeshBasicMaterial({
-        color: 0x1a1612,
-        transparent: true,
-        opacity: 0.55,
-        depthWrite: false
-      });
-      const disc = new THREE.Mesh(GEO.scorch, mat);
-      disc.rotation.x = -Math.PI / 2;
+      let disc = inactiveScorches.pop() || null;
+      if (!disc) {
+        disc = new THREE.Mesh(GEO.scorch, SHARED.scorch.clone());
+        disc.castShadow = false;
+        disc.receiveShadow = false;
+        disc.rotation.x = -Math.PI / 2;
+      }
+      disc.visible = true;
+      disc.material.opacity = 0.55;
       const y = terrainHeight(x, z) + 0.04;
       disc.position.set(x, y, z);
       disc.scale.setScalar(0.9 * scale + Math.random() * 0.25);
       disc.userData = { life: 14 + Math.random() * 8, fade: 0.55 };
-      scene.add(disc);
+      if (!disc.parent) scene.add(disc);
       scorches.push(disc);
     }
 
     function shockwave(x, z, scale) {
       scale = scale == null ? 1 : scale;
-      const mat = new THREE.MeshBasicMaterial({
-        color: 0xffe6a8,
-        transparent: true,
-        opacity: 0.55,
-        side: THREE.DoubleSide,
-        depthWrite: false
-      });
-      const ring = new THREE.Mesh(GEO.ring, mat);
-      ring.rotation.x = -Math.PI / 2;
+      let ring = inactiveRings.pop() || null;
+      if (!ring) {
+        ring = new THREE.Mesh(GEO.ring, SHARED.ring.clone());
+        ring.castShadow = false;
+        ring.receiveShadow = false;
+        ring.rotation.x = -Math.PI / 2;
+      }
+      ring.visible = true;
+      ring.material.opacity = 0.55;
       ring.position.set(x, terrainHeight(x, z) + 0.08, z);
       ring.scale.setScalar(0.4 * scale);
       ring.userData = { life: 0.35, maxLife: 0.35, grow: 3.2 * scale };
-      scene.add(ring);
+      if (!ring.parent) scene.add(ring);
       shockwaves.push(ring);
     }
 
@@ -397,10 +438,13 @@
       scorchDecal(x, z, (isBurn ? 1.2 : 0.95) * power);
       if (power >= 1.2) shockwave(x, z, 0.85 * power);
 
-      const light = new THREE.PointLight(isBurn ? 0xffc247 : color, isBurn ? 4.4 : 3.0, 16 + power * 4);
-      light.position.set(x, 3.0, z);
-      scene.add(light);
-      flashLights.push({ light: light, life: 0.16 + power * 0.04 });
+      acquireFlashLight(
+        isBurn ? 0xffc247 : color,
+        isBurn ? 4.4 : 3.0,
+        16 + power * 4,
+        x, 3.0, z,
+        0.16 + power * 0.04
+      );
 
       const shake = isBurn ? Math.min(0.55, 0.2 + power * 0.12) : Math.min(0.55, 0.12 + power * 0.1);
       applyShake(shake, power);
@@ -804,7 +848,7 @@
         if (ud.life <= 0) releaseParticle(q);
       }
 
-      // Scorches fade
+      // Scorches fade (pooled)
       for (let i = scorches.length - 1; i >= 0; i--) {
         const s = scorches[i];
         s.userData.life -= dt;
@@ -812,12 +856,14 @@
           s.material.opacity = Math.max(0, s.userData.fade * (s.userData.life / 18));
         }
         if (s.userData.life <= 0) {
-          scene.remove(s);
+          s.visible = false;
+          if (s.parent) scene.remove(s);
           scorches.splice(i, 1);
+          if (inactiveScorches.length < CAPS.scorches * 2) inactiveScorches.push(s);
         }
       }
 
-      // Shockwaves
+      // Shockwaves (pooled)
       for (let i = shockwaves.length - 1; i >= 0; i--) {
         const r = shockwaves[i];
         r.userData.life -= dt;
@@ -829,18 +875,20 @@
           r.material.opacity = Math.max(0, 0.55 * (r.userData.life / r.userData.maxLife));
         }
         if (r.userData.life <= 0) {
-          scene.remove(r);
+          r.visible = false;
+          if (r.parent) scene.remove(r);
           shockwaves.splice(i, 1);
+          if (inactiveRings.length < 16) inactiveRings.push(r);
         }
       }
 
-      // Flash lights
+      // Flash lights (pooled, hard-capped)
       for (let i = flashLights.length - 1; i >= 0; i--) {
         const f = flashLights[i];
         f.life -= dt;
         if (f.light) f.light.intensity *= 0.82;
         if (f.life <= 0) {
-          scene.remove(f.light);
+          releaseFlashLight(f);
           flashLights.splice(i, 1);
         }
       }
@@ -873,7 +921,7 @@
     }
 
     return {
-      version: 'v8.8',
+      version: 'v9.4.5',
       caps: CAPS,
       setCaps: setCaps,
       getDurationScale: function () { return effectDurationScale; },

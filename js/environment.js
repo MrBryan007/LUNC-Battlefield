@@ -488,7 +488,7 @@
       if (!p) continue;
       if (Math.abs(p.x) < 16) continue;
       const s = 1.2 + seededRand(i + 2420) * 1.8;
-      const puff = new THREE.Mesh(new THREE.SphereGeometry(s, 8, 6), smokeMat.clone());
+      const puff = new THREE.Mesh(new THREE.SphereGeometry(s, 8, 6), smokeMat);
       puff.position.set(p.x, placeY(p.x, p.z, 1.5 + seededRand(i + 2440) * 2), p.z);
       puff.scale.y = 0.7;
       puff.userData.phase = seededRand(i + 2460) * Math.PI * 2;
@@ -542,13 +542,21 @@
           LUNCBattle.lod.updateEnvironmentLod(group, camera);
         }
       } catch (_) {}
+      // Throttle puff churn ~10 Hz (shared mat — don't fight opacity every frame)
+      if (!update._smokeAcc) update._smokeAcc = 0;
+      update._smokeAcc += dt;
+      const doSmoke = update._smokeAcc >= 0.1;
+      if (doSmoke) update._smokeAcc = 0;
       for (let i = 0; i < smokePuffs.length; i++) {
         const p = smokePuffs[i];
         if (p.visible === false) continue;
-        // Skip far smoke opacity churn when LOD says so
         if (p.userData && p.userData.lodBand >= 3) continue;
-        const o = p.userData.baseOpacity * (0.75 + 0.25 * Math.sin(now * 0.35 + p.userData.phase));
-        p.material.opacity = o;
+        if (!doSmoke) continue;
+        // Shared smokeMat: animate scale gently instead of per-mesh opacity writes
+        const wave = 0.75 + 0.25 * Math.sin(now * 0.35 + p.userData.phase);
+        const bs = p.userData.baseScale || p.scale.x;
+        p.userData.baseScale = bs;
+        p.scale.setScalar(bs * (0.92 + 0.08 * wave));
         p.position.y += Math.sin(now * 0.2 + p.userData.phase) * 0.002;
       }
     }

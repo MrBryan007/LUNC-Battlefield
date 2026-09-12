@@ -1,4 +1,4 @@
-/* Unit builders / formations — v9.4.4 tanks+air combat, denser LOD silhouettes */
+/* Unit builders / formations — v9.4.5 perf: selective shadows + shared FX mats */
 (function (global) {
   'use strict';
   const LB = global.LUNCBattle;
@@ -96,16 +96,36 @@
       : new THREE.MeshBasicMaterial({
           color: 0x000000, transparent: true, opacity: 0.18, depthWrite: false
         });
+    // Shared transparent mats (avoid per-unit .clone() — unique mats break batching / inflate counts)
+    const shadowMatAir = (Mats && Mats.basic)
+      ? Mats.basic({ color: 0x000000, transparent: true, opacity: 0.12, depthWrite: false })
+      : new THREE.MeshBasicMaterial({
+          color: 0x000000, transparent: true, opacity: 0.12, depthWrite: false
+        });
+    const rotorDiscMat = (Mats && Mats.basic)
+      ? Mats.basic({ color: 0x3a4640, transparent: true, opacity: 0.55, depthWrite: false })
+      : new THREE.MeshBasicMaterial({
+          color: 0x3a4640, transparent: true, opacity: 0.55, depthWrite: false
+        });
 
+    // v9.4.5: default NO cast — only explicit core casters (huge draw-call win on shadow map)
     function setShadow(mesh, cast) {
-      cast = cast !== false;
-      mesh.castShadow = cast;
+      mesh.castShadow = !!cast;
       mesh.receiveShadow = true;
+      if (cast) {
+        mesh.userData = mesh.userData || {};
+        mesh.userData.luncShadowCaster = true;
+      }
       return mesh;
     }
 
-    function meshFrom(geo, material) {
-      return setShadow(new THREE.Mesh(geo, material));
+    function meshFrom(geo, material, castShadow) {
+      return setShadow(new THREE.Mesh(geo, material), !!castShadow);
+    }
+
+    function trackCaster(list, mesh) {
+      if (mesh && mesh.castShadow) list.push(mesh);
+      return mesh;
     }
 
     function limbGroup(upperGeo, lowerGeo, matU, matL, upperLen) {
@@ -135,7 +155,8 @@
 
       // Hips / pelvis
       const hips = new THREE.Group();
-      const pelvis = meshFrom(GEO.pelvisCyl, body);
+      const casters = [];
+      const pelvis = trackCaster(casters, meshFrom(GEO.pelvisCyl, body, true));
       pelvis.position.y = 0;
       hips.add(pelvis);
       hips.position.y = 0.42;
@@ -162,7 +183,7 @@
 
       // Torso
       const torso = new THREE.Group();
-      const torsoMesh = meshFrom(GEO.torsoCyl, accent);
+      const torsoMesh = trackCaster(casters, meshFrom(GEO.torsoCyl, accent, true));
       torsoMesh.position.y = 0.29;
       torso.add(torsoMesh);
       // chest plate taper feel
@@ -256,6 +277,7 @@
         shot: Math.random() * 3,
         animState: STATES.IDLE,
         parts: parts,
+        shadowCasters: casters,
         lodGroups: (g.userData && g.userData.lodGroups) || lodGroups,
         speed: 0,
         facing: side < 0 ? Math.PI / 2 : -Math.PI / 2,
@@ -274,8 +296,9 @@
       const accent = accentMat(color, 0.08);
       const parts = {};
 
+      const casters = [];
       const hullG = new THREE.Group();
-      const hull = meshFrom(GEO.hullMain, accent);
+      const hull = trackCaster(casters, meshFrom(GEO.hullMain, accent, true));
       hull.position.y = 0.52;
       const bevel = meshFrom(GEO.hullBevel, bodyMatBull);
       bevel.material = isBull ? bodyMatBull : bodyMatBear;
@@ -312,7 +335,7 @@
       turret.position.y = 0.92;
       let turretMesh;
       if (isBull) {
-        turretMesh = meshFrom(GEO.turretCyl, accent);
+        turretMesh = trackCaster(casters, meshFrom(GEO.turretCyl, accent, true));
         const lid = meshFrom(GEO.turretBox, metalMat);
         lid.position.y = 0.2;
         lid.scale.set(0.85, 0.7, 0.9);
@@ -321,7 +344,7 @@
         ant.position.set(-0.2, 0.45, -0.15);
         turret.add(ant);
       } else {
-        turretMesh = meshFrom(GEO.turretBear, accent);
+        turretMesh = trackCaster(casters, meshFrom(GEO.turretBear, accent, true));
         const cupola = meshFrom(GEO.turretBox, metalMatDark);
         cupola.position.y = 0.22;
         cupola.scale.set(0.7, 0.85, 0.75);
@@ -371,6 +394,7 @@
         shot: Math.random() * 4,
         animState: STATES.IDLE_SCAN,
         parts: parts,
+        shadowCasters: casters,
         lodGroups: (g.userData && g.userData.lodGroups) || lodGroups,
         speed: 0,
         facing: side < 0 ? Math.PI / 2 : -Math.PI / 2,
@@ -391,8 +415,9 @@
       const body = isBull ? bodyMatBull : bodyMatBear;
       const parts = {};
 
+      const casters = [];
       const carriage = new THREE.Group();
-      const base = meshFrom(GEO.carriage, darkMat);
+      const base = trackCaster(casters, meshFrom(GEO.carriage, darkMat, true));
       base.position.y = 0.38;
       const sideL = meshFrom(GEO.carriageSide, body);
       sideL.position.set(0, 0.45, 0.32);
@@ -435,7 +460,7 @@
       barrelG.rotation.x = -0.22;
       barrelG.userData.baseElev = -0.22;
       barrelG.userData.baseZ = 0;
-      const barrelMesh = meshFrom(GEO.barrelLong, metalMat);
+      const barrelMesh = trackCaster(casters, meshFrom(GEO.barrelLong, metalMat, true));
       barrelMesh.rotation.x = Math.PI / 2;
       barrelMesh.position.z = 0.7;
       barrelG.add(barrelMesh);
@@ -472,6 +497,7 @@
         shot: Math.random() * 5,
         animState: STATES.IDLE,
         parts: parts,
+        shadowCasters: casters,
         lodGroups: (g.userData && g.userData.lodGroups) || lodGroups,
         speed: 0,
         facing: side < 0 ? Math.PI / 2 : -Math.PI / 2,
@@ -492,8 +518,9 @@
       const body = isBull ? bodyMatBull : bodyMatBear;
       const parts = {};
 
+      const casters = [];
       const cabinG = new THREE.Group();
-      const cabin = meshFrom(GEO.heliCabin, accent);
+      const cabin = trackCaster(casters, meshFrom(GEO.heliCabin, accent, true));
       cabin.position.y = 0.55;
       const nose = meshFrom(GEO.heliNose, body);
       nose.position.set(0.5, 0.5, 0);
@@ -509,13 +536,7 @@
 
       const rotorG = new THREE.Group();
       rotorG.position.y = 0.82;
-      const disc = meshFrom(GEO.heliRotor, metalMat);
-      disc.material = disc.material.clone ? disc.material.clone() : disc.material;
-      if (disc.material.opacity != null) {
-        disc.material.transparent = true;
-        disc.material.opacity = 0.55;
-        disc.material.depthWrite = false;
-      }
+      const disc = meshFrom(GEO.heliRotor, rotorDiscMat, false);
       rotorG.add(disc);
       parts.rotor = rotorG;
       parts.rotorDisc = disc;
@@ -562,6 +583,7 @@
         shot: Math.random() * 2,
         animState: STATES.IDLE,
         parts: parts,
+        shadowCasters: casters,
         lodGroups: (g.userData && g.userData.lodGroups) || lodGroups,
         speed: 0,
         facing: side < 0 ? Math.PI / 2 : -Math.PI / 2,
@@ -585,8 +607,9 @@
       const body = isBull ? bodyMatBull : bodyMatBear;
       const parts = {};
 
+      const casters = [];
       const fuseG = new THREE.Group();
-      const fuse = meshFrom(GEO.jetFuse, accent);
+      const fuse = trackCaster(casters, meshFrom(GEO.jetFuse, accent, true));
       fuse.position.y = 0.4;
       const nose = meshFrom(GEO.jetNose, body);
       nose.rotation.z = -Math.PI / 2;
@@ -643,6 +666,7 @@
         shot: Math.random() * 3,
         animState: STATES.IDLE,
         parts: parts,
+        shadowCasters: casters,
         lodGroups: (g.userData && g.userData.lodGroups) || lodGroups,
         speed: 0,
         facing: side < 0 ? Math.PI / 2 : -Math.PI / 2,
@@ -710,8 +734,7 @@
       shadow.castShadow = false;
       if (isAir) {
         shadow.scale.setScalar(0.65);
-        shadow.material = shadowMat.clone ? shadowMat.clone() : shadowMat;
-        if (shadow.material.opacity != null) shadow.material.opacity = 0.12;
+        shadow.material = shadowMatAir;
       }
       g.add(shadow);
       g.rotation.y = side < 0 ? Math.PI / 2 : -Math.PI / 2;
@@ -805,14 +828,17 @@
         if (Lod && camObj && u.position) {
           const band = Lod.updateUnitLod(u, camObj);
           tickCtx.lodBand = band;
-          // Frustum/far-skip AFTER LOD apply; tally reflects this frame (visible vs culled)
+          // Frustum/far-skip AFTER LOD apply; hide mesh (still simulated — no despawn)
           let culled = false;
           if (band >= 2 && Lod.isInView && !Lod.isInView(u, camObj, THREE)) {
             tickCtx.skipAnim = true;
             u.userData.lodCulled = true;
             culled = true;
+            u.visible = false;
+            if (Lod.applyShadowPolicy) Lod.applyShadowPolicy(u, 3);
           } else {
             u.userData.lodCulled = false;
+            if (!u.visible) u.visible = true;
           }
           Lod.tally(band, 'unit', culled);
         } else if (tickCtx.lodBand == null && global.LUNCBattle && LUNCBattle.quality && LUNCBattle.quality.getLodBand) {
@@ -864,7 +890,7 @@
       setAnimState: setAnimState,
       tickUnit: tickUnit,
       GEO: GEO,
-      version: 'v9.4.4'
+      version: 'v9.4.5'
     };
   }
 

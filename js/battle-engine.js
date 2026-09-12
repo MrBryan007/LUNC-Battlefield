@@ -175,8 +175,9 @@
     sun.position.set(-28, 52, 18);
     sun.castShadow = true;
     sun.shadow.mapSize.set(1024, 1024);
-    sun.shadow.camera.left = -62; sun.shadow.camera.right = 62; sun.shadow.camera.top = 44; sun.shadow.camera.bottom = -44;
-    sun.shadow.camera.near = 8; sun.shadow.camera.far = 120; sun.shadow.bias = -.0003;
+    // v9.4.5: tighter shadow frustum — fewer casters in map, close visuals intact
+    sun.shadow.camera.left = -48; sun.shadow.camera.right = 48; sun.shadow.camera.top = 34; sun.shadow.camera.bottom = -34;
+    sun.shadow.camera.near = 10; sun.shadow.camera.far = 100; sun.shadow.bias = -.0003;
     scene.add(sun);
     const fill = new THREE.DirectionalLight(0x6a90a0, 0.18);
     fill.position.set(38, 16, -30);
@@ -331,16 +332,17 @@
     function disposeArmy(arr) { unitsApi.disposeArmy(arr); }
     function launchStrike(fromX,toX,z,color,power=1) { effectsApi.launchStrike(fromX,toX,z,color,power); }
     function createExplosion(x,z,color,power=1,isBurn=false) { effectsApi.createExplosion(x,z,color,power,isBurn); }
+    const _muzzleScratch = new THREE.Vector3();
     function muzzleWorld(u) {
       const off = u.userData && u.userData.muzzleOffset;
       if (off && u.localToWorld) {
-        const v = off.clone();
-        u.updateMatrixWorld(true);
-        u.localToWorld(v);
-        return v;
+        // Reuse scratch; fireWeapon reads x/y/z immediately (no alloc / no force matrix rebuild)
+        _muzzleScratch.copy(off);
+        u.localToWorld(_muzzleScratch);
+        return _muzzleScratch;
       }
       const side = u.userData.side || -1;
-      return new THREE.Vector3(
+      return _muzzleScratch.set(
         u.position.x + side * -1.0,
         u.position.y + 1.1,
         u.position.z
@@ -1400,8 +1402,14 @@
       if (structuresApi && typeof structuresApi.applyStructureLods === 'function') structuresApi.applyStructureLods(camera);
       if (structuresApi && typeof structuresApi.updateStructures === 'function') structuresApi.updateStructures(dt, now);
       if (minimapApi) {
-        if (priceTerritoryApi && priceTerritoryApi.getDefenseMarkers) {
-          minimapApi.setDefenses(priceTerritoryApi.getDefenseMarkers());
+        // Defenses markers are slow to rebuild — refresh ~2 Hz; draw() self-throttles to minimapHz
+        if (!animate._defAcc) animate._defAcc = 0;
+        animate._defAcc += dt;
+        if (animate._defAcc >= 0.5) {
+          animate._defAcc = 0;
+          if (priceTerritoryApi && priceTerritoryApi.getDefenseMarkers) {
+            minimapApi.setDefenses(priceTerritoryApi.getDefenseMarkers());
+          }
         }
         minimapApi.draw();
       }

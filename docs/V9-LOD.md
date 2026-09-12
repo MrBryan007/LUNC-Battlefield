@@ -1,6 +1,8 @@
 # LUNC Battlefield v9.4.4 — True LOD system
 
-**Status:** v9.4.4 on `feat/v9-next-gen-renderer` only. **Not merged to main.** Live Pages remains v8.x.
+**Status:** v9.4.5 PERFORMANCE RECOVERY on `feat/v9-next-gen-renderer` (see `docs/V9-PERF.md`). LOD semantics from v9.4.4 retained.
+
+**Prior:** v9.4.4 on `feat/v9-next-gen-renderer` only. **Not merged to main.** Live Pages remains v8.x.
 
 **v9.4.1 hotfix:** PERF LOD counts use an `endFrame` snapshot after unit/structure/env tallies. Earlier, `quality.tick` ran right after `beginFrame` (zeros), so the overlay always showed LOD0–3 as 0/0/0/0 while internal LOD still worked.
 

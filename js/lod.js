@@ -1,4 +1,4 @@
-/* LUNC Battlefield v9.4.4 — true LOD (tank silhouettes + shaped LOD3 stubs)
+/* LUNC Battlefield v9.4.5 — true LOD + staggered eval + shared impostor pool
  * LUNCBattle.lod — camera distance → LOD0–3; never despawns simulation state.
  * Missing LOD / GLB → procedural SAFE FALLBACK forever. No black canvas.
  */
@@ -27,6 +27,84 @@
   var _counts = { lod0: 0, lod1: 0, lod2: 0, lod3: 0, culled: 0, units: 0, structures: 0, props: 0 };
   var _displayCounts = { lod0: 0, lod1: 0, lod2: 0, lod3: 0, culled: 0, units: 0, structures: 0, props: 0 };
   var _frameId = 0;
+  var _envLodFrame = 0;
+  var _stubGeo = null;
+  var _stubMatBull = null;
+  var _stubMatBear = null;
+
+  function getStubGeos(THREE) {
+    if (_stubGeo) return _stubGeo;
+    _stubGeo = {
+      tankHull: new THREE.BoxGeometry(1.25, 0.38, 0.78),
+      tankTurret: new THREE.BoxGeometry(0.48, 0.24, 0.42),
+      tankBarrel: new THREE.CylinderGeometry(0.04, 0.05, 0.75, 5),
+      artyCarriage: new THREE.BoxGeometry(0.9, 0.28, 0.55),
+      artyBarrel: new THREE.CylinderGeometry(0.05, 0.07, 1.1, 5),
+      heliCabin: new THREE.BoxGeometry(0.7, 0.32, 0.45),
+      heliRotor: new THREE.CylinderGeometry(0.85, 0.85, 0.03, 10),
+      jetFuse: new THREE.BoxGeometry(1.5, 0.22, 0.28),
+      jetWing: new THREE.BoxGeometry(0.4, 0.04, 1.1),
+      infPlane: new THREE.PlaneGeometry(0.9, 1.4)
+    };
+    return _stubGeo;
+  }
+
+  function getStubMat(THREE, side) {
+    if (side < 0) {
+      if (!_stubMatBull) {
+        _stubMatBull = new THREE.MeshBasicMaterial({
+          color: 0x49d39a, transparent: true, opacity: 0.62,
+          depthWrite: false, side: THREE.DoubleSide
+        });
+        _stubMatBull.userData = { luncOwned: true, luncSharedStub: true };
+      }
+      return _stubMatBull;
+    }
+    if (!_stubMatBear) {
+      _stubMatBear = new THREE.MeshBasicMaterial({
+        color: 0xe4675f, transparent: true, opacity: 0.62,
+        depthWrite: false, side: THREE.DoubleSide
+      });
+      _stubMatBear.userData = { luncOwned: true, luncSharedStub: true };
+    }
+    return _stubMatBear;
+  }
+
+  /**
+   * Stagger distant LOD eval: LOD0–1 every frame; LOD2 every 2; LOD3 every 4.
+   * Bucketed by unit index so the field does not update in one pop.
+   */
+  function shouldEvalLod(unit, force) {
+    if (force) return true;
+    if (!unit || !unit.userData) return true;
+    var prev = unit.userData.lodBand;
+    if (prev == null || prev <= 1) return true;
+    var period = prev >= 3 ? 4 : 2;
+    var idx = unit.userData.index | 0;
+    return ((_frameId + idx) % period) === 0;
+  }
+
+  /** Distance shadow policy — only near LOD0–1 cast; never detail spam. */
+  function applyShadowPolicy(root, band) {
+    if (!root || !root.userData) return;
+    var casters = root.userData.shadowCasters;
+    var allow = (band | 0) <= 1;
+    if (casters && casters.length) {
+      for (var i = 0; i < casters.length; i++) {
+        if (casters[i]) casters[i].castShadow = allow;
+      }
+      return;
+    }
+    // Fallback: only toggle root-level meshes once tagged
+    if (root.userData._shadowWalked) {
+      root.traverse(function (o) {
+        if (o.isMesh && o.userData && o.userData.luncShadowCaster) {
+          o.castShadow = allow;
+        }
+      });
+    }
+  }
+
 
   function qualityKey() {
     try {
@@ -176,6 +254,11 @@
    */
   function updateUnitLod(unit, camera, opts) {
     if (!unit || !unit.userData) return 0;
+    opts = opts || {};
+    if (!shouldEvalLod(unit, opts.force)) {
+      applyShadowPolicy(unit, unit.userData.lodBand);
+      return unit.userData.lodBand | 0;
+    }
     var dist = distanceToCamera(unit, camera);
     var prev = unit.userData.lodBand;
     var band = resolveLod(dist, prev, opts);
@@ -183,11 +266,16 @@
     unit.userData.lodDistance = dist;
     unit.userData.lodKind = 'unit';
     applyProceduralLodVisibility(unit, band);
+    applyShadowPolicy(unit, band);
     return band;
   }
 
   function updateStructureLod(building, camera, opts) {
     if (!building || !building.userData) return 0;
+    opts = opts || {};
+    if (!shouldEvalLod(building, opts.force)) {
+      return building.userData.lodBand | 0;
+    }
     var dist = distanceToCamera(building, camera);
     var prev = building.userData.lodBand;
     var band = resolveLod(dist, prev, opts);
@@ -195,6 +283,7 @@
     building.userData.lodDistance = dist;
     building.userData.lodKind = 'structure';
     applyStructureLodVisibility(building, band);
+    applyShadowPolicy(building, band);
     return band;
   }
 
@@ -407,19 +496,13 @@
     stub.visible = false;
     stub.userData.luncImpostor = true;
     try {
-      var col = ud.side < 0 ? 0x49d39a : 0xe4675f;
-      var mat = new THREE.MeshBasicMaterial({
-        color: col,
-        transparent: true,
-        opacity: 0.62,
-        depthWrite: false,
-        side: THREE.DoubleSide
-      });
-      mat.userData = mat.userData || {};
-      mat.userData.luncOwned = true;
+      var mat = getStubMat(THREE, ud.side < 0 ? -1 : 1);
+      var geos = getStubGeos(THREE);
       var type = ud.type | 0;
       function addMesh(geo, y, z, rx) {
         var m = new THREE.Mesh(geo, mat);
+        m.castShadow = false;
+        m.receiveShadow = false;
         m.position.y = y || 0;
         if (z) m.position.z = z;
         if (rx) m.rotation.x = rx;
@@ -427,26 +510,23 @@
         return m;
       }
       if (type === 1) {
-        // Tank silhouette: short hull + tiny turret + barrel (not a flat building plane)
-        addMesh(new THREE.BoxGeometry(1.25, 0.38, 0.78), 0.42);
-        addMesh(new THREE.BoxGeometry(0.48, 0.24, 0.42), 0.68);
-        addMesh(new THREE.CylinderGeometry(0.04, 0.05, 0.75, 5), 0.68, 0.48, Math.PI / 2);
+        addMesh(geos.tankHull, 0.42);
+        addMesh(geos.tankTurret, 0.68);
+        addMesh(geos.tankBarrel, 0.68, 0.48, Math.PI / 2);
       } else if (type === 2) {
-        // Artillery: carriage + elevated barrel
-        addMesh(new THREE.BoxGeometry(0.9, 0.28, 0.55), 0.35);
-        var bar = addMesh(new THREE.CylinderGeometry(0.05, 0.07, 1.1, 5), 0.55, 0.35, Math.PI / 2);
+        addMesh(geos.artyCarriage, 0.35);
+        var bar = addMesh(geos.artyBarrel, 0.55, 0.35, Math.PI / 2);
         bar.rotation.z = -0.25;
       } else if (type === 3) {
-        // Heli: cabin + rotor disc
-        addMesh(new THREE.BoxGeometry(0.7, 0.32, 0.45), 0.5);
-        addMesh(new THREE.CylinderGeometry(0.85, 0.85, 0.03, 12), 0.72);
+        addMesh(geos.heliCabin, 0.5);
+        addMesh(geos.heliRotor, 0.72);
       } else if (type === 4) {
-        // Jet: fuselage + swept wings
-        addMesh(new THREE.BoxGeometry(1.5, 0.22, 0.28), 0.45);
-        addMesh(new THREE.BoxGeometry(0.4, 0.04, 1.1), 0.42);
+        addMesh(geos.jetFuse, 0.45);
+        addMesh(geos.jetWing, 0.42);
       } else {
-        // Infantry / default: upright plane stub
-        var mesh = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 1.4), mat);
+        var mesh = new THREE.Mesh(geos.infPlane, mat);
+        mesh.castShadow = false;
+        mesh.receiveShadow = false;
         mesh.position.y = 0.75;
         stub.add(mesh);
       }
@@ -605,6 +685,9 @@
   function updateEnvironmentLod(envGroup, camera, opts) {
     if (!envGroup || !camera) return;
     opts = opts || {};
+    _envLodFrame++;
+    // Stagger full env traverse (~every 3 frames) — no visible pop with hysteresis
+    if (!opts.force && (_envLodFrame % 3) !== 0) return;
     var enter = opts.enter || getEnterThresholds();
     var hideBeyond = enter.LOD2;
     var clusterBeyond = enter.LOD1;
@@ -652,9 +735,11 @@
       var inView = isInView(b, camera, global.THREE);
       if (!inView && band >= 2) {
         b.userData.lodSkipFx = true;
+        b.visible = false;
         tally(band, 'structure', true);
       } else {
         b.userData.lodSkipFx = false;
+        if (!b.visible) b.visible = true;
         tally(band, 'structure', false);
       }
     }
@@ -691,7 +776,7 @@
   }
 
   LB.lod = {
-    version: 'v9.4.4',
+    version: 'v9.4.5',
     DEFAULT_ENTER: DEFAULT_ENTER,
     getEnterThresholds: getEnterThresholds,
     getHysteresis: getHysteresis,
@@ -704,8 +789,11 @@
     updatePropLod: updatePropLod,
     applyProceduralLodVisibility: applyProceduralLodVisibility,
     applyStructureLodVisibility: applyStructureLodVisibility,
+    applyShadowPolicy: applyShadowPolicy,
+    shouldEvalLod: shouldEvalLod,
     registerLodGroups: registerLodGroups,
     ensureImpostorStub: ensureImpostorStub,
+    getFrameId: function () { return _frameId; },
     animPolicy: animPolicy,
     shouldUpdateAnim: shouldUpdateAnim,
     isInView: isInView,
