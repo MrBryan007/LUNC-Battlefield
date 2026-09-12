@@ -1,5 +1,7 @@
 # LUNC Battlefield v9.2 — PBR materials & lighting foundation
 
+> **Follow-on:** **v9.3** adds the glTF/GLB asset pipeline — see `docs/V9-ASSETS.md`. PBR registry / lighting / ACES from v9.2 are preserved.
+
 **Status:** v9.2.1 on feature branch `feat/v9-next-gen-renderer` only. **Not merged to main.** Live GitHub Pages remains v8.x until an explicit merge.
 
 **v9.2.1 hotfix:** `structures.js` referenced undeclared `Mats` during faction base setup (ReferenceError), aborting battle init → black canvas / Calls 0. Declared registry + registry presets for neutral structure kit; hardened `createFactionBase` in battle-engine.
@@ -20,8 +22,8 @@
 
 ## Non-goals (explicitly deferred)
 
-- Three.js upgrade / WebGPURenderer cutover → later milestone (not v9.3 in this pass)
-- glTF pipeline, skeletal animation, GPU particles, terrain mesh redesign
+- Three.js upgrade / WebGPURenderer cutover → later milestone
+- ~~glTF pipeline~~ → **done in v9.3** (`docs/V9-ASSETS.md`); skeletal animation, GPU particles, terrain mesh redesign still deferred
 - Shipping compressed textures or third-party texture packs
 - Merging to `main`
 

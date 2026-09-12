@@ -1,4 +1,4 @@
-/* Unit builders / formations — v9.2 articulated RTS units (materials registry) */
+/* Unit builders / formations — v9.3 articulated RTS units + optional glTF instantiate */
 (function (global) {
   'use strict';
   const LB = global.LUNCBattle;
@@ -418,9 +418,29 @@
     }
 
     function createUnit(color, side, type) {
-      const g = type === 0 ? createInfantry(color, side)
-        : type === 1 ? createArmor(color, side)
-        : createArtillery(color, side);
+      // v9.3: prefer GLB when asset pipeline has it ready; else procedural SAFE FALLBACK
+      let g = null;
+      const Assets = (LB && LB.assets) || null;
+      const Reg = (LB && LB.assetRegistry) || null;
+      const assetId = Reg && Reg.unitIdFromSideType
+        ? Reg.unitIdFromSideType(side, type)
+        : null;
+      if (Assets && assetId && Assets.shouldUseGltf && Assets.shouldUseGltf(assetId)) {
+        try {
+          g = Assets.instantiate(assetId, { color: color, side: side, type: type, accentColor: color });
+        } catch (e) {
+          g = null;
+        }
+      }
+      if (!g) {
+        g = type === 0 ? createInfantry(color, side)
+          : type === 1 ? createArmor(color, side)
+          : createArtillery(color, side);
+        g.userData = g.userData || {};
+        g.userData.luncAssetSource = 'procedural';
+        g.userData.luncProcedural = true;
+        if (Assets && Assets.markProceduralSpawn) Assets.markProceduralSpawn();
+      }
       const shadowGeo = type === 1 ? GEO.shadowArmor : type === 2 ? GEO.shadowArt : GEO.shadowInf;
       const shadow = new THREE.Mesh(shadowGeo, shadowMat);
       shadow.rotation.x = -Math.PI / 2;
@@ -512,7 +532,7 @@
       setAnimState: setAnimState,
       tickUnit: tickUnit,
       GEO: GEO,
-      version: 'v9.2'
+      version: 'v9.3'
     };
   }
 

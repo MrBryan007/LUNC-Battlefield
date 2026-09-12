@@ -1,4 +1,4 @@
-/* LUNC Battlefield v9.2 — graphics quality + performance scaling (PBR lighting aware) */
+/* LUNC Battlefield v9.3 — graphics quality + performance scaling (PBR + asset stats) */
 (function (global) {
   'use strict';
 
@@ -615,8 +615,9 @@
     overlayEl.className = 'perf-overlay';
     overlayEl.setAttribute('aria-hidden', 'true');
     overlayEl.innerHTML =
-      '<div class="perf-title">PERF · v9.2</div>' +
+      '<div class="perf-title">PERF · v9.3</div>' +
       '<div class="perf-section" id="perfGfx"></div>' +
+      '<div class="perf-section" id="perfAssets"></div>' +
       '<div class="perf-section perf-feeds" id="perfFeeds"></div>';
     document.body.appendChild(overlayEl);
     return overlayEl;
@@ -809,7 +810,7 @@
 
   // Public API
   var api = {
-    version: 'v9.1',
+    version: 'v9.3',
     MODES: MODES,
     PRESETS: PRESETS,
     FEED_STATES: FEED_STATES,

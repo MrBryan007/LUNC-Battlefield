@@ -4,7 +4,7 @@ Classic-RTS-inspired Terra Classic intelligence battlefield.
 
 **Build (main / live):** v8.x — RTS Command HUD + War Room (see `docs/V8-GRAPHICS.md`).
 
-**v9 (feature branch only):** `feat/v9-next-gen-renderer` — v9.2 PBR materials + lighting foundation (on top of v9.1 renderer abstraction). Default remains WebGL (Three r128). See `docs/V9-GRAPHICS.md` and `docs/V9-RENDERER.md`. Not merged to main; live Pages stays on v8 until an explicit merge.
+**v9 (feature branch only):** `feat/v9-next-gen-renderer` — v9.3 glTF/GLB asset pipeline (on v9.2 PBR + v9.1 renderer). Default remains WebGL (Three **r128**) with procedural SAFE FALLBACK. See `docs/V9-ASSETS.md`, `docs/V9-GRAPHICS.md`, `docs/V9-RENDERER.md`. Not merged to main; live Pages stays on v8 until an explicit merge.
 
 **Live site:** https://mrbryan007.github.io/LUNC-Battlefield/
 
@@ -17,6 +17,7 @@ js/config.js
 js/quality.js
 js/renderer.js  # v9.1+ feature branch
 js/materials.js # v9.2 PBR registry
+js/assets.js / js/asset-loader.js  # v9.3 glTF pipeline
 js/main.js
 js/market.js
 js/terra.js
@@ -38,7 +39,7 @@ Every metric/event is tagged **LIVE / CALCULATED / ESTIMATED / SIMULATED / UNAVA
 
 | Feed | Status without HTTPS API |
 | --- | --- |
-| Prices (DefiLlama → CoinGecko; Binance spot if WS opens) | LIVE when connected |
+| Prices (DefiLlama → CoinGecko → Binance Vision REST; Binance spot if WS opens) | LIVE when connected |
 | Buy/sell walls | LIVE with Binance depth; else ESTIMATED |
 | Liquidations | LIVE on Binance futures (`1000LUNCUSDT` / `USTCUSDT`) |
 | TVL | LIVE via DefiLlama |

@@ -1,6 +1,6 @@
 # LUNC Battlefield v9 — Renderer strategy
 
-**Status:** v9.1 shipped on `feat/v9-next-gen-renderer`; **v9.2** adds PBR materials/lighting (see `docs/V9-GRAPHICS.md`). **Not merged to main.** Live GitHub Pages remains v8.x until an explicit merge.
+**Status:** v9.1 shipped on `feat/v9-next-gen-renderer`; **v9.2** PBR (see `docs/V9-GRAPHICS.md`); **v9.3** glTF/GLB pipeline (see `docs/V9-ASSETS.md`). **Not merged to main.** Live GitHub Pages remains v8.x until an explicit merge.
 
 ## Goals (v9.1)
 
@@ -14,9 +14,9 @@ Conservative infrastructure only:
 
 ## Non-goals (explicitly deferred)
 
-No PBR materials overhaul, glTF pipeline, KTX2 textures, skeletal animation, GPU particles, terrain redesign, unit/building mesh replacement, or Three.js major upgrade in v9.1.
+No PBR / glTF / KTX2 / skeletal / GPU particles / terrain redesign / Three upgrade in v9.1.
 
-Those belong to **v9.2+** after the abstraction is proven.
+PBR → **v9.2**. glTF pipeline → **v9.3**. Remaining items stay later.
 
 ---
 

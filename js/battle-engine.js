@@ -2,8 +2,8 @@
     'use strict';
 
     // =====================================================
-    // LUNC ECOSYSTEM BATTLEFIELD v8 — RTS GRAPHICS OVERHAUL
-    // v8.1–v8.7 + v8.8 performance / graphics quality system
+    // LUNC ECOSYSTEM BATTLEFIELD v9.3 — glTF asset pipeline + RTS GRAPHICS
+    // v8.1–v8.8 + v9.1 renderer + v9.2 PBR + v9.3 assets (procedural SAFE FALLBACK)
     // Original procedural art only. No third-party game assets.
     // Graphics-only: never alter market / Battle Strength / liq / burn math.
     // =====================================================
@@ -218,6 +218,22 @@
         if (qp) LUNCBattle.materials.applyQuality(qp.lightingComplexity || qp.unitDetail || 'high');
       } catch (_) {}
     }
+
+    // v9.3: glTF/GLB asset pipeline — init early; never block first paint
+    let assetMode = 'AUTO';
+    if (window.LUNCBattle && LUNCBattle.assets && typeof LUNCBattle.assets.init === 'function') {
+      try {
+        const ainfo = LUNCBattle.assets.init(THREE);
+        assetMode = (ainfo && ainfo.mode) || LUNCBattle.assets.getMode() || 'AUTO';
+        LUNCBattle.assetMode = assetMode;
+      } catch (e) {
+        console.warn('[LUNCBattle] asset-loader init failed — procedural only', e);
+        assetMode = 'PROCEDURAL';
+        LUNCBattle.assetMode = assetMode;
+      }
+    } else {
+      LUNCBattle.assetMode = 'PROCEDURAL';
+    }
     function mat(color, rough=.72, metal=.08, emissive=0x000000, intensity=0) {
       if (window.LUNCBattle && LUNCBattle.materials && LUNCBattle.materials.mat) {
         return LUNCBattle.materials.mat(color, rough, metal, emissive, intensity);
@@ -346,6 +362,41 @@
       lastRebuild=Date.now();
     }
     rebuildUnits();
+
+    // v9.3: progressive background preload of tiny asset set (does not block first paint).
+    // Hot-swap of live units skipped — next rebuildUnits may pick up ready GLBs safely.
+    if (window.LUNCBattle && LUNCBattle.assets && typeof LUNCBattle.assets.preload === 'function') {
+      const preloadIds = [
+        'unit.bull.infantry', 'unit.bear.infantry',
+        'unit.bull.armor', 'unit.bear.armor',
+        'unit.bull.artillery', 'unit.bear.artillery',
+        'structure.bull.hq', 'structure.bear.hq',
+        'prop.crate', 'prop.barrel', 'prop.rock',
+        'unit.bull.missing_demo'
+      ];
+      // Defer to next macrotask so first frame paints procedural scene
+      setTimeout(function () {
+        try {
+          LUNCBattle.assets.preload(preloadIds).then(function (res) {
+            const st = LUNCBattle.assets.getStats ? LUNCBattle.assets.getStats() : {};
+            pushFeed(
+              'Assets ' + (st.effectiveMode || assetMode) +
+              ' · loaded ' + (st.loaded || 0) +
+              ' · failed ' + (st.failed || 0) +
+              ' (procedural fallback forever)',
+              'win'
+            );
+            // Hot-swap of live meshes skipped. In forced GLTF mode, one army rebuild
+            // after preload exercises instantiate() without mid-frame mesh surgery.
+            if (assetMode === 'GLTF') {
+              try { rebuildUnits(); } catch (_) {}
+            } else if (LUNCBattle.assets.tryHotSwap) {
+              LUNCBattle.assets.tryHotSwap();
+            }
+          }).catch(function () {});
+        } catch (_) {}
+      }, 0);
+    }
 
     // v8.6 — classic 3/4 RTS camera + Canvas 2D minimap (after units exist for getUnits)
     cameraCtrl = (window.LUNCBattle && LUNCBattle.cameraCtrl)

@@ -489,6 +489,7 @@
       if (dh.id === 'BACKEND_OFFLINE') mode.className = 'error';
     }
     renderSourceFreshness();
+    refreshPriceSourcesFooter();
     const agent = document.getElementById('agentStatus');
     if (agent) {
       const build = (LB.config && LB.config.BUILD) || '';
@@ -498,6 +499,33 @@
       const next = 'Depth: ' + depth + ' · ' + build;
       if (agent.textContent !== next) agent.textContent = next;
     }
+  }
+
+
+  /** Dynamic HUD footer — configured price sources (incl. Binance Vision). No redesign. */
+  function refreshPriceSourcesFooter() {
+    const el = document.getElementById('priceSourcesLabel');
+    if (!el) return;
+    const parts = [];
+    // Order matches battle-engine / market fetch preference
+    parts.push('DefiLlama');
+    parts.push('CoinGecko');
+    let vision = 'Binance Vision';
+    try {
+      const base = (LB.config && LB.config.binanceRestBase) || '';
+      if (/binance\.vision/i.test(base)) vision = 'Binance Vision';
+      else if (/api\.binance\.com/i.test(base)) vision = 'Binance REST';
+      else if (base) vision = 'Binance REST';
+    } catch (_) {}
+    parts.push(vision);
+    // Live label when health knows active source
+    let live = '';
+    try {
+      if (healthState && healthState.priceLive && healthState.priceSource) {
+        live = ' · active: ' + String(healthState.priceSource);
+      }
+    } catch (_) {}
+    el.textContent = parts.join(' → ') + live;
   }
 
   function updateHealthInput( partial ) {
@@ -705,6 +733,7 @@
 
     const buildLabel = document.getElementById('buildLabel');
     if (buildLabel && LB.config) buildLabel.textContent = LB.config.BUILD;
+    refreshPriceSourcesFooter();
   }
 
   if (document.readyState === 'loading') {
@@ -724,6 +753,7 @@
     getRecentLiquidations: getRecentLiquidations,
     computeLiqBias: computeLiqBias,
     updateHealthInput: updateHealthInput,
+    refreshPriceSourcesFooter: refreshPriceSourcesFooter,
     renderDataHealth: renderDataHealth,
     renderLiquidityBands: renderLiquidityBands,
     updateFrontlineHud: updateFrontlineHud,

@@ -686,6 +686,28 @@
       return building;
     }
 
+
+    function tryGltfHQ(side, accentColor) {
+      const Assets = (global.LUNCBattle && LUNCBattle.assets) || null;
+      const Reg = (global.LUNCBattle && LUNCBattle.assetRegistry) || null;
+      if (!Assets || !Reg) return null;
+      const id = Reg.structureId
+        ? Reg.structureId(side < 0 ? 'bull' : 'bear', 'hq')
+        : ('structure.' + (side < 0 ? 'bull' : 'bear') + '.hq');
+      if (!Assets.shouldUseGltf || !Assets.shouldUseGltf(id)) return null;
+      try {
+        const root = Assets.instantiate(id, { color: accentColor, side: side, accentColor: accentColor });
+        if (!root) return null;
+        root.userData = root.userData || {};
+        root.userData.kind = 'hq';
+        root.userData.side = side;
+        root.userData.luncAssetSource = 'gltf';
+        return root;
+      } catch (_) {
+        return null;
+      }
+    }
+
     function createFactionBase(side, accentColor) {
       const g = new THREE.Group();
       g.name = side < 0 ? 'bull-base' : 'bear-base';
@@ -710,7 +732,16 @@
 
       let hq;
       if (bull) {
-        hq = placeNamed(g, buildBullCommand(fm, side), ox - 4, 0, 3.2, 3.4);
+        // v9.3: optional GLB HQ when ready; else procedural command center
+        const gltfHq = tryGltfHQ(side, accentColor);
+        if (gltfHq) {
+          hq = placeNamed(g, gltfHq, ox - 4, 0, 3.2, 3.4);
+        } else {
+          hq = placeNamed(g, buildBullCommand(fm, side), ox - 4, 0, 3.2, 3.4);
+          if (global.LUNCBattle && LUNCBattle.assets && LUNCBattle.assets.markProceduralSpawn) {
+            LUNCBattle.assets.markProceduralSpawn();
+          }
+        }
         placeNamed(g, buildBullBarracks(fm, side), ox - 2, 8.4, 2.8, 1.2);
         placeNamed(g, buildBullDepot(fm, side), ox - 2.2, -8.4, 2.4, 1.8);
         placeNamed(g, buildBullArty(fm, side), ox + 4.2, 12.2, 2.2, 2.2);
@@ -726,7 +757,15 @@
         addPad(g, ox - 2.2, -8.4, 5.6, 4.2);
         addPad(g, ox + 4.2, 12.2, 5.0, 5.0);
       } else {
-        hq = placeNamed(g, buildBearHQ(fm, side), ox + 3, 0, 3.5, 2.5);
+        const gltfHqB = tryGltfHQ(side, accentColor);
+        if (gltfHqB) {
+          hq = placeNamed(g, gltfHqB, ox + 3, 0, 3.5, 2.5);
+        } else {
+          hq = placeNamed(g, buildBearHQ(fm, side), ox + 3, 0, 3.5, 2.5);
+          if (global.LUNCBattle && LUNCBattle.assets && LUNCBattle.assets.markProceduralSpawn) {
+            LUNCBattle.assets.markProceduralSpawn();
+          }
+        }
         placeNamed(g, buildBearBarracks(fm, side), ox + 1.2, 8.5, 2.6, 1.4);
         placeNamed(g, buildBearHangar(fm, side), ox + 1.5, -8.5, 2.4, 2.1);
         placeNamed(g, buildBearArty(fm, side), ox - 4.0, -12.2, 2.0, 2.3);
@@ -875,7 +914,7 @@
       getBuildings: getBuildings,
       setAccentColor: setAccentColor,
       dispose: dispose,
-      version: 'v9.2'
+      version: 'v9.3'
     };
   }
 
