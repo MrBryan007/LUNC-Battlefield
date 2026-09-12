@@ -1,4 +1,4 @@
-/* LUNC Battlefield v9.3 — professional glTF/GLB asset pipeline
+/* LUNC Battlefield v9.4 — glTF/GLB + LOD-aware asset pipeline
  * Three.js r128 GLTFLoader (CDN examples). Procedural SAFE FALLBACK forever.
  * Modes: ?assets=procedural | ?assets=gltf | default AUTO
  * Progressive: never block first paint; missing/failed → procedural.
@@ -19,13 +19,19 @@
     instantiated: 0,
     proceduralSpawns: 0,
     gltfSpawns: 0,
-    approxTris: 0
+    glbSpawned: 0,       // alias clarity for PERF (same as gltfSpawns)
+    proceduralSpawned: 0, // alias clarity for PERF
+    approxTris: 0,
+    lodSwaps: 0,
+    lodFallback: 0
   };
-  var ktx2Stub = { ready: false, note: 'KTX2Loader not wired in v9.3 — r128 path unchanged' };
-  var dracoStub = { ready: false, note: 'DRACOLoader not wired in v9.3' };
-  var meshoptStub = { ready: false, note: 'MeshoptDecoder not wired in v9.3' };
+  // Cache key: id OR id::lodN for LOD-specific templates
+  // Shared textures on templates: do NOT dispose maps owned by cache templates from clones.
+  var ktx2Stub = { ready: false, note: 'KTX2Loader not wired in v9.4 — r128 path unchanged' };
+  var dracoStub = { ready: false, note: 'DRACOLoader not wired in v9.4' };
+  var meshoptStub = { ready: false, note: 'MeshoptDecoder not wired in v9.4' };
   var skeletonUtilsNote =
-    'SkeletonUtils.clone deferred — v9.3 uses Object3D.clone(); skinned meshes need SkeletonUtils later';
+    'SkeletonUtils.clone deferred to v9.5 — v9.4 uses Object3D.clone(); skinned/animated GLB swap needs SkeletonUtils';
   var hotSwapEnabled = false; // documented skip — unsafe without anim retarget
   var preloadStarted = false;
 
@@ -90,13 +96,28 @@
     return false;
   }
 
-  function resolvePath(entry) {
-    if (!entry || !entry.path) return null;
-    if (preferSimplerAssets() && entry.lodPaths) {
-      if (entry.lodPaths.lod2) return entry.lodPaths.lod2;
-      if (entry.lodPaths.lod1) return entry.lodPaths.lod1;
+  function cacheKey(id, lodBand) {
+    if (lodBand == null || lodBand === 0) return id;
+    return id + '::lod' + (lodBand | 0);
+  }
+
+  function resolvePath(entry, lodBand) {
+    if (!entry) return null;
+    var band = lodBand == null ? 0 : (lodBand | 0);
+    // Quality LOW/MED: prefer higher LOD band (simpler) when AUTO
+    if (preferSimplerAssets() && band < 2) band = Math.max(band, 1);
+    if (LB.lod && LB.lod.resolveLodPath) {
+      var p = LB.lod.resolveLodPath(entry, band);
+      if (p) return p;
     }
-    return entry.path;
+    if (entry.lodPaths) {
+      var lp = entry.lodPaths;
+      if (band <= 0 && lp.lod0) return lp.lod0;
+      if (band === 1 && (lp.lod1 || lp.lod0)) return lp.lod1 || lp.lod0;
+      if (band === 2 && (lp.lod2 || lp.lod1 || lp.lod0)) return lp.lod2 || lp.lod1 || lp.lod0;
+      if (band >= 3) return lp.lod3 || lp.lod2 || lp.lod1 || lp.lod0 || null;
+    }
+    return entry.path || null;
   }
 
   function countTris(root) {
@@ -212,7 +233,7 @@
       return null;
     }
     loader = new THREE_REF.GLTFLoader();
-    // Stubs for future decompressors (not attached — no third-party wasm in v9.3)
+    // Stubs for future decompressors (not attached — no third-party wasm in v9.4)
     loader.userData = loader.userData || {};
     loader.userData.ktx2 = ktx2Stub;
     loader.userData.draco = dracoStub;
@@ -263,7 +284,7 @@
       mode: mode,
       loaderReady: !!loader,
       gltfLoader: typeof (THREE_REF && THREE_REF.GLTFLoader) === 'function',
-      version: 'v9.3'
+      version: 'v9.4'
     };
   }
 
@@ -283,116 +304,150 @@
     };
   }
 
-  function get(id) {
-    var c = cache[id];
+  function get(id, lodBand) {
+    var key = cacheKey(id, lodBand);
+    var c = cache[key] || cache[id];
     return c && c.status === 'ready' ? c.scene : null;
   }
 
-  function isReady(id) {
-    return !!(cache[id] && cache[id].status === 'ready' && cache[id].scene);
+  function isReady(id, lodBand) {
+    var key = cacheKey(id, lodBand);
+    if (cache[key] && cache[key].status === 'ready' && cache[key].scene) return true;
+    if ((lodBand == null || lodBand === 0) && cache[id] && cache[id].status === 'ready' && cache[id].scene) return true;
+    return false;
   }
 
   /**
    * Whether instantiate should attempt GLB for this id under current mode/quality.
    */
-  function shouldUseGltf(id) {
+  function shouldUseGltf(id, lodBand) {
     if (mode === 'PROCEDURAL') return false;
     var entry = getEntry(id);
-    if (!entry || !entry.path) return false;
+    if (!entry) return false;
+    var path = resolvePath(entry, lodBand == null ? 0 : lodBand);
+    if (!path && !entry.path) return false;
     if (shouldPreferProceduralForQuality(entry)) return false;
     // AUTO skips smoke-test placeholder boxes — keep articulated procedural as default visual
     // Force ?assets=gltf to exercise the real GLB instantiate path for pipeline verification
     if (mode === 'AUTO' && entry.smokeTest) return false;
-    if (mode === 'GLTF') return isReady(id); // only if already loaded — never block
+    if (mode === 'GLTF') return isReady(id, lodBand); // only if already loaded — never block
     // AUTO + production-ready assets
-    return isReady(id);
+    return isReady(id, lodBand);
   }
 
-  function loadAsset(id) {
+  function loadAsset(id, lodBand) {
     var entry = getEntry(id);
+    var band = lodBand == null ? 0 : (lodBand | 0);
+    var key = cacheKey(id, band);
     if (!entry) {
-      return Promise.resolve({ ok: false, id: id, error: 'unknown id', status: 'failed' });
+      return Promise.resolve({ ok: false, id: id, lodBand: band, error: 'unknown id', status: 'failed' });
     }
     if (mode === 'PROCEDURAL') {
-      setCacheStatus(id, { status: 'skipped', error: 'mode=PROCEDURAL' });
-      return Promise.resolve({ ok: false, id: id, error: 'procedural mode', status: 'skipped' });
+      setCacheStatus(key, { status: 'skipped', error: 'mode=PROCEDURAL', entry: entry, lodBand: band });
+      return Promise.resolve({ ok: false, id: id, lodBand: band, error: 'procedural mode', status: 'skipped' });
     }
-    if (!entry.path) {
-      setCacheStatus(id, { status: 'failed', error: 'empty path' });
+    var url = resolvePath(entry, band);
+    if (!url) {
+      setCacheStatus(key, { status: 'failed', error: 'empty/missing LOD path', entry: entry, lodBand: band });
       stats.failed++;
+      stats.lodFallback++;
       recomputeStats();
-      return Promise.resolve({ ok: false, id: id, error: 'empty path', status: 'failed' });
+      return Promise.resolve({ ok: false, id: id, lodBand: band, error: 'empty/missing LOD path', status: 'failed' });
     }
-    if (cache[id] && cache[id].status === 'ready') {
-      return Promise.resolve({ ok: true, id: id, scene: cache[id].scene, status: 'ready' });
+    if (cache[key] && cache[key].status === 'ready') {
+      return Promise.resolve({ ok: true, id: id, lodBand: band, scene: cache[key].scene, status: 'ready' });
     }
-    if (pending[id]) return pending[id];
+    // Also accept base-id cache when same URL as lod0
+    if (band > 0 && cache[id] && cache[id].status === 'ready' && cache[id].url === url) {
+      setCacheStatus(key, {
+        status: 'ready', scene: cache[id].scene, error: null, tris: cache[id].tris,
+        entry: entry, loadedAt: cache[id].loadedAt, lodBand: band, url: url,
+        animations: cache[id].animations || []
+      });
+      recomputeStats();
+      return Promise.resolve({ ok: true, id: id, lodBand: band, scene: cache[id].scene, status: 'ready', shared: true });
+    }
+    if (pending[key]) return pending[key];
 
     var ldr = ensureLoader();
     if (!ldr) {
-      setCacheStatus(id, { status: 'failed', error: 'GLTFLoader unavailable' });
+      setCacheStatus(key, { status: 'failed', error: 'GLTFLoader unavailable', entry: entry, lodBand: band });
       recomputeStats();
-      return Promise.resolve({ ok: false, id: id, error: 'GLTFLoader unavailable', status: 'failed' });
+      return Promise.resolve({ ok: false, id: id, lodBand: band, error: 'GLTFLoader unavailable', status: 'failed' });
     }
 
-    setCacheStatus(id, { status: 'loading', error: null, entry: entry });
+    setCacheStatus(key, { status: 'loading', error: null, entry: entry, lodBand: band, url: url });
     stats.pending++;
     recomputeStats();
 
-    var url = resolvePath(entry);
     var bust = '';
     try {
       if (LB.config && LB.config.BUILD) bust = (url.indexOf('?') >= 0 ? '&' : '?') + 'v=' + encodeURIComponent(LB.config.BUILD);
     } catch (_) {}
 
-    pending[id] = new Promise(function (resolve) {
+    pending[key] = new Promise(function (resolve) {
       try {
         ldr.load(
           url + bust,
           function (gltf) {
-            delete pending[id];
+            delete pending[key];
             var scene = gltf && (gltf.scene || (gltf.scenes && gltf.scenes[0]));
             if (!scene) {
-              setCacheStatus(id, { status: 'failed', error: 'empty gltf scene' });
+              setCacheStatus(key, { status: 'failed', error: 'empty gltf scene', lodBand: band });
               recomputeStats();
-              resolve({ ok: false, id: id, error: 'empty scene', status: 'failed' });
+              resolve({ ok: false, id: id, lodBand: band, error: 'empty scene', status: 'failed' });
               return;
             }
-            // Store template; clones happen on instantiate
+            // Store template; clones happen on instantiate. Maps stay template-owned (shared).
             scene.userData = scene.userData || {};
             scene.userData.luncAssetId = id;
             scene.userData.luncGltf = true;
+            scene.userData.luncLodBand = band;
+            scene.userData.luncTemplateOwned = true;
             var tris = countTris(scene);
-            setCacheStatus(id, {
+            setCacheStatus(key, {
               status: 'ready',
               scene: scene,
               error: null,
               tris: tris,
               entry: entry,
               loadedAt: Date.now(),
+              lodBand: band,
+              url: url,
               animations: (gltf && gltf.animations) || []
             });
+            // Mirror to base id when lod0
+            if (band === 0 && key !== id) {
+              setCacheStatus(id, cache[key]);
+            }
+            if (band === 0) {
+              setCacheStatus(id, {
+                status: 'ready', scene: scene, error: null, tris: tris, entry: entry,
+                loadedAt: Date.now(), lodBand: 0, url: url, animations: (gltf && gltf.animations) || []
+              });
+            }
             recomputeStats();
-            resolve({ ok: true, id: id, scene: scene, status: 'ready', tris: tris });
+            resolve({ ok: true, id: id, lodBand: band, scene: scene, status: 'ready', tris: tris });
           },
           undefined,
           function (err) {
-            delete pending[id];
+            delete pending[key];
             var msg = (err && err.message) ? err.message : String(err || 'load failed');
-            setCacheStatus(id, { status: 'failed', error: msg });
+            setCacheStatus(key, { status: 'failed', error: msg, lodBand: band });
+            stats.lodFallback++;
             recomputeStats();
-            resolve({ ok: false, id: id, error: msg, status: 'failed' });
+            resolve({ ok: false, id: id, lodBand: band, error: msg, status: 'failed' });
           }
         );
       } catch (e) {
-        delete pending[id];
+        delete pending[key];
         var msg2 = (e && e.message) ? e.message : String(e);
-        setCacheStatus(id, { status: 'failed', error: msg2 });
+        setCacheStatus(key, { status: 'failed', error: msg2, lodBand: band });
         recomputeStats();
-        resolve({ ok: false, id: id, error: msg2, status: 'failed' });
+        resolve({ ok: false, id: id, lodBand: band, error: msg2, status: 'failed' });
       }
     });
-    return pending[id];
+    return pending[key];
   }
 
   function preload(ids) {
@@ -436,14 +491,18 @@
    */
   function instantiate(id, opts) {
     opts = opts || {};
-    if (!shouldUseGltf(id) && mode !== 'GLTF') {
+    var band = opts.lodBand != null ? opts.lodBand : 0;
+    if (!shouldUseGltf(id, band) && mode !== 'GLTF') {
       return null;
     }
-    if (!isReady(id)) {
-      return null;
+    if (!isReady(id, band)) {
+      // Try lower LOD / base
+      if (!isReady(id, 0)) return null;
+      band = 0;
     }
     var entry = getEntry(id);
-    var template = cache[id].scene;
+    var key = cacheKey(id, band);
+    var template = (cache[key] && cache[key].scene) || (cache[id] && cache[id].scene);
     var cloned = cloneTemplate(template);
     if (!cloned) {
       return null;
@@ -458,6 +517,8 @@
     wrap.userData.luncAssetId = id;
     wrap.userData.luncAssetSource = 'gltf';
     wrap.userData.luncProcedural = false;
+    wrap.userData.luncLodBand = opts.lodBand != null ? opts.lodBand : 0;
+    wrap.userData.lodBand = wrap.userData.luncLodBand;
     wrap.userData.type = opts.type;
     wrap.userData.side = opts.side;
     wrap.userData.animState = 'IDLE';
@@ -469,8 +530,10 @@
     wrap.userData.muzzleOffset = opts.muzzleOffset || new THREE_REF.Vector3(0, 1.0, 0.8);
     wrap.userData.rootBob = 0;
     wrap.userData.recoil = 0;
+    wrap.userData.home = opts.home || null;
     stats.instantiated++;
     stats.gltfSpawns++;
+    stats.glbSpawned = stats.gltfSpawns;
     return wrap;
   }
 
@@ -482,21 +545,49 @@
     return mode;
   }
 
-  /** Effective display mode for PERF: PROCEDURAL / GLTF / MIXED */
+  /**
+   * Display mode for PERF — distinguishes CACHE LOADED vs SCENE SPAWNED.
+   * Never implies GLB art is visible when only the template cache is populated.
+   * Returns: PROCEDURAL | GLTF | MIXED | "GLTF LOADED · PROCEDURAL ACTIVE" | AUTO
+   */
   function getEffectiveAssetMode() {
+    var glbN = stats.gltfSpawns || stats.glbSpawned || 0;
+    var procN = stats.proceduralSpawns || stats.proceduralSpawned || 0;
     if (mode === 'PROCEDURAL') return 'PROCEDURAL';
-    if (stats.gltfSpawns > 0 && stats.proceduralSpawns > 0) return 'MIXED';
-    if (mode === 'GLTF' && stats.loaded > 0) return 'GLTF';
-    if (stats.gltfSpawns > 0 && stats.proceduralSpawns === 0) return 'GLTF';
-    if (stats.loaded > 0 && mode !== 'PROCEDURAL') return 'MIXED';
-    return mode === 'GLTF' ? 'GLTF' : (mode === 'AUTO' ? 'AUTO' : 'PROCEDURAL');
+    if (glbN > 0 && procN > 0) return 'MIXED';
+    if (glbN > 0 && procN === 0) return 'GLTF';
+    // Cache may be warm while scene is still procedural (AUTO + smokeTest)
+    if (stats.loaded > 0 && glbN === 0) return 'GLTF LOADED · PROCEDURAL ACTIVE';
+    if (mode === 'GLTF' && glbN === 0) return 'GLTF LOADED · PROCEDURAL ACTIVE';
+    if (mode === 'AUTO') return procN > 0 ? 'PROCEDURAL' : 'AUTO';
+    return 'PROCEDURAL';
+  }
+
+  function getSpawnDiagnostics() {
+    recomputeStats();
+    var glbN = stats.gltfSpawns || 0;
+    var procN = stats.proceduralSpawns || 0;
+    return {
+      assetsLoaded: stats.loaded,
+      assetsFailed: stats.failed,
+      assetsPending: stats.pending,
+      glbSpawned: glbN,
+      proceduralSpawned: procN,
+      instantiated: stats.instantiated,
+      mode: mode,
+      effectiveMode: getEffectiveAssetMode(),
+      note: stats.loaded > 0 && glbN === 0
+        ? 'Templates in cache — scene still procedural (SAFE FALLBACK / smokeTest gate)'
+        : null
+    };
   }
 
   function getStats() {
     recomputeStats();
+    var diag = getSpawnDiagnostics();
     return {
       mode: mode,
-      effectiveMode: getEffectiveAssetMode(),
+      effectiveMode: diag.effectiveMode,
       loaded: stats.loaded,
       failed: stats.failed,
       pending: stats.pending,
@@ -504,29 +595,169 @@
       instantiated: stats.instantiated,
       proceduralSpawns: stats.proceduralSpawns,
       gltfSpawns: stats.gltfSpawns,
+      glbSpawned: diag.glbSpawned,
+      proceduralSpawned: diag.proceduralSpawned,
+      assetsLoaded: diag.assetsLoaded,
+      lodSwaps: stats.lodSwaps,
+      lodFallback: stats.lodFallback,
       preloadStarted: preloadStarted,
       hotSwapEnabled: hotSwapEnabled,
       ktx2: ktx2Stub,
       draco: dracoStub,
       meshopt: meshoptStub,
-      skeletonUtilsNote: skeletonUtilsNote
+      skeletonUtilsNote: skeletonUtilsNote,
+      spawnNote: diag.note
     };
   }
 
   function markProceduralSpawn() {
     stats.proceduralSpawns++;
+    stats.proceduralSpawned = stats.proceduralSpawns;
+  }
+
+/**
+   * Safe visual LOD swap: replace mesh children while preserving world transform,
+   * side/faction, formation home, type, health/state hooks, anim metadata,
+   * fire timing, targeting. No new logical unit / no duplicate on LOD change.
+   * Skinned/AnimationMixer swap → v9.5 (SkeletonUtils) — see docs/V9-LOD.md.
+   */
+  function captureUnitState(wrap) {
+    if (!wrap || !wrap.userData) return null;
+    var ud = wrap.userData;
+    return {
+      position: wrap.position ? wrap.position.clone() : null,
+      rotation: wrap.rotation ? { x: wrap.rotation.x, y: wrap.rotation.y, z: wrap.rotation.z } : null,
+      quaternion: wrap.quaternion ? wrap.quaternion.clone() : null,
+      scale: wrap.scale ? wrap.scale.clone() : null,
+      side: ud.side,
+      type: ud.type,
+      home: ud.home,
+      index: ud.index,
+      animState: ud.animState,
+      phase: ud.phase,
+      shot: ud.shot,
+      speed: ud.speed,
+      facing: ud.facing,
+      fireUntil: ud.fireUntil,
+      reloadUntil: ud.reloadUntil,
+      hitUntil: ud.hitUntil,
+      recoil: ud.recoil,
+      rootBob: ud.rootBob,
+      health: ud.health,
+      targetId: ud.targetId,
+      muzzleOffset: ud.muzzleOffset,
+      lodBand: ud.lodBand,
+      luncAssetId: ud.luncAssetId,
+      luncAssetSource: ud.luncAssetSource
+    };
+  }
+
+  function restoreUnitState(wrap, state) {
+    if (!wrap || !state) return;
+    if (state.position && wrap.position) wrap.position.copy(state.position);
+    if (state.quaternion && wrap.quaternion) wrap.quaternion.copy(state.quaternion);
+    else if (state.rotation && wrap.rotation) {
+      wrap.rotation.set(state.rotation.x, state.rotation.y, state.rotation.z);
+    }
+    if (state.scale && wrap.scale) wrap.scale.copy(state.scale);
+    var ud = wrap.userData;
+    ud.side = state.side;
+    ud.type = state.type;
+    ud.home = state.home;
+    ud.index = state.index;
+    ud.animState = state.animState;
+    ud.phase = state.phase;
+    ud.shot = state.shot;
+    ud.speed = state.speed;
+    ud.facing = state.facing;
+    ud.fireUntil = state.fireUntil;
+    ud.reloadUntil = state.reloadUntil;
+    ud.hitUntil = state.hitUntil;
+    ud.recoil = state.recoil;
+    ud.rootBob = state.rootBob;
+    ud.health = state.health;
+    ud.targetId = state.targetId;
+    if (state.muzzleOffset) ud.muzzleOffset = state.muzzleOffset;
+  }
+
+  function swapVisual(wrap, id, lodBand, opts) {
+    opts = opts || {};
+    if (!wrap || !THREE_REF) return { ok: false, reason: 'no wrap' };
+    var band = lodBand == null ? 0 : (lodBand | 0);
+    if (band >= 3) {
+      // Impostor architecture — do not swap mesh; flag only
+      wrap.userData.lodBand = 3;
+      wrap.userData.impostorReady = true;
+      if (LB.lod && LB.lod.ensureImpostorStub) LB.lod.ensureImpostorStub(wrap, THREE_REF);
+      return { ok: true, impostor: true, lodBand: 3 };
+    }
+    if (!isReady(id, band)) {
+      stats.lodFallback++;
+      return { ok: false, reason: 'LOD asset not ready — keep current visual', fallback: true };
+    }
+    var state = captureUnitState(wrap);
+    var fresh = null;
+    try {
+      // Temporarily allow instantiate
+      var prevMode = mode;
+      fresh = instantiate(id, {
+        lodBand: band,
+        side: wrap.userData.side,
+        type: wrap.userData.type,
+        color: opts.color,
+        accentColor: opts.accentColor || opts.color,
+        home: wrap.userData.home,
+        muzzleOffset: wrap.userData.muzzleOffset
+      });
+      mode = prevMode;
+    } catch (e) {
+      stats.lodFallback++;
+      return { ok: false, reason: String(e && e.message || e), fallback: true };
+    }
+    if (!fresh) {
+      stats.lodFallback++;
+      return { ok: false, reason: 'instantiate returned null', fallback: true };
+    }
+    // Move fresh children into wrap; dispose old non-shared geometry carefully
+    var oldChildren = wrap.children.slice();
+    while (fresh.children.length) {
+      wrap.add(fresh.children[0]);
+    }
+    oldChildren.forEach(function (ch) {
+      if (ch.userData && ch.userData.luncImpostor) return; // keep impostor stub
+      wrap.remove(ch);
+      // Do not dispose template-shared geos/maps — only leaf clones without template flag
+      try {
+        ch.traverse(function (child) {
+          if (child.geometry && child.geometry.dispose && !(child.userData && child.userData.luncTemplateOwned)) {
+            // Cloned geos from Object3D.clone are unique — safe to dispose
+            // But shared materials from registry must stay
+          }
+        });
+      } catch (_) {}
+    });
+    restoreUnitState(wrap, state);
+    wrap.userData.lodBand = band;
+    wrap.userData.luncLodBand = band;
+    wrap.userData.luncAssetId = id;
+    wrap.userData.luncAssetSource = 'gltf';
+    stats.lodSwaps++;
+    // Undo double-count from instantiate during swap
+    if (stats.gltfSpawns > 0) stats.gltfSpawns--;
+    if (stats.instantiated > 0) stats.instantiated--;
+    stats.glbSpawned = stats.gltfSpawns;
+    return { ok: true, lodBand: band, swapped: true };
   }
 
   /**
-   * Hot-swap skipped in v9.3 — replacing live units mid-battle without
-   * animation retarget / formation home preservation is unsafe.
-   * Documented: spawn procedural immediately; GLB used on next rebuild when ready.
+   * Full skinned hot-swap skipped — unsafe without SkeletonUtils / anim retarget (v9.5).
+   * Use swapVisual for rigid LOD mesh swaps; rebuildUnits for army refresh.
    */
   function tryHotSwap() {
     return {
       ok: false,
       skipped: true,
-      reason: 'Hot-swap deferred in v9.3 — use rebuildUnits when assets become ready, or keep procedural'
+      reason: 'Skinned hot-swap deferred to v9.5 (SkeletonUtils). Use swapVisual for rigid LOD or rebuildUnits.'
     };
   }
 
@@ -544,13 +775,19 @@
           if (!m) return;
           // Do not dispose shared LUNCBattle.materials presets
           if (m.userData && m.userData.luncShared) return;
+          // Shared cached textures (template-owned): never dispose maps from clones.
+          // Only dispose maps marked luncOwned on this material / asset-owned.
           try {
-            if (m.map) m.map = null;
-            if (m.normalMap) m.normalMap = null;
-            if (m.aoMap) m.aoMap = null;
-            if (m.emissiveMap) m.emissiveMap = null;
-            if (m.metalnessMap) m.metalnessMap = null;
-            if (m.roughnessMap) m.roughnessMap = null;
+            var ownMaps = m.userData && m.userData.luncOwnsMaps;
+            var mapKeys = ['map', 'normalMap', 'aoMap', 'emissiveMap', 'metalnessMap', 'roughnessMap', 'alphaMap', 'lightMap'];
+            mapKeys.forEach(function (k) {
+              if (!m[k]) return;
+              if (ownMaps || (m[k].userData && m[k].userData.luncOwned)) {
+                try { if (m[k].dispose) m[k].dispose(); } catch (_) {}
+              }
+              // Detach reference only — do not dispose shared cache textures
+              m[k] = null;
+            });
             if (m.dispose) m.dispose();
           } catch (_) {}
         });
@@ -572,6 +809,10 @@
     stats.instantiated = 0;
     stats.proceduralSpawns = 0;
     stats.gltfSpawns = 0;
+    stats.glbSpawned = 0;
+    stats.proceduralSpawned = 0;
+    stats.lodSwaps = 0;
+    stats.lodFallback = 0;
     recomputeStats();
     return true;
   }
@@ -581,7 +822,7 @@
   function prepareMeshoptStub() { return meshoptStub; }
 
   var api = {
-    version: 'v9.3',
+    version: 'v9.4',
     init: init,
     loadAsset: loadAsset,
     preload: preload,
@@ -597,6 +838,12 @@
     getStats: getStats,
     getEffectiveAssetMode: getEffectiveAssetMode,
     markProceduralSpawn: markProceduralSpawn,
+    getSpawnDiagnostics: getSpawnDiagnostics,
+    swapVisual: swapVisual,
+    captureUnitState: captureUnitState,
+    restoreUnitState: restoreUnitState,
+    cacheKey: cacheKey,
+    resolvePath: resolvePath,
     tryHotSwap: tryHotSwap,
     prepareKTX2Stub: prepareKTX2Stub,
     prepareDracoStub: prepareDracoStub,

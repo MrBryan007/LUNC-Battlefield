@@ -1,4 +1,4 @@
-/* LUNC Battlefield v8.4 — combat effects with pooling & event scaling */
+/* LUNC Battlefield v9.4.4 — combat effects with pooling & event scaling */
 (function (global) {
   'use strict';
   const LB = global.LUNCBattle;
@@ -691,7 +691,11 @@
       };
     }
 
-    function tick(dt, now) {
+    function tick(dt, now, camera) {
+      // v9.4: skip expensive far FX updates (simulation projectiles still advance)
+      var lodFx = (global.LUNCBattle && LUNCBattle.lod) ? LUNCBattle.lod : null;
+      var cam = camera || null;
+      var camPos = (cam && cam.position) ? cam.position : null;
       // Projectiles
       for (let i = projectilePool.length - 1; i >= 0; i--) {
         const b = projectilePool[i];
@@ -778,6 +782,11 @@
       // Particles
       for (let i = particlePool.length - 1; i >= 0; i--) {
         const q = particlePool[i];
+        if (camPos && lodFx && lodFx.shouldUpdateFx &&
+            !lodFx.shouldUpdateFx(q.position.x, q.position.z, camera, 95)) {
+          q.userData.life -= dt * 1.25;
+          if (q.userData.life > 0) continue;
+        }
         const ud = q.userData;
         ud.life -= dt;
         q.position.x += ud.vx * dt;

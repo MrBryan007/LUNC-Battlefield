@@ -1,5 +1,7 @@
 # LUNC Battlefield v9.3 — Professional glTF/GLB asset pipeline
 
+> **Follow-on:** **v9.4** adds true LOD + production asset readiness — see `docs/V9-LOD.md` and `docs/V9-ASSET-SPEC.md`.
+
 **Status:** v9.3 on `feat/v9-next-gen-renderer` only. **Not merged to main.** Live Pages remains v8.x.
 
 **Prerequisite:** v9.1 renderer abstraction + v9.2 PBR materials/lighting. Three.js stays **r128**. **No Three upgrade in v9.3.**
@@ -21,7 +23,7 @@
 - KTX2 / Draco / Meshopt wiring (stubs documented)
 - Live mid-battle hot-swap of meshes (skipped — unsafe without anim retarget)
 - Shipping production art packs or unclear-license downloads
-- Merging to `main` / starting v9.4
+- Merging to `main` (v9.4 continues on branch)
 
 ---
 
@@ -139,7 +141,7 @@ Clone: `Object3D.clone(true)`. Skinned meshes need `SkeletonUtils.clone` later (
 - `?assets=procedural` → loaded stays 0 / skipped; armies procedural
 - `?assets=gltf` → after feed line “Assets…”, army may rebuild with box GLBs
 - `?assets=auto` (default) → preload may load templates; visuals stay procedural (smokeTest)
-- Footer: `Prices: DefiLlama → CoinGecko → Binance Vision` (dynamic from config)
+- Footer: price sources derived from configured/active feeds (see v9.4 `refreshPriceSourcesFooter`)
 - Missing demo failure increments failed count
 
 ## Known limits

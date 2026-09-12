@@ -1,4 +1,4 @@
-/* Unit builders / formations — v9.3 articulated RTS units + optional glTF instantiate */
+/* Unit builders / formations — v9.4 articulated RTS units + LOD + optional glTF instantiate */
 (function (global) {
   'use strict';
   const LB = global.LUNCBattle;
@@ -499,23 +499,51 @@
 
     function tickUnit(u, dt, now, tickCtx) {
       tickCtx = tickCtx || {};
-      // Inject quality LOD hooks when not provided by caller
-      if (tickCtx.lodBand == null && global.LUNCBattle && LUNCBattle.quality && LUNCBattle.quality.getLodBand) {
-        try {
+      // v9.4: true LOD with hysteresis via LUNCBattle.lod
+      try {
+        const Lod = global.LUNCBattle && LUNCBattle.lod;
+        const camObj = tickCtx.camera || null;
+        if (Lod && camObj && u.position) {
+          const band = Lod.updateUnitLod(u, camObj);
+          tickCtx.lodBand = band;
+          Lod.tally(band, 'unit', false);
+          // Frustum: skip expensive anim for off-camera far units (keep sim state)
+          if (band >= 2 && Lod.isInView && !Lod.isInView(u, camObj, THREE)) {
+            tickCtx.skipAnim = true;
+            u.userData.lodCulled = true;
+          } else {
+            u.userData.lodCulled = false;
+          }
+        } else if (tickCtx.lodBand == null && global.LUNCBattle && LUNCBattle.quality && LUNCBattle.quality.getLodBand) {
           const cam = tickCtx.cameraPos;
           if (cam && u.position) {
             const dx = u.position.x - cam.x;
             const dz = u.position.z - cam.z;
             tickCtx.lodBand = LUNCBattle.quality.getLodBand(Math.sqrt(dx * dx + dz * dz));
           }
-        } catch (_) {}
-      }
+        }
+      } catch (_) {}
       if (!tickCtx.animComplexity && global.LUNCBattle && LUNCBattle.quality && LUNCBattle.quality.getEffectivePreset) {
         try {
           const p = LUNCBattle.quality.getEffectivePreset();
           tickCtx.animComplexity = p.animComplexity;
           tickCtx.unitUpdateDivisor = p.unitUpdateDivisor;
         } catch (_) {}
+      }
+      // Optional rigid GLB LOD swap when ?assets=gltf and target LOD ready (smoke verify)
+      try {
+        if (tickCtx.enableLodSwap && u.userData && u.userData.luncAssetId &&
+            global.LUNCBattle && LUNCBattle.assets && LUNCBattle.assets.swapVisual) {
+          const want = tickCtx.lodBand != null ? tickCtx.lodBand : u.userData.lodBand;
+          const have = u.userData.luncLodBand != null ? u.userData.luncLodBand : u.userData.lodBand;
+          if (want != null && have != null && want !== have && want < 3) {
+            LUNCBattle.assets.swapVisual(u, u.userData.luncAssetId, want, {});
+          }
+        }
+      } catch (_) {}
+      if (tickCtx.skipAnim) {
+        if (u.userData && u.userData.facing != null) u.rotation.y = u.userData.facing;
+        return;
       }
       if (Anim && Anim.tickUnit) Anim.tickUnit(u, dt, now, tickCtx);
     }
@@ -532,7 +560,7 @@
       setAnimState: setAnimState,
       tickUnit: tickUnit,
       GEO: GEO,
-      version: 'v9.3'
+      version: 'v9.4'
     };
   }
 

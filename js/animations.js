@@ -1,4 +1,4 @@
-/* LUNC Battlefield v8.2 — unit animation helpers (procedural, Three.js r128) */
+/* LUNC Battlefield v9.4 — unit animation helpers + LOD rates (procedural, Three.js r128) */
 (function (global) {
   'use strict';
   const LB = global.LUNCBattle = global.LUNCBattle || {};
@@ -301,25 +301,38 @@
     const ud = unit.userData;
     if (!ud) return;
 
-    // v8.8 — LOD / quality: skip expensive anim for far or LOW/MEDIUM bands
-    const lod = ctx.lodBand != null ? ctx.lodBand : 0;
+    // v9.4 — LOD anim rates: LOD0 full · LOD1 reduced · LOD2 simple · LOD3 no limb anim
+    const lod = ctx.lodBand != null ? ctx.lodBand : (ud.lodBand != null ? ud.lodBand : 0);
     const complexity = ctx.animComplexity || 'high';
     const divisor = ctx.unitUpdateDivisor > 1 ? ctx.unitUpdateDivisor : 1;
-    if (divisor > 1) {
+    let period = 1;
+    try {
+      if (global.LUNCBattle && LUNCBattle.lod && LUNCBattle.lod.animPolicy) {
+        const pol = LUNCBattle.lod.animPolicy(lod, complexity);
+        period = pol.period || 1;
+        if (pol.skipLimbAnim) {
+          if (ud.facing != null) unit.rotation.y = ud.facing;
+          ud.rootBob = 0;
+          return;
+        }
+      }
+    } catch (_) {}
+    const effDiv = Math.max(divisor, period > 1 ? period : 1);
+    if (effDiv > 1) {
       ud._animFrame = (ud._animFrame || 0) + 1;
-      if ((ud._animFrame + (ud.index || 0)) % divisor !== 0 && lod >= 1) {
-        // Still keep facing/rootBob stable
+      if ((ud._animFrame + (ud.index || 0)) % effDiv !== 0 && lod >= 1) {
         if (ud.facing != null) unit.rotation.y = ud.facing;
         return;
       }
     }
-    if (lod >= 3 && complexity !== 'ultra') {
+    if (lod >= 3) {
+      // LOD3: no limb anim (impostor prep)
       if (ud.facing != null) unit.rotation.y = ud.facing;
       ud.rootBob = 0;
       return;
     }
-    if (lod >= 2 && (complexity === 'low' || complexity === 'medium')) {
-      // Sparse: facing + light bob only
+    if (lod >= 2) {
+      // LOD2 simple: facing + light bob only (all qualities)
       if (ud.facing != null) unit.rotation.y = dampAngle(unit.rotation.y, ud.facing, dt, 6);
       ud.rootBob = (ud.type === 0 && (ud.speed || 0) > 0.4) ? Math.sin(now * 6) * 0.02 : 0;
       return;

@@ -2,8 +2,8 @@
     'use strict';
 
     // =====================================================
-    // LUNC ECOSYSTEM BATTLEFIELD v9.3 — glTF asset pipeline + RTS GRAPHICS
-    // v8.1–v8.8 + v9.1 renderer + v9.2 PBR + v9.3 assets (procedural SAFE FALLBACK)
+    // LUNC ECOSYSTEM BATTLEFIELD v9.4 — true LOD + production asset readiness
+    // v8.1–v8.8 + v9.1–v9.3 preserved; LOD + asset diagnostics (procedural SAFE FALLBACK)
     // Original procedural art only. No third-party game assets.
     // Graphics-only: never alter market / Battle Strength / liq / burn math.
     // =====================================================
@@ -1207,6 +1207,9 @@
     function animate() {
       requestAnimationFrame(animate);
       const dt=Math.min(.04,clock.getDelta());
+      if (window.LUNCBattle && LUNCBattle.lod && LUNCBattle.lod.beginFrame) {
+        LUNCBattle.lod.beginFrame();
+      }
       if (window.LUNCBattle && LUNCBattle.quality && LUNCBattle.quality.tick) {
         LUNCBattle.quality.tick(dt, renderer);
       }
@@ -1252,7 +1255,9 @@
           if (unitsApi && unitsApi.tickUnit) {
             unitsApi.tickUnit(u, dt, now, {
               momentum: momentum, targetX: targetX, mobile: mobileGfx,
-              cameraPos: camera.position
+              cameraPos: camera.position,
+              camera: camera,
+              enableLodSwap: !!(window.LUNCBattle && LUNCBattle.assets && LUNCBattle.assets.getMode && LUNCBattle.assets.getMode() === 'GLTF')
             });
           }
           // v8.3: apply rootBob after tickUnit so infantry bob is same-frame
@@ -1262,7 +1267,7 @@
       moveArmy(bulls,-1); moveArmy(bears,1);
 
       if (effectsApi && typeof effectsApi.tick === 'function') {
-        effectsApi.tick(dt, now);
+        effectsApi.tick(dt, now, camera);
       } else {
         for(let i=projectilePool.length-1;i>=0;i--){
           const b=projectilePool[i],dx=b.userData.tx-b.position.x,step=Math.sign(dx)*b.userData.speed*dt;
@@ -1278,7 +1283,8 @@
       }
       // camera shake applied inside cameraCtrl.update (no permanent target drift)
       bullLight.intensity=1.1+Math.sin(now*1.3)*.16; bearLight.intensity=1.05+Math.cos(now*1.25)*.14;
-      if (envApi && typeof envApi.update === 'function') envApi.update(dt, now);
+      if (envApi && typeof envApi.update === 'function') envApi.update(dt, now, camera);
+      if (structuresApi && typeof structuresApi.applyStructureLods === 'function') structuresApi.applyStructureLods(camera);
       if (structuresApi && typeof structuresApi.updateStructures === 'function') structuresApi.updateStructures(dt, now);
       if (minimapApi) {
         if (priceTerritoryApi && priceTerritoryApi.getDefenseMarkers) {
@@ -1300,7 +1306,7 @@
     });
 
     updateStatusUI();
-    pushFeed('Battlefield ' + ((window.LUNCBattle && LUNCBattle.config && LUNCBattle.config.BUILD) || 'v8') + ' · graphics quality system','win');
+    pushFeed('Battlefield ' + ((window.LUNCBattle && LUNCBattle.config && LUNCBattle.config.BUILD) || 'v8') + ' · LOD + asset pipeline','win');
     pushFeed('Market pressure moves formations and the contested front','info');
     pushFeed('Public build uses HTTPS-safe data feeds','info');
     animate();

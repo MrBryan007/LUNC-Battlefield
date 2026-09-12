@@ -1,4 +1,4 @@
-/* LUNC Battlefield v9.3 — shared config (GitHub Pages safe) */
+/* LUNC Battlefield v9.4 — shared config (GitHub Pages safe) */
 (function (global) {
   'use strict';
   const DataTruth = Object.freeze({
@@ -56,8 +56,8 @@
   };
 
   const config = {
-    BUILD: 'v9.3',
-    TITLE: 'LUNC Ecosystem Battlefield v9.3 — glTF/GLB asset pipeline (WebGL r128)',
+    BUILD: 'v9.4',
+    TITLE: 'LUNC Ecosystem Battlefield v9.4 — true LOD + production asset readiness (WebGL r128)',
     DataTruth,
     tokens,
     apiBase: resolveApiBase(),

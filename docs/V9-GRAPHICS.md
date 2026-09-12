@@ -1,6 +1,6 @@
 # LUNC Battlefield v9.2 — PBR materials & lighting foundation
 
-> **Follow-on:** **v9.3** adds the glTF/GLB asset pipeline — see `docs/V9-ASSETS.md`. PBR registry / lighting / ACES from v9.2 are preserved.
+> **Follow-on:** **v9.3** glTF pipeline (`docs/V9-ASSETS.md`); **v9.4** true LOD (`docs/V9-LOD.md`, `docs/V9-ASSET-SPEC.md`). PBR registry / lighting / ACES from v9.2 are preserved.
 
 **Status:** v9.2.1 on feature branch `feat/v9-next-gen-renderer` only. **Not merged to main.** Live GitHub Pages remains v8.x until an explicit merge.
 

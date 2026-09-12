@@ -502,30 +502,57 @@
   }
 
 
-  /** Dynamic HUD footer — configured price sources (incl. Binance Vision). No redesign. */
+  /**
+   * Dynamic HUD footer — derive from configured/active market sources (no redesign).
+   * Prefer active LIVE source; otherwise list configured fallbacks truthfully
+   * (Binance Vision when binanceRestBase is vision; DefiLlama / CoinGecko as fallbacks).
+   * Never a static fake pipeline string.
+   */
   function refreshPriceSourcesFooter() {
     const el = document.getElementById('priceSourcesLabel');
     if (!el) return;
-    const parts = [];
-    // Order matches battle-engine / market fetch preference
-    parts.push('DefiLlama');
-    parts.push('CoinGecko');
-    let vision = 'Binance Vision';
+    const configured = [];
+    // DefiLlama + CoinGecko are always available public fallbacks in battle-engine
+    configured.push('DefiLlama');
+    configured.push('CoinGecko');
+    let binanceLabel = null;
     try {
       const base = (LB.config && LB.config.binanceRestBase) || '';
-      if (/binance\.vision/i.test(base)) vision = 'Binance Vision';
-      else if (/api\.binance\.com/i.test(base)) vision = 'Binance REST';
-      else if (base) vision = 'Binance REST';
-    } catch (_) {}
-    parts.push(vision);
-    // Live label when health knows active source
-    let live = '';
+      if (/binance\.vision/i.test(base)) binanceLabel = 'Binance Vision';
+      else if (/api\.binance\.com/i.test(base)) binanceLabel = 'Binance REST';
+      else if (base) binanceLabel = 'Binance REST';
+      else binanceLabel = 'Binance Vision'; // default config uses vision
+    } catch (_) {
+      binanceLabel = 'Binance Vision';
+    }
+    if (binanceLabel) configured.push(binanceLabel);
+
+    let active = '';
     try {
       if (healthState && healthState.priceLive && healthState.priceSource) {
-        live = ' · active: ' + String(healthState.priceSource);
+        active = String(healthState.priceSource);
       }
     } catch (_) {}
-    el.textContent = parts.join(' → ') + live;
+
+    // If we know the active source, lead with it and note fallbacks
+    let text;
+    if (active) {
+      const rest = configured.filter(function (s) {
+        return s.toLowerCase().indexOf(active.toLowerCase().split(' ')[0]) < 0 &&
+          active.toLowerCase().indexOf(s.toLowerCase().split(' ')[0]) < 0;
+      });
+      // Normalize active label
+      let activeLabel = active;
+      if (/binance/i.test(active) && binanceLabel) activeLabel = binanceLabel;
+      else if (/llama/i.test(active)) activeLabel = 'DefiLlama';
+      else if (/gecko/i.test(active)) activeLabel = 'CoinGecko';
+      text = activeLabel + ' (active)';
+      if (rest.length) text += ' · fallbacks: ' + rest.join(', ');
+    } else {
+      // Not live yet — show configured sources (truthful order: Llama → Gecko → Binance Vision/REST)
+      text = configured.join(' → ');
+    }
+    el.textContent = text;
   }
 
   function updateHealthInput( partial ) {

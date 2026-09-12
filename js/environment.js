@@ -1,4 +1,4 @@
-/* LUNC Battlefield v9.2 — battlefield environment props (materials registry) */
+/* LUNC Battlefield v9.4 — battlefield environment props + LOD (materials registry) */
 (function (global) {
   'use strict';
 
@@ -54,6 +54,14 @@
     const scale = (mobile ? 0.55 : 1) * dens;
     const group = new THREE.Group();
     group.name = 'environment-v81';
+
+    function tagEnv(obj, kind) {
+      if (!obj) return obj;
+      obj.userData = obj.userData || {};
+      obj.userData.envKind = kind;
+      obj.userData.lodBand = 0;
+      return obj;
+    }
 
     const rockMat = Mats ? Mats.get('prop.rock') : matFn(0x4a4b3d, 0.95, 0.02);
     const rockMatB = Mats ? Mats.get('prop.rockB') : matFn(0x5c5e4f, 0.92, 0.03);
@@ -485,12 +493,40 @@
       puff.scale.y = 0.7;
       puff.userData.phase = seededRand(i + 2460) * Math.PI * 2;
       puff.userData.baseOpacity = 0.1 + seededRand(i + 2480) * 0.08;
+      tagEnv(puff, 'smoke');
       group.add(puff);
       smokePuffs.push(puff);
       smokePlaced++;
     }
 
     scene.add(group);
+
+    // v9.4: tag untagged children for env LOD (trees/rocks/crates/fences/debris)
+    group.traverse(function (obj) {
+      if (!obj.isMesh && !obj.isGroup) return;
+      if (obj === group) return;
+      if (obj.userData && obj.userData.envKind) return;
+      var n = (obj.name || '').toLowerCase();
+      var kind = null;
+      if (n.indexOf('tree') >= 0 || n.indexOf('foliage') >= 0) kind = 'tree';
+      else if (n.indexOf('rock') >= 0) kind = 'rock';
+      else if (n.indexOf('bush') >= 0) kind = 'bush';
+      else if (n.indexOf('crate') >= 0 || n.indexOf('barrel') >= 0) kind = 'crate';
+      else if (n.indexOf('fence') >= 0 || n.indexOf('barricade') >= 0) kind = 'fence';
+      else if (n.indexOf('ruin') >= 0 || n.indexOf('wreck') >= 0 || n.indexOf('debris') >= 0 || n.indexOf('rubble') >= 0) kind = 'debris';
+      else if (n.indexOf('smoke') >= 0) kind = 'smoke';
+      // Parent group tagging: if mesh has no name, tag parent groups that look like props
+      if (!kind && obj.parent && obj.parent !== group && obj.parent.userData && obj.parent.userData.envKind) return;
+      if (!kind && obj.isGroup && obj.children && obj.children.length) {
+        // leave for children; mark as prop cluster
+        kind = 'prop';
+      }
+      if (kind) {
+        obj.userData = obj.userData || {};
+        obj.userData.envKind = kind;
+        obj.userData.lodBand = 0;
+      }
+    });
 
     const fog = {
       fogColor: 0x121a12,
@@ -499,9 +535,18 @@
       background: 0x0c140e
     };
 
-    function update(dt, now) {
+    function update(dt, now, camera) {
+      // v9.4 env LOD — reduce/hide far trees/rocks/wreckage; terrain stable
+      try {
+        if (camera && global.LUNCBattle && LUNCBattle.lod && LUNCBattle.lod.updateEnvironmentLod) {
+          LUNCBattle.lod.updateEnvironmentLod(group, camera);
+        }
+      } catch (_) {}
       for (let i = 0; i < smokePuffs.length; i++) {
         const p = smokePuffs[i];
+        if (p.visible === false) continue;
+        // Skip far smoke opacity churn when LOD says so
+        if (p.userData && p.userData.lodBand >= 3) continue;
         const o = p.userData.baseOpacity * (0.75 + 0.25 * Math.sin(now * 0.35 + p.userData.phase));
         p.material.opacity = o;
         p.position.y += Math.sin(now * 0.2 + p.userData.phase) * 0.002;

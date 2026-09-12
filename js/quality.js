@@ -1,4 +1,4 @@
-/* LUNC Battlefield v9.3 — graphics quality + performance scaling (PBR + asset stats) */
+/* LUNC Battlefield v9.4 — graphics quality + performance scaling (PBR + asset stats) */
 (function (global) {
   'use strict';
 
@@ -338,6 +338,10 @@
   }
 
   function getLodBand(distance) {
+    // Prefer true LOD module (v9.4) when present — hysteresis is per-object via lod.resolveLod
+    try {
+      if (LB.lod && LB.lod.getLodBand) return LB.lod.getLodBand(distance);
+    } catch (_) {}
     var d = +distance || 0;
     var lod = applied.lod || DEFAULT_LOD;
     if (d <= lod.LOD0) return 0;
@@ -615,7 +619,7 @@
     overlayEl.className = 'perf-overlay';
     overlayEl.setAttribute('aria-hidden', 'true');
     overlayEl.innerHTML =
-      '<div class="perf-title">PERF · v9.3</div>' +
+      '<div class="perf-title">PERF · v9.4</div>' +
       '<div class="perf-section" id="perfGfx"></div>' +
       '<div class="perf-section" id="perfAssets"></div>' +
       '<div class="perf-section perf-feeds" id="perfFeeds"></div>';
@@ -653,6 +657,38 @@
         '<div>Mats <b>' + (counts.materials != null ? counts.materials : (LB.materials && LB.materials.count ? LB.materials.count() : '—')) + '</b>' +
         (counts.materialsShared != null ? (' · shared <b>' + counts.materialsShared + '</b>') : '') + '</div>' +
         '<div>Minimap <b>' + (st.preset.minimapHz || '—') + ' Hz</b></div>';
+    }
+    var assetsEl = document.getElementById('perfAssets');
+    if (assetsEl) {
+      var aMode = '—', loaded = '—', failed = '—', pending = '—', tris = '—';
+      var glbSp = '—', procSp = '—', spawnNote = '';
+      var lodLine = 'LOD0–3 —';
+      try {
+        if (LB.assets && LB.assets.getStats) {
+          var as = LB.assets.getStats();
+          aMode = as.effectiveMode || as.mode || '—';
+          loaded = as.loaded != null ? as.loaded : (as.assetsLoaded != null ? as.assetsLoaded : '—');
+          failed = as.failed != null ? as.failed : '—';
+          pending = as.pending != null ? as.pending : '—';
+          tris = as.approxTris != null ? as.approxTris : '—';
+          glbSp = as.glbSpawned != null ? as.glbSpawned : (as.gltfSpawns != null ? as.gltfSpawns : 0);
+          procSp = as.proceduralSpawned != null ? as.proceduralSpawned : (as.proceduralSpawns != null ? as.proceduralSpawns : 0);
+          if (as.spawnNote) spawnNote = String(as.spawnNote);
+        }
+        if (LB.lod && LB.lod.getCounts) {
+          var lc = LB.lod.getCounts();
+          lodLine = 'LOD0 <b>' + lc.lod0 + '</b> · LOD1 <b>' + lc.lod1 + '</b> · LOD2 <b>' + lc.lod2 + '</b> · LOD3 <b>' + lc.lod3 + '</b>' +
+            (lc.culled ? (' · cull <b>' + lc.culled + '</b>') : '');
+        }
+      } catch (_) {}
+      assetsEl.innerHTML =
+        '<div class="perf-feed-title">ASSETS</div>' +
+        '<div>Mode <b>' + String(aMode).replace(/[<>]/g, '') + '</b></div>' +
+        '<div>ASSETS LOADED (cache) <b>' + loaded + '</b> · fail <b>' + failed + '</b> · pend <b>' + pending + '</b></div>' +
+        '<div>ASSETS SPAWNED · GLB <b>' + glbSp + '</b> · procedural <b>' + procSp + '</b></div>' +
+        '<div>Approx tris (cached) <b>' + tris + '</b></div>' +
+        '<div>' + lodLine + '</div>' +
+        (spawnNote ? '<div class="micro">' + spawnNote.replace(/[<>]/g, '') + '</div>' : '');
     }
     if (feedEl) {
       var fh = st.feeds;
@@ -810,7 +846,7 @@
 
   // Public API
   var api = {
-    version: 'v9.3',
+    version: 'v9.4',
     MODES: MODES,
     PRESETS: PRESETS,
     FEED_STATES: FEED_STATES,

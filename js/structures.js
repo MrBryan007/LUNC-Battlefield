@@ -1,4 +1,4 @@
-/* LUNC Battlefield v8.3 — faction bases & RTS structures (original procedural) */
+/* LUNC Battlefield v9.4 — faction bases & RTS structures (original procedural) */
 (function (global) {
   'use strict';
 
@@ -682,6 +682,20 @@
 
     function placeNamed(group, building, x, z, hx, hz, yOff) {
       placeBuilding(building, x, z, hx, hz, yOff);
+      // v9.4: collect decorative children for distance cull (keep silhouette + faction)
+      if (building && building.userData) {
+        const decor = [];
+        building.traverse(function (ch) {
+          if (!ch.isMesh) return;
+          const n = (ch.name || '').toLowerCase();
+          if (n.indexOf('decor') >= 0 || n.indexOf('antenna') >= 0 || n.indexOf('banner') >= 0 ||
+              n.indexOf('blink') >= 0 || n.indexOf('light') >= 0 || n.indexOf('dish') >= 0) {
+            decor.push(ch);
+          }
+        });
+        if (decor.length) building.userData.decorative = decor;
+        building.userData.lodBand = 0;
+      }
       group.add(building);
       return building;
     }
@@ -831,6 +845,14 @@
       return g;
     }
 
+    function applyStructureLods(camera) {
+      try {
+        if (camera && global.LUNCBattle && LUNCBattle.lod && LUNCBattle.lod.updateStructuresLod) {
+          LUNCBattle.lod.updateStructuresLod(buildings, camera);
+        }
+      } catch (_) {}
+    }
+
     function updateStructures(dt, now) {
       for (let i = 0; i < radars.length; i++) {
         const r = radars[i];
@@ -845,6 +867,8 @@
       }
       for (let i = 0; i < blinkers.length; i++) {
         const k = blinkers[i];
+        if (k && k.parent && k.parent.userData && k.parent.userData.lodSkipFx) continue;
+        if (k && k.userData && k.userData.lodSkipFx) continue;
         if (!k || !k.mat) continue;
         if (k.mode === 'blink') {
           const on = Math.sin(now * 3.1 + k.phase) > 0.35;
@@ -909,12 +933,13 @@
     return {
       createFactionBase: createFactionBase,
       updateStructures: updateStructures,
+      applyStructureLods: applyStructureLods,
       setDamageState: setDamageState,
       getCommandCenter: getCommandCenter,
       getBuildings: getBuildings,
       setAccentColor: setAccentColor,
       dispose: dispose,
-      version: 'v9.3'
+      version: 'v9.4'
     };
   }
 
