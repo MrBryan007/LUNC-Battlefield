@@ -30,6 +30,7 @@
   var _frustum = null;
   var _projScreen = null;
   var _counts = { lod0: 0, lod1: 0, lod2: 0, lod3: 0, culled: 0, units: 0, structures: 0, props: 0 };
+  var _displayCounts = { lod0: 0, lod1: 0, lod2: 0, lod3: 0, culled: 0, units: 0, structures: 0, props: 0 };
   var _frameId = 0;
 
   function qualityKey() {
@@ -387,17 +388,37 @@
     else if (kind === 'prop') _counts.props++;
   }
 
+  function endFrame() {
+    // Snapshot for PERF overlay — beginFrame zeros working counts at the start of
+    // the next frame, which previously raced quality.tick → always showed 0/0/0/0.
+    _displayCounts.lod0 = _counts.lod0;
+    _displayCounts.lod1 = _counts.lod1;
+    _displayCounts.lod2 = _counts.lod2;
+    _displayCounts.lod3 = _counts.lod3;
+    _displayCounts.culled = _counts.culled;
+    _displayCounts.units = _counts.units;
+    _displayCounts.structures = _counts.structures;
+    _displayCounts.props = _counts.props;
+  }
+
   function getCounts() {
     return {
-      lod0: _counts.lod0,
-      lod1: _counts.lod1,
-      lod2: _counts.lod2,
-      lod3: _counts.lod3,
-      culled: _counts.culled,
-      units: _counts.units,
-      structures: _counts.structures,
-      props: _counts.props,
-      frameId: _frameId
+      lod0: _displayCounts.lod0,
+      lod1: _displayCounts.lod1,
+      lod2: _displayCounts.lod2,
+      lod3: _displayCounts.lod3,
+      culled: _displayCounts.culled,
+      units: _displayCounts.units,
+      structures: _displayCounts.structures,
+      props: _displayCounts.props,
+      frameId: _frameId,
+      live: {
+        lod0: _counts.lod0,
+        lod1: _counts.lod1,
+        lod2: _counts.lod2,
+        lod3: _counts.lod3,
+        culled: _counts.culled
+      }
     };
   }
 
@@ -532,6 +553,7 @@
     isInView: isInView,
     shouldUpdateFx: shouldUpdateFx,
     beginFrame: beginFrame,
+    endFrame: endFrame,
     tally: tally,
     getCounts: getCounts,
     resolveLodPath: resolveLodPath,

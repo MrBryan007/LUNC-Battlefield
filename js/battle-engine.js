@@ -1210,9 +1210,6 @@
       if (window.LUNCBattle && LUNCBattle.lod && LUNCBattle.lod.beginFrame) {
         LUNCBattle.lod.beginFrame();
       }
-      if (window.LUNCBattle && LUNCBattle.quality && LUNCBattle.quality.tick) {
-        LUNCBattle.quality.tick(dt, renderer);
-      }
       if (cameraCtrl) cameraShake = cameraCtrl.update(dt, keys, cameraShake);
       else controls.update();
       if (priceTerritoryApi) {
@@ -1291,6 +1288,13 @@
           minimapApi.setDefenses(priceTerritoryApi.getDefenseMarkers());
         }
         minimapApi.draw();
+      }
+      // Snapshot LOD tallies AFTER units/structures/env, THEN refresh PERF overlay
+      if (window.LUNCBattle && LUNCBattle.lod && LUNCBattle.lod.endFrame) {
+        LUNCBattle.lod.endFrame();
+      }
+      if (window.LUNCBattle && LUNCBattle.quality && LUNCBattle.quality.tick) {
+        LUNCBattle.quality.tick(dt, renderer);
       }
       renderer.render(scene,camera);
     }

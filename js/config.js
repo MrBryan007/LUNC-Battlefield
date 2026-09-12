@@ -56,7 +56,7 @@
   };
 
   const config = {
-    BUILD: 'v9.4',
+    BUILD: 'v9.4.1',
     TITLE: 'LUNC Ecosystem Battlefield v9.4 — true LOD + production asset readiness (WebGL r128)',
     DataTruth,
     tokens,
