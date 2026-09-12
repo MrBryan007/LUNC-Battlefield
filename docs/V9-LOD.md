@@ -1,10 +1,17 @@
-# LUNC Battlefield v9.4.2 — True LOD system
+# LUNC Battlefield v9.4.3 — True LOD system
 
-**Status:** v9.4.2 on `feat/v9-next-gen-renderer` only. **Not merged to main.** Live Pages remains v8.x.
+**Status:** v9.4.3 on `feat/v9-next-gen-renderer` only. **Not merged to main.** Live Pages remains v8.x.
 
 **v9.4.1 hotfix:** PERF LOD counts use an `endFrame` snapshot after unit/structure/env tallies. Earlier, `quality.tick` ran right after `beginFrame` (zeros), so the overlay always showed LOD0–3 as 0/0/0/0 while internal LOD still worked.
 
 **v9.4.2 corrective pass:** Semantic procedural LOD **groups** (not fragile mesh-name aliases), effective cache-key identity, `dispose(id)` clears all LOD variants, LOD3 impostor stub enter/leave, PERF cull counts = frustum/far-skipped only (not double-counted in LOD0–3).
+
+**v9.4.3 FINAL LOD / ASSET LIFECYCLE HARDENING:**
+- **Async invalidation** via per-asset **generation tokens** — dispose during load can no longer rewrite the cache when a late network callback arrives
+- **Single-source LOD thresholds** — `quality.js` owns enter distances + hysteresis; `lod.js` reads `getEffectivePreset().lod` (no duplicate `QUALITY_ENTER` table)
+- **Structure LOD3** — `factionAccent.visible = band <= 2`; stub only at LOD3 (no original accent beside stub)
+- Dev-only `?assetDelay=1500` slows GLTF callbacks for race repro (OFF by default)
+- Impostors / SkeletonUtils / KTX2 / final textures still **deferred to v9.5**
 
 **Prerequisite:** v9.1–v9.3 (renderer, PBR, glTF pipeline). Three.js stays **r128**. **No Three upgrade. No v9.5 in this milestone.**
 
@@ -24,7 +31,7 @@
 ## Non-goals / deferred to v9.5+
 
 - Full AnimationMixer / SkeletonUtils (v9.5)
-- Production impostor atlases / billboard baking
+- Production impostor atlases / billboard baking / final faction impostors
 - Three upgrade / WebGPU cutover
 - Changing market / Battle Strength / data-truth math
 - Merging to `main` / starting v9.5
@@ -35,18 +42,19 @@
 ## Architecture
 
 ```
-js/lod.js            LUNCBattle.lod — bands, hysteresis, semantic groups, impostor stub, cull diag
+js/quality.js        Authoritative LOD distances + hysteresis per effective preset
+js/lod.js            LUNCBattle.lod — bands, hysteresis (from quality), semantic groups, impostor stub
 js/assets.js         registry lodPaths: { lod0, lod1, lod2, lod3 }
-js/asset-loader.js   cache key = effective resolved band; dispose clears id + id::lodN
+js/asset-loader.js   generation tokens + effective cache keys; dispose clears id + id::lodN + pending
 js/units.js          registerLodGroups on builders; updateUnitLod; tally after cull
 js/animations.js     LOD0 full · LOD1 reduced · LOD2 simple · LOD3 no limb
-js/structures.js     decorative → lodGroups.detail; silhouette + faction kept
+js/structures.js     decorative → lodGroups.detail; silhouette + faction (LOD0–2); stub at LOD3
 js/environment.js    trees/rocks/wreckage/crates/fences/debris — reduce/hide; terrain stable
 js/effects.js        skip far particle churn; projectiles still advance
 js/quality.js        PERF: LOADED vs SPAWNED + LOD0–3 (visible) + cull (skipped)
 ```
 
-## Thresholds (enter) + hysteresis
+## Thresholds (enter) + hysteresis — single source in quality.js
 
 | Quality | LOD0 enter | LOD1 enter | LOD2 enter | Hysteresis |
 | --- | --- | --- | --- | --- |
@@ -54,6 +62,8 @@ js/quality.js        PERF: LOADED vs SPAWNED + LOD0–3 (visible) + cull (skippe
 | MEDIUM | 20 | 40 | 65 | 4 |
 | HIGH | 24 | 44 | 70 | 4 |
 | ULTRA | 30 | 52 | 82 | 5 |
+
+`lod.js` reads `LB.quality.getEffectivePreset().lod` (AUTO uses the effective preset). Do not retune thresholds in `lod.js`.
 
 **Hysteresis example (HIGH):** LOD0→1 when distance ≥ 24; LOD1→0 only when distance < 20 (24 − 4). Same pattern for LOD1↔2 and LOD2↔3.
 
@@ -89,6 +99,12 @@ Missing LOD mesh → keep current visual / procedural SAFE FALLBACK. **Never rem
 - **Leave LOD3:** hide stub; restore group visibility for the new band.
 - Stub only — not production billboards / atlases.
 
+### Structure LOD3
+
+- `factionAccent.visible = band <= 2` (faction identity through LOD2)
+- LOD3 = impostor stub only — non-impostor children hidden; no original accent beside stub
+- No final faction impostors in v9.4.3
+
 ## Effective cache keys (`asset-loader.js`)
 
 Cache identity is the **effective resolved** LOD variant, not the raw request:
@@ -98,15 +114,31 @@ Cache identity is the **effective resolved** LOD variant, not the raw request:
 - Must **not** store an LOD1 path under `id` / `id::lod0` when the request was LOD0 but quality resolved to LOD1.
 - `resolveEffectiveLodBand` + `cacheKey` / `cacheKeyForRequest` keep keys deterministic and avoid duplicate loads of the same resolved asset.
 
+### Async lifecycle / generation tokens (v9.4.3)
+
+Risk without tokens: load starts → pending → `dispose` removes pending → network finishes → callback rewrites cache with a disposed / orphaned scene.
+
+Fix:
+
+1. On load start: capture `requestGen = generation[id] || 0`
+2. On `dispose(id)`: `generation[id]++` (then clear pending + all cache variants for that id)
+3. On callback: if `requestGen !== generation[id]` → **stale** — `disposeObject3DResources(staleRoot)` carefully (owned geos/mats only; never shared registry mats); do **not** cache / status=ready; return
+
+Covers base + lod0–3 + effective keys + retry/fallback + dispose/reload + quality switch.
+
+**Old load must not overwrite new load:** request A → dispose while pending → request A again → first finishes late → second finishes. First ignored (stale gen); second owns cache.
+
+Dev-only: `?assetDelay=1500` (or similar) delays GLTF success/error callbacks for race repro. Default OFF — no production impact.
+
 ### Dispose
 
-`dispose(id)` clears:
+`dispose(id)` bumps generation, then clears:
 
 - base `id`
 - all `id::lodN` (and any `id::…` variant keys)
 - matching `pending` entries
 
-Reload rebuilds cleanly — no stale refs / leaks across variants for that asset only.
+Reload rebuilds cleanly — no stale refs / leaks across variants for that asset only. Full `dispose()` bumps every known generation so late callbacks stay stale.
 
 ## GLB LOD
 
@@ -144,6 +176,7 @@ No new logical unit / jump / duplicate on LOD change.
 - **Template-owned** textures/geos on cached GLB scenes are shared across clones — do **not** dispose maps from clones
 - Only dispose maps marked `userData.luncOwned` / `luncOwnsMaps`
 - Shared `LUNCBattle.materials` presets (`luncShared`) never disposed from asset dispose
+- Stale GLTF roots from invalidated loads use `disposeObject3DResources` with the same ownership rules
 - Nulling map refs without ownership rules is a leak/risk — audit before KTX2 wiring
 
 ## PERF overlay — meaning of counts
@@ -174,12 +207,14 @@ LOD enables richer near models and cheaper far ones — a necessary production s
 ## Known limits / parent smoke notes
 
 - Zoom in/out: watch LOD0↔1↔2↔3 both directions; hysteresis should prevent boundary flicker
-- LOD3: stub plane appears; procedural hidden; reverse restores groups — no teleport/dupe
+- LOD3 units: stub plane appears; procedural hidden; reverse restores groups — no teleport/dupe
+- LOD3 structures: stub only; faction accent must **not** remain beside stub
 - `?perf=1`: LOD counts move with camera; cull rises when looking away from armies; never stuck 0/0/0/0
 - Quality LOW↔ULTRA without reload: effective cache keys / thresholds update; no full page reload required
-- `dispose(id)` then reload: clean rebuild of that asset’s variants only
+- `dispose(id)` then reload: clean rebuild; late callbacks from old gen must not resurrect cache
+- Race repro: `?assets=gltf&assetDelay=1500` then dispose/reload while pending
 - `?assets=procedural`: no GLB spawn; armies remain
 - `?assets=gltf`: smoke boxes may appear; LOD swap may re-request — verify no jump/dupe
 - Impostor is a stub plane — not production billboards
 - ~390px / WebGPU→WebGL fallback: still SAFE FALLBACK procedural
-- Parent should browser-verify matrix A–I; leave notes on any flicker or double-visible stub+mesh
+- Parent should browser-verify matrix A–H; leave notes on any flicker, double-visible stub+mesh, or stale cache after dispose

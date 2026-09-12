@@ -1,4 +1,4 @@
-/* LUNC Battlefield v9.4.2 — true LOD (semantic groups + impostor stub + cull diag)
+/* LUNC Battlefield v9.4.3 — true LOD (single-source thresholds + structure LOD3)
  * LUNCBattle.lod — camera distance → LOD0–3; never despawns simulation state.
  * Missing LOD / GLB → procedural SAFE FALLBACK forever. No black canvas.
  */
@@ -6,17 +6,12 @@
   'use strict';
   const LB = global.LUNCBattle || (global.LUNCBattle = {});
 
-  /** Default enter thresholds (world units). Leave thresholds = enter − hysteresis. */
+  /**
+   * Emergency fallback only (HIGH). Authoritative values live in quality.js presets.
+   * lod.js reads LB.quality.getEffectivePreset().lod — no duplicate QUALITY_ENTER table.
+   */
   var DEFAULT_ENTER = Object.freeze({ LOD0: 24, LOD1: 44, LOD2: 70, LOD3: 999 });
   var DEFAULT_HYST = 4;
-
-  /** Quality multipliers / overrides for enter thresholds. */
-  var QUALITY_ENTER = Object.freeze({
-    LOW: Object.freeze({ LOD0: 16, LOD1: 32, LOD2: 55, LOD3: 999 }),
-    MEDIUM: Object.freeze({ LOD0: 20, LOD1: 40, LOD2: 65, LOD3: 999 }),
-    HIGH: Object.freeze({ LOD0: 24, LOD1: 44, LOD2: 70, LOD3: 999 }),
-    ULTRA: Object.freeze({ LOD0: 30, LOD1: 52, LOD2: 82, LOD3: 999 })
-  });
 
   /** Anim update period multipliers by LOD (1 = every frame). Quality scales further. */
   var ANIM_PERIOD = Object.freeze({
@@ -55,8 +50,6 @@
   }
 
   function getEnterThresholds() {
-    var q = qualityKey();
-    if (QUALITY_ENTER[q]) return QUALITY_ENTER[q];
     try {
       if (LB.quality && LB.quality.getEffectivePreset) {
         var lod = LB.quality.getEffectivePreset().lod;
@@ -74,6 +67,13 @@
   }
 
   function getHysteresis() {
+    try {
+      if (LB.quality && LB.quality.getEffectivePreset) {
+        var lod = LB.quality.getEffectivePreset().lod;
+        if (lod && lod.hysteresis != null) return lod.hysteresis | 0;
+      }
+    } catch (_) {}
+    // Fallback matching quality.js if preset missing hysteresis
     var q = qualityKey();
     if (q === 'LOW') return 3;
     if (q === 'ULTRA') return 5;
@@ -376,11 +376,14 @@
       }
     }
     if (ud.banner) ud.banner.visible = band <= 1;
-    if (ud.factionAccent) ud.factionAccent.visible = true;
+    // LOD0–2 keep faction identity; LOD3 = impostor stub only (no accent beside stub)
+    if (ud.factionAccent) ud.factionAccent.visible = band <= 2;
     if (ud.silhouette) ud.silhouette.visible = band <= 2;
     ud.impostorReady = band >= 3;
     if (band >= 3) {
       ensureImpostorStub(building, global.THREE);
+      // Stub only — hide non-impostor children (including accent/core that may not be in groups)
+      setProceduralChildrenVisible(building, false);
       if (ud.impostorStub) ud.impostorStub.visible = true;
     } else if (ud.impostorStub) {
       ud.impostorStub.visible = false;
@@ -658,9 +661,8 @@
   }
 
   LB.lod = {
-    version: 'v9.4.2',
+    version: 'v9.4.3',
     DEFAULT_ENTER: DEFAULT_ENTER,
-    QUALITY_ENTER: QUALITY_ENTER,
     getEnterThresholds: getEnterThresholds,
     getHysteresis: getHysteresis,
     bandFromDistance: bandFromDistance,

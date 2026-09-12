@@ -1,4 +1,4 @@
-/* LUNC Battlefield v9.4.2 — glTF/GLB + LOD-aware asset pipeline
+/* LUNC Battlefield v9.4.3 — glTF/GLB + LOD-aware asset pipeline (async lifecycle)
  * Three.js r128 GLTFLoader (CDN examples). Procedural SAFE FALLBACK forever.
  * Modes: ?assets=procedural | ?assets=gltf | default AUTO
  * Progressive: never block first paint; missing/failed → procedural.
@@ -12,6 +12,9 @@
   var mode = 'AUTO'; // PROCEDURAL | GLTF | AUTO
   var cache = Object.create(null); // id -> { status, scene, error, tris, entry, loadedAt }
   var pending = Object.create(null); // id -> Promise
+  /** Per-base-asset lifecycle generation. dispose(id) bumps; load callbacks with stale gen are ignored. */
+  var generation = Object.create(null); // baseId -> number
+  var staleIgnored = 0;
   var stats = {
     loaded: 0,
     failed: 0,
@@ -45,6 +48,60 @@
       if (q === 'auto') return 'AUTO';
     } catch (_) {}
     return 'AUTO';
+  }
+
+
+  function getGeneration(id) {
+    return generation[id] || 0;
+  }
+
+  function bumpGeneration(id) {
+    generation[id] = (generation[id] || 0) + 1;
+    return generation[id];
+  }
+
+  /** Dev-only: ?assetDelay=1500 slows GLTF callbacks for race repro. OFF by default. */
+  function getAssetDelayMs() {
+    try {
+      var q = new URLSearchParams(location.search).get('assetDelay');
+      if (q == null || q === '') return 0;
+      var n = parseInt(q, 10);
+      if (!isFinite(n) || n <= 0) return 0;
+      return Math.min(n, 60000);
+    } catch (_) {}
+    return 0;
+  }
+
+  /**
+   * Dispose geometries / materials / owned textures on a stale GLTF root.
+   * Never dispose shared registry mats (luncShared) or template-shared maps still in live cache.
+   */
+  function disposeObject3DResources(root) {
+    if (!root || !root.traverse) return;
+    root.traverse(function (child) {
+      if (child.geometry && child.geometry.dispose) {
+        try { child.geometry.dispose(); } catch (_) {}
+      }
+      var mats = child.material
+        ? (Array.isArray(child.material) ? child.material : [child.material])
+        : [];
+      mats.forEach(function (m) {
+        if (!m) return;
+        if (m.userData && m.userData.luncShared) return;
+        try {
+          var ownMaps = m.userData && m.userData.luncOwnsMaps;
+          var mapKeys = ['map', 'normalMap', 'aoMap', 'emissiveMap', 'metalnessMap', 'roughnessMap', 'alphaMap', 'lightMap'];
+          mapKeys.forEach(function (k) {
+            if (!m[k]) return;
+            if (ownMaps || (m[k].userData && m[k].userData.luncOwned)) {
+              try { if (m[k].dispose) m[k].dispose(); } catch (_) {}
+            }
+            m[k] = null;
+          });
+          if (m.dispose) m.dispose();
+        } catch (_) {}
+      });
+    });
   }
 
   function getRegistry() {
@@ -304,7 +361,7 @@
       mode: mode,
       loaderReady: !!loader,
       gltfLoader: typeof (THREE_REF && THREE_REF.GLTFLoader) === 'function',
-      version: 'v9.4.2'
+      version: 'v9.4.3'
     };
   }
 
@@ -400,7 +457,10 @@
       return Promise.resolve({ ok: false, id: id, lodBand: band, error: 'GLTFLoader unavailable', status: 'failed' });
     }
 
-    setCacheStatus(key, { status: 'loading', error: null, entry: entry, lodBand: band, url: url });
+    // Capture lifecycle token BEFORE network starts (dispose bumps generation)
+    var requestGen = generation[id] || 0;
+
+    setCacheStatus(key, { status: 'loading', error: null, entry: entry, lodBand: band, url: url, requestGen: requestGen });
     stats.pending++;
     recomputeStats();
 
@@ -409,66 +469,99 @@
       if (LB.config && LB.config.BUILD) bust = (url.indexOf('?') >= 0 ? '&' : '?') + 'v=' + encodeURIComponent(LB.config.BUILD);
     } catch (_) {}
 
+    var delayMs = getAssetDelayMs();
+
     pending[key] = new Promise(function (resolve) {
+      function finishOk(gltf) {
+        delete pending[key];
+        var scene = gltf && (gltf.scene || (gltf.scenes && gltf.scenes[0]));
+        // Stale: dispose raced ahead (or dispose+reload) — do NOT rewrite cache
+        if (requestGen !== (generation[id] || 0)) {
+          staleIgnored++;
+          if (scene) {
+            try { disposeObject3DResources(scene); } catch (_) {}
+          }
+          recomputeStats();
+          resolve({ ok: false, id: id, lodBand: band, requestedLodBand: requested, error: 'stale generation', status: 'stale', stale: true, requestGen: requestGen, generation: generation[id] || 0 });
+          return;
+        }
+        if (!scene) {
+          setCacheStatus(key, { status: 'failed', error: 'empty gltf scene', lodBand: band });
+          recomputeStats();
+          resolve({ ok: false, id: id, lodBand: band, error: 'empty scene', status: 'failed' });
+          return;
+        }
+        // Store template; clones happen on instantiate. Maps stay template-owned (shared).
+        scene.userData = scene.userData || {};
+        scene.userData.luncAssetId = id;
+        scene.userData.luncGltf = true;
+        scene.userData.luncLodBand = band;
+        scene.userData.luncTemplateOwned = true;
+        scene.userData.luncRequestGen = requestGen;
+        var tris = countTris(scene);
+        setCacheStatus(key, {
+          status: 'ready',
+          scene: scene,
+          error: null,
+          tris: tris,
+          entry: entry,
+          loadedAt: Date.now(),
+          lodBand: band,
+          url: url,
+          animations: (gltf && gltf.animations) || [],
+          requestGen: requestGen
+        });
+        // Mirror to base id when lod0
+        if (band === 0 && key !== id) {
+          setCacheStatus(id, cache[key]);
+        }
+        if (band === 0) {
+          setCacheStatus(id, {
+            status: 'ready', scene: scene, error: null, tris: tris, entry: entry,
+            loadedAt: Date.now(), lodBand: 0, url: url, animations: (gltf && gltf.animations) || [],
+            requestGen: requestGen
+          });
+        }
+        recomputeStats();
+        resolve({ ok: true, id: id, lodBand: band, scene: scene, status: 'ready', tris: tris, requestGen: requestGen });
+      }
+
+      function finishErr(err) {
+        delete pending[key];
+        if (requestGen !== (generation[id] || 0)) {
+          staleIgnored++;
+          recomputeStats();
+          resolve({ ok: false, id: id, lodBand: band, error: 'stale generation', status: 'stale', stale: true });
+          return;
+        }
+        var msg = (err && err.message) ? err.message : String(err || 'load failed');
+        setCacheStatus(key, { status: 'failed', error: msg, lodBand: band });
+        stats.lodFallback++;
+        recomputeStats();
+        resolve({ ok: false, id: id, lodBand: band, error: msg, status: 'failed' });
+      }
+
       try {
         ldr.load(
           url + bust,
           function (gltf) {
-            delete pending[key];
-            var scene = gltf && (gltf.scene || (gltf.scenes && gltf.scenes[0]));
-            if (!scene) {
-              setCacheStatus(key, { status: 'failed', error: 'empty gltf scene', lodBand: band });
-              recomputeStats();
-              resolve({ ok: false, id: id, lodBand: band, error: 'empty scene', status: 'failed' });
-              return;
+            if (delayMs > 0) {
+              setTimeout(function () { finishOk(gltf); }, delayMs);
+            } else {
+              finishOk(gltf);
             }
-            // Store template; clones happen on instantiate. Maps stay template-owned (shared).
-            scene.userData = scene.userData || {};
-            scene.userData.luncAssetId = id;
-            scene.userData.luncGltf = true;
-            scene.userData.luncLodBand = band;
-            scene.userData.luncTemplateOwned = true;
-            var tris = countTris(scene);
-            setCacheStatus(key, {
-              status: 'ready',
-              scene: scene,
-              error: null,
-              tris: tris,
-              entry: entry,
-              loadedAt: Date.now(),
-              lodBand: band,
-              url: url,
-              animations: (gltf && gltf.animations) || []
-            });
-            // Mirror to base id when lod0
-            if (band === 0 && key !== id) {
-              setCacheStatus(id, cache[key]);
-            }
-            if (band === 0) {
-              setCacheStatus(id, {
-                status: 'ready', scene: scene, error: null, tris: tris, entry: entry,
-                loadedAt: Date.now(), lodBand: 0, url: url, animations: (gltf && gltf.animations) || []
-              });
-            }
-            recomputeStats();
-            resolve({ ok: true, id: id, lodBand: band, scene: scene, status: 'ready', tris: tris });
           },
           undefined,
           function (err) {
-            delete pending[key];
-            var msg = (err && err.message) ? err.message : String(err || 'load failed');
-            setCacheStatus(key, { status: 'failed', error: msg, lodBand: band });
-            stats.lodFallback++;
-            recomputeStats();
-            resolve({ ok: false, id: id, lodBand: band, error: msg, status: 'failed' });
+            if (delayMs > 0) {
+              setTimeout(function () { finishErr(err); }, delayMs);
+            } else {
+              finishErr(err);
+            }
           }
         );
       } catch (e) {
-        delete pending[key];
-        var msg2 = (e && e.message) ? e.message : String(e);
-        setCacheStatus(key, { status: 'failed', error: msg2, lodBand: band });
-        recomputeStats();
-        resolve({ ok: false, id: id, lodBand: band, error: msg2, status: 'failed' });
+        finishErr(e);
       }
     });
     return pending[key];
@@ -632,7 +725,9 @@
       draco: dracoStub,
       meshopt: meshoptStub,
       skeletonUtilsNote: skeletonUtilsNote,
-      spawnNote: diag.note
+      spawnNote: diag.note,
+      staleIgnored: staleIgnored,
+      assetDelayMs: getAssetDelayMs()
     };
   }
 
@@ -794,46 +889,16 @@
   }
 
   function dispose(id) {
-    function disposeObject(obj) {
-      if (!obj) return;
-      obj.traverse(function (child) {
-        if (child.geometry && child.geometry.dispose) {
-          try { child.geometry.dispose(); } catch (_) {}
-        }
-        var mats = child.material
-          ? (Array.isArray(child.material) ? child.material : [child.material])
-          : [];
-        mats.forEach(function (m) {
-          if (!m) return;
-          // Do not dispose shared LUNCBattle.materials presets
-          if (m.userData && m.userData.luncShared) return;
-          // Shared cached textures (template-owned): never dispose maps from clones.
-          // Only dispose maps marked luncOwned on this material / asset-owned.
-          try {
-            var ownMaps = m.userData && m.userData.luncOwnsMaps;
-            var mapKeys = ['map', 'normalMap', 'aoMap', 'emissiveMap', 'metalnessMap', 'roughnessMap', 'alphaMap', 'lightMap'];
-            mapKeys.forEach(function (k) {
-              if (!m[k]) return;
-              if (ownMaps || (m[k].userData && m[k].userData.luncOwned)) {
-                try { if (m[k].dispose) m[k].dispose(); } catch (_) {}
-              }
-              // Detach reference only — do not dispose shared cache textures
-              m[k] = null;
-            });
-            if (m.dispose) m.dispose();
-          } catch (_) {}
-        });
-      });
-    }
     if (id) {
+      // Bump generation FIRST so in-flight callbacks become stale
+      bumpGeneration(id);
       var prefix = id + '::';
       var keys = Object.keys(cache).filter(function (k) {
         return k === id || k.indexOf(prefix) === 0;
       });
-      // Also catch any effective-variant keys stored for this asset id
       keys.forEach(function (k) {
         var c = cache[k];
-        if (c && c.scene) disposeObject(c.scene);
+        if (c && c.scene) disposeObject3DResources(c.scene);
         delete cache[k];
       });
       Object.keys(pending).forEach(function (k) {
@@ -842,11 +907,14 @@
       recomputeStats();
       return true;
     }
+    // Full wipe — invalidate every known generation
+    Object.keys(generation).forEach(function (gid) { bumpGeneration(gid); });
     Object.keys(cache).forEach(function (k) {
-      if (cache[k] && cache[k].scene) disposeObject(cache[k].scene);
+      if (cache[k] && cache[k].scene) disposeObject3DResources(cache[k].scene);
     });
     cache = Object.create(null);
     pending = Object.create(null);
+    // Keep generation map (already bumped) so late callbacks still see mismatch
     stats.instantiated = 0;
     stats.proceduralSpawns = 0;
     stats.gltfSpawns = 0;
@@ -863,7 +931,7 @@
   function prepareMeshoptStub() { return meshoptStub; }
 
   var api = {
-    version: 'v9.4.2',
+    version: 'v9.4.3',
     init: init,
     loadAsset: loadAsset,
     preload: preload,
@@ -891,7 +959,11 @@
     prepareKTX2Stub: prepareKTX2Stub,
     prepareDracoStub: prepareDracoStub,
     prepareMeshoptStub: prepareMeshoptStub,
-    skeletonUtilsNote: skeletonUtilsNote
+    skeletonUtilsNote: skeletonUtilsNote,
+    disposeObject3DResources: disposeObject3DResources,
+    getGeneration: getGeneration,
+    bumpGeneration: bumpGeneration,
+    getAssetDelayMs: getAssetDelayMs
   };
 
   LB.assets = api;

@@ -1,4 +1,4 @@
-/* LUNC Battlefield v9.4 — graphics quality + performance scaling (PBR + asset stats) */
+/* LUNC Battlefield v9.4.3 — graphics quality + authoritative LOD thresholds */
 (function (global) {
   'use strict';
 
@@ -26,12 +26,17 @@
     RECONNECTING: 'RECONNECTING'
   });
 
-  /** LOD distance bands (world units). Hooks for v9 — do not rebuild assets here. */
+  /**
+   * Authoritative LOD enter distances + hysteresis (world units).
+   * lod.js MUST read these via getEffectivePreset().lod — do not retune elsewhere.
+   * LOW 16/32/55 h3 · MED 20/40/65 h4 · HIGH 24/44/70 h4 · ULTRA 30/52/82 h5
+   */
   var DEFAULT_LOD = Object.freeze({
-    LOD0: 22,  // full detail
-    LOD1: 42,  // simplified anim / fewer updates
-    LOD2: 68,  // sparse updates
-    LOD3: 999  // minimal / skip expensive work
+    LOD0: 24,
+    LOD1: 44,
+    LOD2: 70,
+    LOD3: 999,
+    hysteresis: 4
   });
 
   function clonePreset(p) {
@@ -82,7 +87,7 @@
       effectDurationScale: 0.72,
       unitUpdateDivisor: 2,
       shadowCast: 'major',
-      lod: { LOD0: 16, LOD1: 32, LOD2: 55, LOD3: 999 },
+      lod: { LOD0: 16, LOD1: 32, LOD2: 55, LOD3: 999, hysteresis: 3 },
       postFxHooks: { bloom: false, ao: false, sharpen: false },
       textureLodHooks: { maxAnisotropy: 1, preferCompressed: true }
     })),
@@ -106,7 +111,7 @@
       effectDurationScale: 0.9,
       unitUpdateDivisor: 1,
       shadowCast: 'bases',
-      lod: { LOD0: 20, LOD1: 40, LOD2: 65, LOD3: 999 },
+      lod: { LOD0: 20, LOD1: 40, LOD2: 65, LOD3: 999, hysteresis: 4 },
       postFxHooks: { bloom: false, ao: false, sharpen: false },
       textureLodHooks: { maxAnisotropy: 2, preferCompressed: false }
     })),
@@ -130,7 +135,7 @@
       effectDurationScale: 1.0,
       unitUpdateDivisor: 1,
       shadowCast: 'rich',
-      lod: Object.assign({}, DEFAULT_LOD),
+      lod: { LOD0: 24, LOD1: 44, LOD2: 70, LOD3: 999, hysteresis: 4 },
       postFxHooks: { bloom: false, ao: false, sharpen: false },
       textureLodHooks: { maxAnisotropy: 4, preferCompressed: false }
     })),
@@ -154,7 +159,7 @@
       effectDurationScale: 1.05,
       unitUpdateDivisor: 1,
       shadowCast: 'rich',
-      lod: { LOD0: 26, LOD1: 48, LOD2: 78, LOD3: 999 },
+      lod: { LOD0: 30, LOD1: 52, LOD2: 82, LOD3: 999, hysteresis: 5 },
       postFxHooks: { bloom: false, ao: false, sharpen: false },
       textureLodHooks: { maxAnisotropy: 8, preferCompressed: false }
     }))
@@ -619,7 +624,7 @@
     overlayEl.className = 'perf-overlay';
     overlayEl.setAttribute('aria-hidden', 'true');
     overlayEl.innerHTML =
-      '<div class="perf-title">PERF · v9.4</div>' +
+      '<div class="perf-title">PERF · v9.4.3</div>' +
       '<div class="perf-section" id="perfGfx"></div>' +
       '<div class="perf-section" id="perfAssets"></div>' +
       '<div class="perf-section perf-feeds" id="perfFeeds"></div>';
@@ -846,7 +851,7 @@
 
   // Public API
   var api = {
-    version: 'v9.4',
+    version: 'v9.4.3',
     MODES: MODES,
     PRESETS: PRESETS,
     FEED_STATES: FEED_STATES,
