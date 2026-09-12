@@ -2,7 +2,7 @@
     'use strict';
 
     // =====================================================
-    // LUNC ECOSYSTEM BATTLEFIELD v9.4 — true LOD + production asset readiness
+    // LUNC ECOSYSTEM BATTLEFIELD v9.4.7 — FPS cadence diagnostics + LOD/assets
     // v8.1–v8.8 + v9.1–v9.3 preserved; LOD + asset diagnostics (procedural SAFE FALLBACK)
     // Original procedural art only. No third-party game assets.
     // Graphics-only: never alter market / Battle Strength / liq / burn math.
@@ -242,9 +242,34 @@
       return new THREE.MeshStandardMaterial({ color, roughness:rough, metalness:metal, emissive, emissiveIntensity:intensity });
     }
 
+    // v9.4.7 — cadence / scene / A-B query hooks (non-destructive; see docs/V9-CADENCE.md)
+    const cadence = (window.LUNCBattle && LUNCBattle.cadence) ? LUNCBattle.cadence : null;
+    const diagOn = !!(cadence && cadence.enabled);
+    const cFlags = (cadence && cadence.flags) ? cadence.flags : {
+      enabled: false, scene: 'full', dpr: null, shadowsOff: false,
+      fxOff: false, airOff: false, groundOff: false, terrainOff: false, structuresOff: false
+    };
+    function sceneIncludes(layer) {
+      return cadence && typeof cadence.sceneIncludes === 'function'
+        ? cadence.sceneIncludes(layer)
+        : true;
+    }
+    if (cadence && typeof cadence.bindRenderer === 'function') cadence.bindRenderer(renderer);
+    if (cadence && typeof cadence.setPerfFpsProvider === 'function') {
+      cadence.setPerfFpsProvider(function () {
+        try {
+          return (LUNCBattle.quality && LUNCBattle.quality.getState)
+            ? LUNCBattle.quality.getState().fps : null;
+        } catch (_) { return null; }
+      });
+    }
+    if (cadence && typeof cadence.applyAbHooks === 'function') {
+      cadence.applyAbHooks(renderer, sun);
+    }
+
     // v8.1 — modular terrain + environment (procedural, no GridHelper)
     const mobileGfx = innerWidth < 760;
-    const terrainApi = (window.LUNCBattle && LUNCBattle.terrain)
+    const terrainApi = (sceneIncludes('terrain') && window.LUNCBattle && LUNCBattle.terrain)
       ? LUNCBattle.terrain.createTerrain({ THREE, scene, mobile: mobileGfx })
       : null;
     if (!terrainApi) console.error('[LUNCBattle] terrain.js failed to load');
@@ -253,7 +278,7 @@
       : function (x, z) { return Math.sin(x * .075) * .4 + Math.cos(z * .1) * .3; };
     const ground = terrainApi ? terrainApi.ground : null;
 
-    const envApi = (window.LUNCBattle && LUNCBattle.environment)
+    const envApi = (sceneIncludes('structures') && window.LUNCBattle && LUNCBattle.environment)
       ? LUNCBattle.environment.createEnvironment({ THREE, scene, terrainHeight, mobile: mobileGfx, mat,
           densityScale: (LUNCBattle.quality && LUNCBattle.quality.getDensityScale) ? LUNCBattle.quality.getDensityScale().env : undefined,
           vegetationDensity: (LUNCBattle.quality && LUNCBattle.quality.getDensityScale) ? LUNCBattle.quality.getDensityScale().vegetation : undefined,
@@ -268,13 +293,13 @@
     // v9.2: wood/prop mats come from materials registry inside environment/structures
 
     // v8.3 — faction bases & structures (procedural, no GridHelper)
-    const structuresApi = (window.LUNCBattle && LUNCBattle.structures)
+    const structuresApi = (sceneIncludes('structures') && window.LUNCBattle && LUNCBattle.structures)
       ? LUNCBattle.structures.createApi({ THREE, scene, terrainHeight, mat, mobile: mobileGfx,
           densityScale: (LUNCBattle.quality && LUNCBattle.quality.getDensityScale) ? LUNCBattle.quality.getDensityScale().structure : undefined,
           shadowCast: (LUNCBattle.quality && LUNCBattle.quality.getEffectivePreset) ? LUNCBattle.quality.getEffectivePreset().shadowCast : undefined
         })
       : null;
-    if (!structuresApi) console.error('[LUNCBattle] structures.js failed to load');
+    if (sceneIncludes('structures') && !structuresApi) console.error('[LUNCBattle] structures.js failed to load');
     let bullBase = new THREE.Group();
     let bearBase = new THREE.Group();
     if (structuresApi) {
@@ -287,13 +312,13 @@
     }
 
     // v8.5 — price territory mapping & contested frontline (replaces simple poles/rope)
-    const priceTerritoryApi = (window.LUNCBattle && LUNCBattle.priceTerritory)
+    const priceTerritoryApi = (sceneIncludes('structures') && window.LUNCBattle && LUNCBattle.priceTerritory)
       ? LUNCBattle.priceTerritory.createApi({
           THREE, scene, terrainHeight, mobile: mobileGfx, pushFeed,
           DataTruth: (window.LUNCBattle && LUNCBattle.DataTruth) || null
         })
       : null;
-    if (!priceTerritoryApi) console.error('[LUNCBattle] price-territory.js failed to load');
+    if (sceneIncludes('structures') && !priceTerritoryApi) console.error('[LUNCBattle] price-territory.js failed to load');
     else {
       priceTerritoryApi.setToken({
         symbol: current,
@@ -329,9 +354,15 @@
 
     function createUnit(color, side, type) { return unitsApi.createUnit(color, side, type); }
     function formationSlots(count, side, type) { return unitsApi.formationSlots(count, side, type); }
-    function disposeArmy(arr) { unitsApi.disposeArmy(arr); }
-    function launchStrike(fromX,toX,z,color,power=1) { effectsApi.launchStrike(fromX,toX,z,color,power); }
-    function createExplosion(x,z,color,power=1,isBurn=false) { effectsApi.createExplosion(x,z,color,power,isBurn); }
+    function disposeArmy(arr) { if (unitsApi) unitsApi.disposeArmy(arr); }
+    function launchStrike(fromX,toX,z,color,power=1) {
+      if (cFlags.fxOff || !sceneIncludes('fx')) return;
+      if (effectsApi) effectsApi.launchStrike(fromX,toX,z,color,power);
+    }
+    function createExplosion(x,z,color,power=1,isBurn=false) {
+      if (cFlags.fxOff || !sceneIncludes('fx')) return;
+      if (effectsApi) effectsApi.createExplosion(x,z,color,power,isBurn);
+    }
     const _muzzleScratch = new THREE.Vector3();
     function muzzleWorld(u) {
       const off = u.userData && u.userData.muzzleOffset;
@@ -363,9 +394,11 @@
         jet: Math.min(maxJet, Math.max(mobile?1:1, Math.round((mobile?1:1)+wall*0.28)))
       });
       const bc=counts(buyWall), rc=counts(sellWall);
-      unitsApi.spawnFormation(-1, tokens[current].color, bc, bulls);
-      unitsApi.spawnFormation(1, 0xe4675f, rc, bears);
-      if (unitsApi.spawnAirWing) {
+      if (unitsApi && sceneIncludes('ground') && !cFlags.groundOff) {
+        unitsApi.spawnFormation(-1, tokens[current].color, bc, bulls);
+        unitsApi.spawnFormation(1, 0xe4675f, rc, bears);
+      }
+      if (unitsApi && unitsApi.spawnAirWing && sceneIncludes('air') && !cFlags.airOff) {
         unitsApi.spawnAirWing(-1, tokens[current].color, bc, bulls);
         unitsApi.spawnAirWing(1, 0xe4675f, rc, bears);
       }
@@ -1150,6 +1183,7 @@
     setInterval(updateBattleLogic,760);
 
     function maybeFire(u,enemyColor,dt) {
+      if (cFlags.fxOff || !sceneIncludes('fx')) return false;
       u.userData.shot-=dt;
       if(u.userData.shot>0) return false;
       const type=u.userData.type|0;
@@ -1232,7 +1266,19 @@
     }
     function animate() {
       requestAnimationFrame(animate);
-      const dt=Math.min(.04,clock.getDelta());
+      if (cadence) cadence.markRaf();
+      // v9.4.7 CRITICAL: PERF/FPS must use wall-clock RAF interval (performance.now), NOT sim-capped dt.
+      // Old path: dt=Math.min(.04,clock.getDelta()) → quality.tick(dt) could never report worse than 25 FPS / 40.0ms.
+      const wallNowMs = performance.now();
+      let wallDtSec = 1 / 60;
+      if (animate._lastWallMs != null) {
+        wallDtSec = Math.max(0, (wallNowMs - animate._lastWallMs) / 1000);
+      }
+      animate._lastWallMs = wallNowMs;
+      // Drain THREE.Clock so getDelta stays consistent if used elsewhere; do not feed it to PERF.
+      clock.getDelta();
+      const dt = Math.min(0.04, wallDtSec > 0 ? wallDtSec : 0.0167);
+      if (cadence) cadence.markSim();
       if (window.LUNCBattle && LUNCBattle.lod && LUNCBattle.lod.beginFrame) {
         LUNCBattle.lod.beginFrame();
       }
@@ -1379,30 +1425,98 @@
           u.position.y = terrainHeight(u.position.x, u.position.z) + (u.userData.rootBob || 0);
         });
       }
-      moveArmy(bulls,-1); moveArmy(bears,1);
-
-      if (effectsApi && typeof effectsApi.tick === 'function') {
-        effectsApi.tick(dt, now, camera);
-      } else {
-        for(let i=projectilePool.length-1;i>=0;i--){
-          const b=projectilePool[i],dx=b.userData.tx-b.position.x,step=Math.sign(dx)*b.userData.speed*dt;
-          b.position.x+=Math.abs(step)>Math.abs(dx)?dx:step; b.position.y+=Math.sin(now*10+i)*.015; b.userData.life-=dt;
-          if(Math.abs(dx)<.25||b.userData.life<=0){createExplosion(b.position.x,b.position.z,b.userData.color,b.userData.power*.75);scene.remove(b);projectilePool.splice(i,1);}
+      function runUnits() {
+        // Ground units only timed as "units"; air branch timed separately below.
+        function moveGround(arr, side) {
+          const momAbs = Math.abs(momentum);
+          const contested = momAbs < 0.055;
+          const urgent = momAbs > 0.12;
+          arr.forEach(u => {
+            const type = u.userData.type | 0;
+            if (type === 3 || type === 4 || u.userData.air) return;
+            const rank = type === 0 ? 0 : type === 1 ? 1 : 2;
+            let desired = targetX + side * (7.8 + rank * 6.2 + Math.floor((u.userData.index || 0) / (type === 0 ? 8 : 5)) * 1.6);
+            const maxOver = type === 0 ? 2.2 : (type === 1 ? 1.2 : 0.4);
+            if (side < 0) desired = Math.min(desired, targetX - 0.6 + maxOver);
+            else desired = Math.max(desired, targetX + 0.6 - maxOver);
+            const dx = desired - u.position.x;
+            let rate;
+            if (type === 0) rate = urgent ? 2.1 : contested ? 0.55 : 1.35;
+            else if (type === 1) rate = urgent ? 0.95 : contested ? 0.35 : 0.7;
+            else rate = contested ? 0.12 : 0.28;
+            if (contested && Math.abs(dx) < 1.2) rate *= 0.25;
+            const step = dx * Math.min(1, dt * rate);
+            const prevX = u.position.x;
+            u.position.x += step;
+            u.userData.speed = Math.abs(step) / Math.max(dt, 1e-4);
+            u.userData.velX = (u.position.x - prevX) / Math.max(dt, 1e-4);
+            u.userData.facing = side < 0 ? Math.PI / 2 : -Math.PI / 2;
+            maybeFire(u, side < 0 ? 0xe4675f : tokens[current].color, dt);
+            if (unitsApi && unitsApi.tickUnit) {
+              unitsApi.tickUnit(u, dt, now, {
+                momentum: momentum, targetX: targetX, mobile: mobileGfx,
+                cameraPos: camera.position, camera: camera,
+                enableLodSwap: !!(window.LUNCBattle && LUNCBattle.assets && LUNCBattle.assets.getMode && LUNCBattle.assets.getMode() === 'GLTF')
+              });
+            }
+            u.position.y = terrainHeight(u.position.x, u.position.z) + (u.userData.rootBob || 0);
+          });
         }
-        for(let i=particlePool.length-1;i>=0;i--){
-          const q=particlePool[i]; q.userData.life-=dt; q.position.x+=q.userData.vx*dt; q.position.y+=q.userData.vy*dt; q.position.z+=q.userData.vz*dt;
-          if(!q.userData.smoke) q.userData.vy-=5.1*dt; else q.scale.multiplyScalar(1+dt*.45);
-          q.material.opacity=Math.max(0,q.userData.smoke?q.userData.life*.19:q.userData.life*1.2);
-          if(q.userData.life<=0){scene.remove(q);particlePool.splice(i,1);}
+        moveGround(bulls, -1); moveGround(bears, 1);
+      }
+      function runAir() {
+        function moveAir(arr, side) {
+          arr.forEach(u => {
+            const type = u.userData.type | 0;
+            if (!(type === 3 || type === 4 || u.userData.air)) return;
+            tickAirCombat(u, side, dt, now);
+          });
+        }
+        moveAir(bulls, -1); moveAir(bears, 1);
+      }
+      if (cadence && cadence.time) {
+        cadence.time('units', runUnits);
+        cadence.time('air', runAir);
+      } else {
+        moveArmy(bulls, -1); moveArmy(bears, 1);
+      }
+
+      function runEffects() {
+        if (effectsApi && typeof effectsApi.tick === 'function') {
+          effectsApi.tick(dt, now, camera);
+        } else {
+          for (let i = projectilePool.length - 1; i >= 0; i--) {
+            const b = projectilePool[i], dx = b.userData.tx - b.position.x, step = Math.sign(dx) * b.userData.speed * dt;
+            b.position.x += Math.abs(step) > Math.abs(dx) ? dx : step; b.position.y += Math.sin(now * 10 + i) * .015; b.userData.life -= dt;
+            if (Math.abs(dx) < .25 || b.userData.life <= 0) { createExplosion(b.position.x, b.position.z, b.userData.color, b.userData.power * .75); scene.remove(b); projectilePool.splice(i, 1); }
+          }
+          for (let i = particlePool.length - 1; i >= 0; i--) {
+            const q = particlePool[i]; q.userData.life -= dt; q.position.x += q.userData.vx * dt; q.position.y += q.userData.vy * dt; q.position.z += q.userData.vz * dt;
+            if (!q.userData.smoke) q.userData.vy -= 5.1 * dt; else q.scale.multiplyScalar(1 + dt * .45);
+            q.material.opacity = Math.max(0, q.userData.smoke ? q.userData.life * .19 : q.userData.life * 1.2);
+            if (q.userData.life <= 0) { scene.remove(q); particlePool.splice(i, 1); }
+          }
         }
       }
+      if (cadence && cadence.time) cadence.time('effects', runEffects);
+      else runEffects();
+
       // camera shake applied inside cameraCtrl.update (no permanent target drift)
-      bullLight.intensity=1.1+Math.sin(now*1.3)*.16; bearLight.intensity=1.05+Math.cos(now*1.25)*.14;
-      if (envApi && typeof envApi.update === 'function') envApi.update(dt, now, camera);
-      if (structuresApi && typeof structuresApi.applyStructureLods === 'function') structuresApi.applyStructureLods(camera);
-      if (structuresApi && typeof structuresApi.updateStructures === 'function') structuresApi.updateStructures(dt, now);
-      if (minimapApi) {
-        // Defenses markers are slow to rebuild — refresh ~2 Hz; draw() self-throttles to minimapHz
+      bullLight.intensity = 1.1 + Math.sin(now * 1.3) * .16; bearLight.intensity = 1.05 + Math.cos(now * 1.25) * .14;
+
+      function runLod() {
+        if (envApi && typeof envApi.update === 'function') envApi.update(dt, now, camera);
+        if (structuresApi && typeof structuresApi.applyStructureLods === 'function') structuresApi.applyStructureLods(camera);
+        if (structuresApi && typeof structuresApi.updateStructures === 'function') structuresApi.updateStructures(dt, now);
+        if (window.LUNCBattle && LUNCBattle.lod && LUNCBattle.lod.endFrame) {
+          LUNCBattle.lod.endFrame();
+        }
+      }
+      if (cadence && cadence.time) cadence.time('lod', runLod);
+      else runLod();
+
+      function runMinimap() {
+        if (!minimapApi) return;
         if (!animate._defAcc) animate._defAcc = 0;
         animate._defAcc += dt;
         if (animate._defAcc >= 0.5) {
@@ -1413,14 +1527,26 @@
         }
         minimapApi.draw();
       }
-      // Snapshot LOD tallies AFTER units/structures/env, THEN refresh PERF overlay
-      if (window.LUNCBattle && LUNCBattle.lod && LUNCBattle.lod.endFrame) {
-        LUNCBattle.lod.endFrame();
+      if (cadence && cadence.time) cadence.time('minimap', runMinimap);
+      else runMinimap();
+
+      function runQuality() {
+        if (window.LUNCBattle && LUNCBattle.quality && LUNCBattle.quality.tick) {
+          // Wall-clock RAF interval only — never pass Math.min(0.04) sim dt.
+          LUNCBattle.quality.tick(wallDtSec, renderer);
+        }
       }
-      if (window.LUNCBattle && LUNCBattle.quality && LUNCBattle.quality.tick) {
-        LUNCBattle.quality.tick(dt, renderer);
+      if (cadence && cadence.time) cadence.time('quality', runQuality);
+      else runQuality();
+
+      function runRender() {
+        renderer.render(scene, camera);
+        if (cadence) cadence.markRender();
       }
-      renderer.render(scene,camera);
+      if (cadence && cadence.time) cadence.time('render', runRender);
+      else runRender();
+
+      if (cadence && cadence.endFrame) cadence.endFrame(renderer);
     }
 
     addEventListener('resize',()=>{
@@ -1431,6 +1557,7 @@
       } else {
         renderer.setPixelRatio(Math.min(devicePixelRatio||1,innerWidth<760?1.35:1.8));
       }
+      if (cadence && typeof cadence.applyAbHooks === 'function') cadence.applyAbHooks(renderer, sun);
     });
 
     updateStatusUI();

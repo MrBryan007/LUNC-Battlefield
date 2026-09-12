@@ -1,3 +1,5 @@
+> **v9.4.7 follow-up:** PERF was able to lock at 25/40ms due to sim-capped `dt` → `quality.tick`. See **`docs/V9-CADENCE.md`** for the wall-clock fix, RAF probe, and scene/A-B isolation matrix.
+
 # LUNC Battlefield v9.4.6 — REAL PERF via mesh merging
 
 **Status:** v9.4.6 on `feat/v9-next-gen-renderer` only. **Not merged to main.** No Pages deploy from this milestone.

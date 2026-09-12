@@ -1,4 +1,4 @@
-/* LUNC Battlefield v9.4.6 — shared config (GitHub Pages safe) */
+/* LUNC Battlefield v9.4.7 — shared config (GitHub Pages safe) */
 (function (global) {
   'use strict';
   const DataTruth = Object.freeze({
@@ -56,8 +56,8 @@
   };
 
   const config = {
-    BUILD: 'v9.4.6',
-    TITLE: 'LUNC Ecosystem Battlefield v9.4.6 — mesh-merge draw cut — shared mats/shadows/LOD (WebGL r128)',
+    BUILD: 'v9.4.7',
+    TITLE: 'LUNC Ecosystem Battlefield v9.4.7 — FPS cadence diagnostics — shared mats/shadows/LOD (WebGL r128)',
     DataTruth,
     tokens,
     apiBase: resolveApiBase(),

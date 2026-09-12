@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RAF cadence probe — LUNC Battlefield v9.4.7</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #070b08; color: #cfe6d6; font: 14px/1.4 ui-monospace, Menlo, Consolas, monospace; }
+    #wrap { padding: 24px; max-width: 520px; }
+    h1 { font-size: 16px; letter-spacing: .06em; color: #7ddea8; }
+    .big { font-size: 42px; font-weight: 800; color: #e8f5ec; margin: 12px 0; }
+    .row { margin: 6px 0; color: #9bb0a4; }
+    .row b { color: #e8f5ec; }
+    canvas { display: block; width: 240px; height: 80px; margin-top: 16px; background: #0c140e; border: 1px solid rgba(120,200,160,.25); border-radius: 6px; }
+    .ok { color: #7ddea8; }
+    .bad { color: #e4675f; }
+    .note { margin-top: 18px; font-size: 12px; color: #8fa094; }
+  </style>
+</head>
+<body>
+  <div id="wrap">
+    <h1>RAF PROBE · v9.4.7</h1>
+    <div class="big" id="fps">—</div>
+    <div class="row">RAF callbacks/sec <b id="raf">—</b></div>
+    <div class="row">paint frames/sec <b id="paint">—</b></div>
+    <div class="row">avg frame <b id="ms">—</b> ms · 1% high <b id="hi">—</b> ms</div>
+    <div class="row">rAF vs 60Hz <b id="verdict">…</b></div>
+    <canvas id="c" width="240" height="80"></canvas>
+    <p class="note">
+      Minimal page: one <code>requestAnimationFrame</code> loop + 2D canvas paint.
+      No Three.js, no battlefield. If this stays ~25 FPS / 40ms, the <b>environment</b>
+      (browser / remote desktop / box display) is capping cadence — not battle-engine.
+      If this reaches ~50–60+, the battlefield lock is app-side or GPU-bound.
+    </p>
+  </div>
+  <script>
+(function () {
+  'use strict';
+  var canvas = document.getElementById('c');
+  var ctx = canvas.getContext('2d');
+  var rafN = 0, paintN = 0;
+  var samples = [];
+  var last = performance.now();
+  var windowStart = last;
+  var lastUi = last;
+  var hue = 0;
+
+  function summary(now) {
+    var elapsed = Math.max(0.001, (now - windowStart) / 1000);
+    var rafPs = rafN / elapsed;
+    var paintPs = paintN / elapsed;
+    var avg = 0, hi = 0;
+    if (samples.length) {
+      var sum = 0;
+      var sorted = samples.slice().sort(function (a, b) { return b - a; });
+      for (var i = 0; i < samples.length; i++) sum += samples[i];
+      avg = sum / samples.length;
+      hi = sorted[Math.max(0, Math.floor(sorted.length * 0.01))] || sorted[0];
+    }
+    document.getElementById('fps').textContent = rafPs.toFixed(1) + ' FPS';
+    document.getElementById('raf').textContent = rafPs.toFixed(1);
+    document.getElementById('paint').textContent = paintPs.toFixed(1);
+    document.getElementById('ms').textContent = avg.toFixed(2);
+    document.getElementById('hi').textContent = hi.toFixed(2);
+    var verdict = document.getElementById('verdict');
+    if (rafPs >= 50) {
+      verdict.textContent = 'OK — env can exceed 25';
+      verdict.className = 'ok';
+    } else if (rafPs >= 35) {
+      verdict.textContent = 'PARTIAL — above 25, below 60';
+      verdict.className = 'ok';
+    } else {
+      verdict.textContent = 'CAPPED — env ≈25 or lower (do not fake 60 in app)';
+      verdict.className = 'bad';
+    }
+    console.info('[raf-probe]', 'RAF/s=' + rafPs.toFixed(1), 'paint/s=' + paintPs.toFixed(1), 'avgMs=' + avg.toFixed(2));
+    rafN = 0; paintN = 0; samples = []; windowStart = now;
+  }
+
+  function frame(now) {
+    requestAnimationFrame(frame);
+    rafN++;
+    var dt = now - last;
+    last = now;
+    if (dt > 0 && dt < 1000) samples.push(dt);
+
+    hue = (hue + dt * 0.05) % 360;
+    ctx.fillStyle = '#0c140e';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = 'hsl(' + hue.toFixed(0) + ' 55% 45%)';
+    var x = ((now / 16.7) % (canvas.width - 20));
+    ctx.fillRect(x, 20, 20, 40);
+    paintN++;
+
+    if (now - lastUi >= 2000) {
+      lastUi = now;
+      summary(now);
+    }
+  }
+  requestAnimationFrame(frame);
+})();
+  </script>
+</body>
+</html>

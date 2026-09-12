@@ -1,4 +1,4 @@
-/* LUNC Battlefield v9.4.6 — graphics quality + mesh-merge PERF (throttled UI) */
+/* LUNC Battlefield v9.4.7 — graphics quality + mesh-merge PERF (throttled UI) */
 (function (global) {
   'use strict';
 
@@ -225,7 +225,9 @@
 
   function wantPerfOverlay() {
     try {
-      if (new URLSearchParams(location.search).get('perf') === '1') return true;
+      var sp = new URLSearchParams(location.search);
+      if (sp.get('perf') === '1') return true;
+      if (sp.get('diag') === '1' || sp.get('cadence') === '1') return true;
       if (localStorage.getItem(PERF_KEY) === '1') return true;
     } catch (_) {}
     return false;
@@ -550,7 +552,12 @@
 
   function tick(dt, renderer) {
     if (renderer) rendererRef = renderer;
-    var frameMs = (dt > 0 && dt < 1) ? dt * 1000 : 16.7;
+    // FPS from wall-clock delta (caller must NOT pass sim-capped dt — see battle-engine Math.min(.04) note).
+    // Accept 0–2s; ignore pathological spikes for EMA stability.
+    var frameMs;
+    if (dt > 0 && dt < 2) frameMs = dt * 1000;
+    else frameMs = 16.7;
+    if (frameMs > 100) frameMs = 100; // EMA clamp only — does not cap RAF
     pushFrameSample(frameMs);
     frameAccum += dt;
     frameCount++;
@@ -624,7 +631,7 @@
     overlayEl.className = 'perf-overlay';
     overlayEl.setAttribute('aria-hidden', 'true');
     overlayEl.innerHTML =
-      '<div class="perf-title">PERF · v9.4.6</div>' +
+      '<div class="perf-title">PERF · v9.4.7</div>' +
       '<div class="perf-section" id="perfGfx"></div>' +
       '<div class="perf-section" id="perfAssets"></div>' +
       '<div class="perf-section perf-feeds" id="perfFeeds"></div>';
@@ -851,7 +858,7 @@
 
   // Public API
   var api = {
-    version: 'v9.4.6',
+    version: 'v9.4.7',
     MODES: MODES,
     PRESETS: PRESETS,
     FEED_STATES: FEED_STATES,
