@@ -1,3 +1,5 @@
+> **v9.4.10:** AUTO quality ceiling capped at **HIGH** (never auto-select/promote ULTRA) + Retina dPR≥1.5 hardware-score tax — interactive headroom on MacBook/windowed Chrome. Manual ULTRA still works. M1 headless still ~60 FPS @ HIGH/ULTRA; feel lag was AUTO→ULTRA under Retina load.
+
 > **v9.4.9:** Authored armor/arty kit (LOD silhouettes). Mesh-merge strategy retained; see **`docs/V9-ARMOR.md`**. FPS not re-measured on SwiftShader box — cite v9.4.8 M1 baseline.
 
 > **v9.4.8:** Calls ~65 @ ~5.4 FPS wall — JS only ~4 ms. Stall instrumentation in **`docs/V9-STALL.md`** (not more mesh merges).
@@ -68,7 +70,7 @@ Profile with `renderer.info` / PERF overlay (`?perf=1`, fixed Graphics **HIGH**)
 
 ## BUILD
 
-`v9.4.6` · cache `?v=20260912v946` · PERF label `v9.4.6`.
+`v9.4.10` · cache `?v=20260913v9410` · PERF label `v9.4.10` (AUTO max HIGH).
 
 ---
 

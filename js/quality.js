@@ -1,4 +1,4 @@
-/* LUNC Battlefield v9.4.9 — graphics quality + stall-aware PERF (throttled UI) */
+/* LUNC Battlefield v9.4.10 — graphics quality + stall-aware PERF (throttled UI) */
 (function (global) {
   'use strict';
 
@@ -185,7 +185,8 @@
     var mem = (navigator && navigator.deviceMemory) || 0;
     var score = 0;
     if (mobile) score -= 2;
-    if (dpr >= 2.5) score -= 1;
+    // Retina tax: interactive headroom on high-dPR displays (MacBook etc.)
+    if (dpr >= 1.5) score -= 1;
     else if (dpr <= 1.25) score += 1;
     if (w * h >= 1920 * 1080) score += 1;
     if (w * h <= 1280 * 720) score -= 1;
@@ -205,10 +206,10 @@
         if (geo > 400) score -= 1;
       }
     } catch (_) {}
+    // AUTO max HIGH for interactive headroom (ULTRA stays manual via dropdown)
     if (hw.mobile || score <= -2) return 'LOW';
     if (score <= 0) return 'MEDIUM';
-    if (score <= 2) return 'HIGH';
-    return 'ULTRA';
+    return 'HIGH'; // never auto-select ULTRA
   }
 
   function readStoredMode() {
@@ -540,8 +541,8 @@
       try { updateQualityUi(); } catch (_) {}
       return;
     }
-    // Sustained high with scale near preset → raise
-    var maxIdx = isMobileFlag() ? PRESET_ORDER.indexOf('HIGH') : PRESET_ORDER.length - 1;
+    // Sustained high with scale near preset → raise (AUTO ceiling HIGH; never climb to ULTRA)
+    var maxIdx = PRESET_ORDER.indexOf('HIGH');
     if (fps > ADAPT_HYST_UP + 4 && currentRenderScale >= Math.min(SCALE_MAX, applied.renderScale) - 0.02 && idx < maxIdx) {
       autoLevel = PRESET_ORDER[idx + 1];
       lastLevelChangeAt = now;
@@ -633,7 +634,7 @@
     overlayEl.className = 'perf-overlay';
     overlayEl.setAttribute('aria-hidden', 'true');
     overlayEl.innerHTML =
-      '<div class="perf-title">PERF · v9.4.9</div>' +
+      '<div class="perf-title">PERF · v9.4.10</div>' +
       '<div class="perf-section" id="perfGfx"></div>' +
       '<div class="perf-section" id="perfAssets"></div>' +
       '<div class="perf-section perf-feeds" id="perfFeeds"></div>';
@@ -877,7 +878,7 @@
 
   // Public API
   var api = {
-    version: 'v9.4.9',
+    version: 'v9.4.10',
     MODES: MODES,
     PRESETS: PRESETS,
     FEED_STATES: FEED_STATES,
