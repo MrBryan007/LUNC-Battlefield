@@ -1,4 +1,4 @@
-/* LUNC Battlefield v8.2 — unit animation helpers (procedural, Three.js r128) */
+/* LUNC Battlefield v9.4.4 — unit animation helpers + air rotor/bank (procedural, Three.js r128) */
 (function (global) {
   'use strict';
   const LB = global.LUNCBattle = global.LUNCBattle || {};
@@ -64,6 +64,10 @@
       if (speed > 0.4) return STATES.MOVE;
       if (mom > 0.04) return STATES.AIM_TURRET;
       return STATES.IDLE_SCAN;
+    }
+    if (type === 3 || type === 4) {
+      if (opts.firing) return STATES.FIRE;
+      return STATES.MOVE;
     }
     // artillery
     if (opts.firing) return STATES.FIRE;
@@ -296,31 +300,86 @@
     ud.rootBob = 0;
   }
 
+
+  function tickHelicopter(unit, dt, now, ctx) {
+    const ud = unit.userData;
+    const parts = ud.parts || {};
+    if (ud.facing != null) {
+      unit.rotation.y = dampAngle(unit.rotation.y, ud.facing, dt, 4.5);
+    }
+    if (parts.rotor) {
+      parts.rotor.rotation.y = (parts.rotor.rotation.y || 0) + dt * 18;
+    }
+    if (parts.tailRotor) {
+      parts.tailRotor.rotation.x = (parts.tailRotor.rotation.x || 0) + dt * 28;
+    }
+    ud.rootBob = 0;
+  }
+
+  function tickJet(unit, dt, now, ctx) {
+    const ud = unit.userData;
+    if (ud.facing != null) {
+      unit.rotation.y = dampAngle(unit.rotation.y, ud.facing, dt, 6);
+    }
+    if (ud.pitch != null) {
+      unit.rotation.x += (ud.pitch - unit.rotation.x) * Math.min(1, dt * 5);
+    }
+    // subtle engine pulse via scale on engine meshes
+    const parts = ud.parts || {};
+    if (parts.engines) {
+      const pulse = 1 + Math.sin(now * 14 + (ud.phase || 0)) * 0.03;
+      for (let i = 0; i < parts.engines.length; i++) {
+        parts.engines[i].scale.setScalar(pulse);
+      }
+    }
+    ud.rootBob = 0;
+  }
+
   function tickUnit(unit, dt, now, ctx) {
     ctx = ctx || {};
     const ud = unit.userData;
     if (!ud) return;
 
-    // v8.8 — LOD / quality: skip expensive anim for far or LOW/MEDIUM bands
-    const lod = ctx.lodBand != null ? ctx.lodBand : 0;
+    // v9.4 — LOD anim rates: LOD0 full · LOD1 reduced · LOD2 simple · LOD3 no limb anim
+    const lod = ctx.lodBand != null ? ctx.lodBand : (ud.lodBand != null ? ud.lodBand : 0);
     const complexity = ctx.animComplexity || 'high';
     const divisor = ctx.unitUpdateDivisor > 1 ? ctx.unitUpdateDivisor : 1;
-    if (divisor > 1) {
+    let period = 1;
+    try {
+      if (global.LUNCBattle && LUNCBattle.lod && LUNCBattle.lod.animPolicy) {
+        const pol = LUNCBattle.lod.animPolicy(lod, complexity);
+        period = pol.period || 1;
+        if (pol.skipLimbAnim) {
+          if (ud.facing != null) unit.rotation.y = ud.facing;
+          ud.rootBob = 0;
+          return;
+        }
+      }
+    } catch (_) {}
+    const effDiv = Math.max(divisor, period > 1 ? period : 1);
+    if (effDiv > 1) {
       ud._animFrame = (ud._animFrame || 0) + 1;
-      if ((ud._animFrame + (ud.index || 0)) % divisor !== 0 && lod >= 1) {
-        // Still keep facing/rootBob stable
+      if ((ud._animFrame + (ud.index || 0)) % effDiv !== 0 && lod >= 1) {
         if (ud.facing != null) unit.rotation.y = ud.facing;
         return;
       }
     }
-    if (lod >= 3 && complexity !== 'ultra') {
+    if (lod >= 3) {
+      // LOD3: no limb anim (impostor prep)
       if (ud.facing != null) unit.rotation.y = ud.facing;
       ud.rootBob = 0;
       return;
     }
-    if (lod >= 2 && (complexity === 'low' || complexity === 'medium')) {
-      // Sparse: facing + light bob only
+    if (lod >= 2) {
+      // LOD2 simple: facing + light bob; air keeps rotor/engine motion readable
       if (ud.facing != null) unit.rotation.y = dampAngle(unit.rotation.y, ud.facing, dt, 6);
+      if (ud.type === 3) {
+        const parts = ud.parts || {};
+        if (parts.rotor) parts.rotor.rotation.y = (parts.rotor.rotation.y || 0) + dt * 14;
+        ud.rootBob = 0;
+        return;
+      }
+      if (ud.type === 4) { ud.rootBob = 0; return; }
       ud.rootBob = (ud.type === 0 && (ud.speed || 0) > 0.4) ? Math.sin(now * 6) * 0.02 : 0;
       return;
     }
@@ -340,6 +399,8 @@
     const type = ud.type;
     if (type === 0) tickInfantry(unit, dt, now, ctx);
     else if (type === 1) tickArmor(unit, dt, now, ctx);
+    else if (type === 3) tickHelicopter(unit, dt, now, ctx);
+    else if (type === 4) tickJet(unit, dt, now, ctx);
     else tickArtillery(unit, dt, now, ctx);
   }
 
@@ -350,6 +411,8 @@
     tickInfantry: tickInfantry,
     tickArmor: tickArmor,
     tickArtillery: tickArtillery,
+    tickHelicopter: tickHelicopter,
+    tickJet: tickJet,
     tickUnit: tickUnit,
     dampAngle: dampAngle
   };

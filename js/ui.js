@@ -489,6 +489,7 @@
       if (dh.id === 'BACKEND_OFFLINE') mode.className = 'error';
     }
     renderSourceFreshness();
+    refreshPriceSourcesFooter();
     const agent = document.getElementById('agentStatus');
     if (agent) {
       const build = (LB.config && LB.config.BUILD) || '';
@@ -498,6 +499,60 @@
       const next = 'Depth: ' + depth + ' · ' + build;
       if (agent.textContent !== next) agent.textContent = next;
     }
+  }
+
+
+  /**
+   * Dynamic HUD footer — derive from configured/active market sources (no redesign).
+   * Prefer active LIVE source; otherwise list configured fallbacks truthfully
+   * (Binance Vision when binanceRestBase is vision; DefiLlama / CoinGecko as fallbacks).
+   * Never a static fake pipeline string.
+   */
+  function refreshPriceSourcesFooter() {
+    const el = document.getElementById('priceSourcesLabel');
+    if (!el) return;
+    const configured = [];
+    // DefiLlama + CoinGecko are always available public fallbacks in battle-engine
+    configured.push('DefiLlama');
+    configured.push('CoinGecko');
+    let binanceLabel = null;
+    try {
+      const base = (LB.config && LB.config.binanceRestBase) || '';
+      if (/binance\.vision/i.test(base)) binanceLabel = 'Binance Vision';
+      else if (/api\.binance\.com/i.test(base)) binanceLabel = 'Binance REST';
+      else if (base) binanceLabel = 'Binance REST';
+      else binanceLabel = 'Binance Vision'; // default config uses vision
+    } catch (_) {
+      binanceLabel = 'Binance Vision';
+    }
+    if (binanceLabel) configured.push(binanceLabel);
+
+    let active = '';
+    try {
+      if (healthState && healthState.priceLive && healthState.priceSource) {
+        active = String(healthState.priceSource);
+      }
+    } catch (_) {}
+
+    // If we know the active source, lead with it and note fallbacks
+    let text;
+    if (active) {
+      const rest = configured.filter(function (s) {
+        return s.toLowerCase().indexOf(active.toLowerCase().split(' ')[0]) < 0 &&
+          active.toLowerCase().indexOf(s.toLowerCase().split(' ')[0]) < 0;
+      });
+      // Normalize active label
+      let activeLabel = active;
+      if (/binance/i.test(active) && binanceLabel) activeLabel = binanceLabel;
+      else if (/llama/i.test(active)) activeLabel = 'DefiLlama';
+      else if (/gecko/i.test(active)) activeLabel = 'CoinGecko';
+      text = activeLabel + ' (active)';
+      if (rest.length) text += ' · fallbacks: ' + rest.join(', ');
+    } else {
+      // Not live yet — show configured sources (truthful order: Llama → Gecko → Binance Vision/REST)
+      text = configured.join(' → ');
+    }
+    el.textContent = text;
   }
 
   function updateHealthInput( partial ) {
@@ -705,6 +760,7 @@
 
     const buildLabel = document.getElementById('buildLabel');
     if (buildLabel && LB.config) buildLabel.textContent = LB.config.BUILD;
+    refreshPriceSourcesFooter();
   }
 
   if (document.readyState === 'loading') {
@@ -724,6 +780,7 @@
     getRecentLiquidations: getRecentLiquidations,
     computeLiqBias: computeLiqBias,
     updateHealthInput: updateHealthInput,
+    refreshPriceSourcesFooter: refreshPriceSourcesFooter,
     renderDataHealth: renderDataHealth,
     renderLiquidityBands: renderLiquidityBands,
     updateFrontlineHud: updateFrontlineHud,

@@ -2,7 +2,9 @@
 
 Classic-RTS-inspired Terra Classic intelligence battlefield.
 
-**Build:** v8.7 — RTS Command HUD + War Room (see `docs/V8-GRAPHICS.md`).
+**Build (main / live):** v8.x — RTS Command HUD + War Room (see `docs/V8-GRAPHICS.md`).
+
+**v9 (feature branch only):** `feat/v9-next-gen-renderer` — **v9.4.11 jet attack choreography** (runId-synced strafe/bomb/rocket impacts) on **v9.4.10** AUTO≤HIGH + **v9.4.9** armor/arty kit + **v9.4.8** stall/cadence + **v9.4.6** mesh-merge + LOD. Default WebGL (Three **r128**) with procedural SAFE FALLBACK. Impostors / SkeletonUtils / KTX2 deferred to v9.5. Also `docs/V9-AIR-UNITS.md` + `docs/V9-PERF.md`. Not merged to main; live Pages stays on v8 until an explicit merge.
 
 **Live site:** https://mrbryan007.github.io/LUNC-Battlefield/
 
@@ -12,6 +14,15 @@ Classic-RTS-inspired Terra Classic intelligence battlefield.
 index.html
 css/battlefield.css
 js/config.js
+js/quality.js
+js/renderer.js  # v9.1+ feature branch
+js/materials.js # v9.2 PBR registry
+js/cadence-diag.js  # v9.4.8 FPS cadence harness (?diag=1)
+js/stall-diag.js    # v9.4.8 non-JS/WebGL stall harness (?stall=1)
+js/lod.js  # v9.4.6 LOD + impostor-only LOD3
+js/units.js  # v9.4.9 authored armor/arty + v9.4.6 mesh merge
+js/…  # see docs/V9-PERF.md
+js/assets.js / js/asset-loader.js  # v9.3–v9.4.4 glTF + generation-token lifecycle
 js/main.js
 js/market.js
 js/terra.js
@@ -33,7 +44,7 @@ Every metric/event is tagged **LIVE / CALCULATED / ESTIMATED / SIMULATED / UNAVA
 
 | Feed | Status without HTTPS API |
 | --- | --- |
-| Prices (DefiLlama → CoinGecko; Binance spot if WS opens) | LIVE when connected |
+| Prices (configured: DefiLlama / CoinGecko / Binance Vision REST; Binance spot if WS opens) | LIVE when connected |
 | Buy/sell walls | LIVE with Binance depth; else ESTIMATED |
 | Liquidations | LIVE on Binance futures (`1000LUNCUSDT` / `USTCUSDT`) |
 | TVL | LIVE via DefiLlama |

@@ -1,4 +1,4 @@
-/* LUNC Battlefield v8.8 — graphics quality + performance scaling (graphics-only) */
+/* LUNC Battlefield v9.4.11 — graphics quality + stall-aware PERF (throttled UI) */
 (function (global) {
   'use strict';
 
@@ -26,12 +26,17 @@
     RECONNECTING: 'RECONNECTING'
   });
 
-  /** LOD distance bands (world units). Hooks for v9 — do not rebuild assets here. */
+  /**
+   * Authoritative LOD enter distances + hysteresis (world units).
+   * lod.js MUST read these via getEffectivePreset().lod — do not retune elsewhere.
+   * LOW 16/32/55 h3 · MED 20/40/65 h4 · HIGH 24/44/70 h4 · ULTRA 30/52/82 h5
+   */
   var DEFAULT_LOD = Object.freeze({
-    LOD0: 22,  // full detail
-    LOD1: 42,  // simplified anim / fewer updates
-    LOD2: 68,  // sparse updates
-    LOD3: 999  // minimal / skip expensive work
+    LOD0: 24,
+    LOD1: 44,
+    LOD2: 70,
+    LOD3: 999,
+    hysteresis: 4
   });
 
   function clonePreset(p) {
@@ -82,7 +87,7 @@
       effectDurationScale: 0.72,
       unitUpdateDivisor: 2,
       shadowCast: 'major',
-      lod: { LOD0: 16, LOD1: 32, LOD2: 55, LOD3: 999 },
+      lod: { LOD0: 16, LOD1: 32, LOD2: 55, LOD3: 999, hysteresis: 3 },
       postFxHooks: { bloom: false, ao: false, sharpen: false },
       textureLodHooks: { maxAnisotropy: 1, preferCompressed: true }
     })),
@@ -94,19 +99,19 @@
       unitDetail: 'medium',
       envDensity: 0.60,
       vegetationDensity: 0.55,
-      particles: 70,
-      smoke: 8,
-      explosions: 5,
-      projectiles: 32,
-      scorches: 14,
-      minimapHz: 10,
+      particles: 55,
+      smoke: 6,
+      explosions: 4,
+      projectiles: 28,
+      scorches: 12,
+      minimapHz: 8,
       animComplexity: 'medium',
       lightingComplexity: 'medium',
       structureDetail: 'medium',
       effectDurationScale: 0.9,
       unitUpdateDivisor: 1,
       shadowCast: 'bases',
-      lod: { LOD0: 20, LOD1: 40, LOD2: 65, LOD3: 999 },
+      lod: { LOD0: 20, LOD1: 40, LOD2: 65, LOD3: 999, hysteresis: 4 },
       postFxHooks: { bloom: false, ao: false, sharpen: false },
       textureLodHooks: { maxAnisotropy: 2, preferCompressed: false }
     })),
@@ -118,19 +123,19 @@
       unitDetail: 'high',
       envDensity: 0.85,
       vegetationDensity: 0.85,
-      particles: 120,
-      smoke: 16,
-      explosions: 8,
-      projectiles: 48,
-      scorches: 24,
-      minimapHz: 12,
+      particles: 90,
+      smoke: 10,
+      explosions: 6,
+      projectiles: 40,
+      scorches: 18,
+      minimapHz: 8,
       animComplexity: 'high',
       lightingComplexity: 'high',
       structureDetail: 'high',
       effectDurationScale: 1.0,
       unitUpdateDivisor: 1,
       shadowCast: 'rich',
-      lod: Object.assign({}, DEFAULT_LOD),
+      lod: { LOD0: 24, LOD1: 44, LOD2: 70, LOD3: 999, hysteresis: 4 },
       postFxHooks: { bloom: false, ao: false, sharpen: false },
       textureLodHooks: { maxAnisotropy: 4, preferCompressed: false }
     })),
@@ -142,19 +147,19 @@
       unitDetail: 'ultra',
       envDensity: 1.0,
       vegetationDensity: 1.0,
-      particles: 160,
-      smoke: 20,
-      explosions: 10,
-      projectiles: 56,
-      scorches: 28,
-      minimapHz: 12,
+      particles: 120,
+      smoke: 14,
+      explosions: 8,
+      projectiles: 48,
+      scorches: 22,
+      minimapHz: 10,
       animComplexity: 'ultra',
       lightingComplexity: 'ultra',
       structureDetail: 'ultra',
       effectDurationScale: 1.05,
       unitUpdateDivisor: 1,
       shadowCast: 'rich',
-      lod: { LOD0: 26, LOD1: 48, LOD2: 78, LOD3: 999 },
+      lod: { LOD0: 30, LOD1: 52, LOD2: 82, LOD3: 999, hysteresis: 5 },
       postFxHooks: { bloom: false, ao: false, sharpen: false },
       textureLodHooks: { maxAnisotropy: 8, preferCompressed: false }
     }))
@@ -180,7 +185,8 @@
     var mem = (navigator && navigator.deviceMemory) || 0;
     var score = 0;
     if (mobile) score -= 2;
-    if (dpr >= 2.5) score -= 1;
+    // Retina tax: interactive headroom on high-dPR displays (MacBook etc.)
+    if (dpr >= 1.5) score -= 1;
     else if (dpr <= 1.25) score += 1;
     if (w * h >= 1920 * 1080) score += 1;
     if (w * h <= 1280 * 720) score -= 1;
@@ -200,10 +206,10 @@
         if (geo > 400) score -= 1;
       }
     } catch (_) {}
+    // AUTO max HIGH for interactive headroom (ULTRA stays manual via dropdown)
     if (hw.mobile || score <= -2) return 'LOW';
     if (score <= 0) return 'MEDIUM';
-    if (score <= 2) return 'HIGH';
-    return 'ULTRA';
+    return 'HIGH'; // never auto-select ULTRA
   }
 
   function readStoredMode() {
@@ -220,7 +226,10 @@
 
   function wantPerfOverlay() {
     try {
-      if (new URLSearchParams(location.search).get('perf') === '1') return true;
+      var sp = new URLSearchParams(location.search);
+      if (sp.get('ui') === '0') return false;
+      if (sp.get('perf') === '1') return true;
+      if (sp.get('diag') === '1' || sp.get('cadence') === '1' || sp.get('stall') === '1') return true;
       if (localStorage.getItem(PERF_KEY) === '1') return true;
     } catch (_) {}
     return false;
@@ -239,6 +248,9 @@
   var sceneRef = null;
   var sunRef = null;
   var fillRef = null;
+  var hemiRef = null;
+  var rimRef = null;
+  var accentLightsRef = null;
 
   // FPS / dyn-res adaptation
   var frameTimes = [];
@@ -335,6 +347,10 @@
   }
 
   function getLodBand(distance) {
+    // Prefer true LOD module (v9.4) when present — hysteresis is per-object via lod.resolveLod
+    try {
+      if (LB.lod && LB.lod.getLodBand) return LB.lod.getLodBand(distance);
+    } catch (_) {}
     var d = +distance || 0;
     var lod = applied.lod || DEFAULT_LOD;
     if (d <= lod.LOD0) return 0;
@@ -352,6 +368,9 @@
     sceneRef = scene || sceneRef;
     sunRef = sun || sunRef;
     if (opts.fillLight) fillRef = opts.fillLight;
+    if (opts.hemiLight) hemiRef = opts.hemiLight;
+    if (opts.rimLight) rimRef = opts.rimLight;
+    if (opts.accentLights) accentLightsRef = opts.accentLights;
 
     syncAppliedFromEffective();
     var p = applied;
@@ -366,7 +385,11 @@
 
     if (rendererRef) {
       try {
-        rendererRef.setPixelRatio(currentPixelRatio);
+        if (LB.renderer && typeof LB.renderer.applyPixelRatio === 'function') {
+          LB.renderer.applyPixelRatio(rendererRef, currentPixelRatio);
+        } else {
+          rendererRef.setPixelRatio(currentPixelRatio);
+        }
         // Keep buffer size at CSS pixels; pixel ratio carries dyn-res
         rendererRef.setSize(global.innerWidth, global.innerHeight, false);
       } catch (_) {}
@@ -408,12 +431,53 @@
       }
     }
 
-    // Lighting complexity: dim/disable fill on LOW
+    // Lighting complexity: scale fill / hemi / rim / accents for PBR (v9.2)
     if (fillRef) {
-      if (p.lightingComplexity === 'low') fillRef.intensity = 0.08;
-      else if (p.lightingComplexity === 'medium') fillRef.intensity = 0.16;
-      else fillRef.intensity = 0.22;
+      if (p.lightingComplexity === 'low') fillRef.intensity = 0.06;
+      else if (p.lightingComplexity === 'medium') fillRef.intensity = 0.12;
+      else if (p.lightingComplexity === 'ultra') fillRef.intensity = 0.22;
+      else fillRef.intensity = 0.18;
     }
+    if (hemiRef) {
+      if (p.lightingComplexity === 'low') hemiRef.intensity = 0.38;
+      else if (p.lightingComplexity === 'medium') hemiRef.intensity = 0.46;
+      else if (p.lightingComplexity === 'ultra') hemiRef.intensity = 0.58;
+      else hemiRef.intensity = 0.52;
+    }
+    if (rimRef) {
+      if (p.lightingComplexity === 'low') rimRef.intensity = 0;
+      else if (p.lightingComplexity === 'medium') rimRef.intensity = 0.04;
+      else if (p.lightingComplexity === 'ultra') rimRef.intensity = 0.1;
+      else rimRef.intensity = 0.07;
+    }
+    if (sunRef && sunRef.isDirectionalLight) {
+      if (p.lightingComplexity === 'low') sunRef.intensity = 0.88;
+      else if (p.lightingComplexity === 'medium') sunRef.intensity = 0.98;
+      else if (p.lightingComplexity === 'ultra') sunRef.intensity = 1.12;
+      else sunRef.intensity = 1.05;
+    }
+    if (accentLightsRef && accentLightsRef.length) {
+      var accentScale = 1;
+      if (p.lightingComplexity === 'low') accentScale = 0.55;
+      else if (p.lightingComplexity === 'medium') accentScale = 0.8;
+      else if (p.lightingComplexity === 'ultra') accentScale = 1.15;
+      for (var ai = 0; ai < accentLightsRef.length; ai++) {
+        var al = accentLightsRef[ai];
+        if (!al) continue;
+        if (al.userData && al.userData.baseIntensity == null) {
+          al.userData.baseIntensity = al.intensity;
+        }
+        var base = (al.userData && al.userData.baseIntensity != null) ? al.userData.baseIntensity : al.intensity;
+        al.intensity = base * accentScale;
+      }
+    }
+
+    // Keep materials registry quality clamps in sync
+    try {
+      if (LB.materials && typeof LB.materials.applyQuality === 'function') {
+        LB.materials.applyQuality(p.lightingComplexity || p.unitDetail || 'high');
+      }
+    } catch (_) {}
 
     // Notify listeners (effects/minimap/etc.)
     try {
@@ -473,24 +537,30 @@
       autoLevel = PRESET_ORDER[idx - 1];
       lastLevelChangeAt = now;
       syncAppliedFromEffective();
-      apply(rendererRef, sceneRef, sunRef, { immediate: false, fillLight: fillRef });
+      apply(rendererRef, sceneRef, sunRef, { immediate: false, fillLight: fillRef, hemiLight: hemiRef, rimLight: rimRef, accentLights: accentLightsRef });
       try { updateQualityUi(); } catch (_) {}
       return;
     }
-    // Sustained high with scale near preset → raise
-    var maxIdx = isMobileFlag() ? PRESET_ORDER.indexOf('HIGH') : PRESET_ORDER.length - 1;
+    // Sustained high with scale near preset → raise (AUTO ceiling HIGH; never climb to ULTRA)
+    var maxIdx = PRESET_ORDER.indexOf('HIGH');
     if (fps > ADAPT_HYST_UP + 4 && currentRenderScale >= Math.min(SCALE_MAX, applied.renderScale) - 0.02 && idx < maxIdx) {
       autoLevel = PRESET_ORDER[idx + 1];
       lastLevelChangeAt = now;
       syncAppliedFromEffective();
-      apply(rendererRef, sceneRef, sunRef, { immediate: false, fillLight: fillRef });
+      apply(rendererRef, sceneRef, sunRef, { immediate: false, fillLight: fillRef, hemiLight: hemiRef, rimLight: rimRef, accentLights: accentLightsRef });
       try { updateQualityUi(); } catch (_) {}
     }
   }
 
   function tick(dt, renderer) {
     if (renderer) rendererRef = renderer;
-    var frameMs = (dt > 0 && dt < 1) ? dt * 1000 : 16.7;
+    // FPS from wall-clock delta (caller must NOT pass sim-capped dt — see battle-engine Math.min(.04) note).
+    // Accept 0–2s; ignore pathological spikes for EMA stability.
+    var frameMs;
+    if (dt > 0 && dt < 2) frameMs = dt * 1000;
+    else frameMs = 16.7;
+    // v9.4.7: never clamp frameMs for PERF — a 100ms cap lied as "FPS 10 / 100.0ms"
+    // when true RAF was ~5–7/s. Cadence overlay remains the independent check.
     pushFrameSample(frameMs);
     frameAccum += dt;
     frameCount++;
@@ -504,13 +574,17 @@
       var capped = Math.min(dpr, applied.pixelRatioCap);
       currentPixelRatio = Math.max(0.5, capped * currentRenderScale);
       try {
-        rendererRef.setPixelRatio(currentPixelRatio);
+        if (LB.renderer && typeof LB.renderer.applyPixelRatio === 'function') {
+          LB.renderer.applyPixelRatio(rendererRef, currentPixelRatio);
+        } else {
+          rendererRef.setPixelRatio(currentPixelRatio);
+        }
       } catch (_) {}
     }
 
     if (overlayVisible) {
       overlayAccum += dt;
-      if (overlayAccum >= 0.35) {
+      if (overlayAccum >= 0.5) {
         overlayAccum = 0;
         refreshOverlay();
       }
@@ -528,7 +602,7 @@
     syncAppliedFromEffective();
     currentRenderScale = applied.renderScale;
     targetRenderScale = applied.renderScale;
-    apply(rendererRef, sceneRef, sunRef, { immediate: true, fillLight: fillRef });
+    apply(rendererRef, sceneRef, sunRef, { immediate: true, fillLight: fillRef, hemiLight: hemiRef, rimLight: rimRef, accentLights: accentLightsRef });
     updateQualityUi();
     return getState();
   }
@@ -560,8 +634,9 @@
     overlayEl.className = 'perf-overlay';
     overlayEl.setAttribute('aria-hidden', 'true');
     overlayEl.innerHTML =
-      '<div class="perf-title">PERF · v8.8</div>' +
+      '<div class="perf-title">PERF · v9.4.11</div>' +
       '<div class="perf-section" id="perfGfx"></div>' +
+      '<div class="perf-section" id="perfAssets"></div>' +
       '<div class="perf-section perf-feeds" id="perfFeeds"></div>';
     document.body.appendChild(overlayEl);
     return overlayEl;
@@ -575,14 +650,77 @@
     var gfx = document.getElementById('perfGfx');
     var feedEl = document.getElementById('perfFeeds');
     if (gfx) {
+      var rs = (LB.renderer && LB.renderer.getState) ? LB.renderer.getState() : null;
+      var gpuAvail = rs ? rs.webgpuAvailable : null;
+      var gpuLabel = gpuAvail === true ? 'yes' : (gpuAvail === false ? 'no' : 'unknown');
+      var activeBackend = (rs && rs.activeBackend) || LB.activeRendererBackend || 'webgl';
+      var preferLabel = (rs && rs.rendererType) || (rs && rs.preferResolved) || 'webgl';
+      var fb = (rs && rs.fallbackReason) || LB.rendererFallbackReason || '';
+      if (fb && fb.length > 72) fb = fb.slice(0, 69) + '…';
+      var infoSrc = info;
+      if (!infoSrc && LB.renderer && LB.renderer.getInfo) infoSrc = LB.renderer.getInfo(rendererRef);
+      var stallHtml = '';
+      try {
+        if (LB.stall && LB.stall.getGpuStats) {
+          var gs = LB.stall.getGpuStats();
+          var sc = LB.stall.getLastScene && LB.stall.getLastScene();
+          var gpart = gs.supported
+            ? ('GPU <b>' + (gs.lastMs != null ? (+gs.lastMs).toFixed(2) : '…') + 'ms</b> · CPU submit <b>' + (gs.cpuSubmitMs != null ? (+gs.cpuSubmitMs).toFixed(2) : '—') + 'ms</b>')
+            : 'GPU <b>n/a</b>';
+          var vpart = sc ? (' · visMesh <b>' + sc.visibleMeshes + '</b>/' + sc.meshes + ' · near/far <b>' + sc.nearMeshes + '</b>/<b>' + sc.farMeshes + '</b>') : '';
+          stallHtml = '<div>' + gpart + vpart + '</div>';
+        }
+      } catch (_) { stallHtml = ''; }
       gfx.innerHTML =
         '<div>FPS <b>' + st.fps.toFixed(0) + '</b> · avg <b>' + st.frameMs.toFixed(1) + 'ms</b> · 1%low≈ <b>' + st.low1pctMs.toFixed(1) + 'ms</b></div>' +
         '<div>Scale <b>' + st.renderScale.toFixed(2) + '</b> · dPR <b>' + st.pixelRatio.toFixed(2) + '</b> · <b>' + st.label + '</b></div>' +
-        '<div>Calls <b>' + (info && info.render ? info.render.calls : '—') + '</b> · Tris <b>' + (info && info.render ? info.render.triangles : '—') + '</b></div>' +
-        '<div>Tex <b>' + (info && info.memory ? info.memory.textures : '—') + '</b> · Geo <b>' + (info && info.memory ? info.memory.geometries : '—') + '</b></div>' +
+        '<div>Renderer prefer <b>' + preferLabel + '</b> · Active <b>' + activeBackend + '</b></div>' +
+        '<div>WebGPU available <b>' + gpuLabel + '</b></div>' +
+        (fb ? '<div>Fallback <b>' + String(fb).replace(/[<>]/g, '') + '</b></div>' : '') +
+        '<div>Calls <b>' + (infoSrc && infoSrc.render ? infoSrc.render.calls : '—') + '</b> · Tris <b>' + (infoSrc && infoSrc.render ? infoSrc.render.triangles : '—') + '</b>' +
+        ' · Pts <b>' + (infoSrc && infoSrc.render && infoSrc.render.points != null ? infoSrc.render.points : '—') + '</b>' +
+        ' · Lines <b>' + (infoSrc && infoSrc.render && infoSrc.render.lines != null ? infoSrc.render.lines : '—') + '</b></div>' +
+        '<div>Prog <b>' + (infoSrc && infoSrc.programs ? infoSrc.programs.length : '—') + '</b>' +
+        ' · Tex <b>' + (infoSrc && infoSrc.memory ? infoSrc.memory.textures : '—') + '</b> · Geo <b>' + (infoSrc && infoSrc.memory ? infoSrc.memory.geometries : '—') + '</b>' +
+        ' · autoReset <b>' + (infoSrc ? (infoSrc.autoReset !== false ? 'on' : 'off') : '—') + '</b></div>' +
         '<div>Units <b>' + (counts.units != null ? counts.units : '—') + '</b> · Proj <b>' + (counts.projectiles != null ? counts.projectiles : '—') + '</b></div>' +
         '<div>Parts <b>' + (counts.particles != null ? counts.particles : '—') + '</b> · Expl <b>' + (counts.explosions != null ? counts.explosions : '—') + '</b> · Smoke <b>' + (counts.smoke != null ? counts.smoke : '—') + '</b></div>' +
+        '<div>Mats <b>' + (counts.materials != null ? counts.materials : (LB.materials && LB.materials.count ? LB.materials.count() : '—')) + '</b>' +
+        (counts.materialsShared != null ? (' · shared <b>' + counts.materialsShared + '</b>') : '') + '</div>' +
+        stallHtml +
         '<div>Minimap <b>' + (st.preset.minimapHz || '—') + ' Hz</b></div>';
+    }
+    var assetsEl = document.getElementById('perfAssets');
+    if (assetsEl) {
+      var aMode = '—', loaded = '—', failed = '—', pending = '—', tris = '—';
+      var glbSp = '—', procSp = '—', spawnNote = '';
+      var lodLine = 'LOD0–3 —';
+      try {
+        if (LB.assets && LB.assets.getStats) {
+          var as = LB.assets.getStats();
+          aMode = as.effectiveMode || as.mode || '—';
+          loaded = as.loaded != null ? as.loaded : (as.assetsLoaded != null ? as.assetsLoaded : '—');
+          failed = as.failed != null ? as.failed : '—';
+          pending = as.pending != null ? as.pending : '—';
+          tris = as.approxTris != null ? as.approxTris : '—';
+          glbSp = as.glbSpawned != null ? as.glbSpawned : (as.gltfSpawns != null ? as.gltfSpawns : 0);
+          procSp = as.proceduralSpawned != null ? as.proceduralSpawned : (as.proceduralSpawns != null ? as.proceduralSpawns : 0);
+          if (as.spawnNote) spawnNote = String(as.spawnNote);
+        }
+        if (LB.lod && LB.lod.getCounts) {
+          var lc = LB.lod.getCounts();
+          lodLine = 'LOD0 <b>' + lc.lod0 + '</b> · LOD1 <b>' + lc.lod1 + '</b> · LOD2 <b>' + lc.lod2 + '</b> · LOD3 <b>' + lc.lod3 + '</b>' +
+            ' · cull <b>' + (lc.culled || 0) + '</b>';
+        }
+      } catch (_) {}
+      assetsEl.innerHTML =
+        '<div class="perf-feed-title">ASSETS</div>' +
+        '<div>Mode <b>' + String(aMode).replace(/[<>]/g, '') + '</b></div>' +
+        '<div>ASSETS LOADED (cache) <b>' + loaded + '</b> · fail <b>' + failed + '</b> · pend <b>' + pending + '</b></div>' +
+        '<div>ASSETS SPAWNED · GLB <b>' + glbSp + '</b> · procedural <b>' + procSp + '</b></div>' +
+        '<div>Approx tris (cached) <b>' + tris + '</b></div>' +
+        '<div>' + lodLine + '</div>' +
+        (spawnNote ? '<div class="micro">' + spawnNote.replace(/[<>]/g, '') + '</div>' : '');
     }
     if (feedEl) {
       var fh = st.feeds;
@@ -740,7 +878,7 @@
 
   // Public API
   var api = {
-    version: 'v8.8',
+    version: 'v9.4.11',
     MODES: MODES,
     PRESETS: PRESETS,
     FEED_STATES: FEED_STATES,

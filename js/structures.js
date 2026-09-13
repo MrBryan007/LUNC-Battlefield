@@ -1,4 +1,4 @@
-/* LUNC Battlefield v8.3 — faction bases & RTS structures (original procedural) */
+/* LUNC Battlefield v9.4.2 — faction bases & RTS structures (original procedural) */
 (function (global) {
   'use strict';
 
@@ -15,6 +15,9 @@
         emissiveIntensity: intensity || 0
       });
     };
+    // v9.2: shared PBR registry (was referenced below but never declared — black canvas)
+    const Mats = (global.LUNCBattle && LUNCBattle.materials) || null;
+    if (Mats && Mats.init) Mats.init(THREE);
     const mobile = !!opts.mobile;
     let structureDens = 1;
     let shadowCastMode = mobile ? 'bases' : 'rich';
@@ -45,19 +48,19 @@
     };
 
     const MAT = {
-      dirt: mat(0x4a3c2a, 1, 0),
-      dirtDark: mat(0x3a3024, 1, 0),
-      sandbag: mat(0x6a5a3e, 0.98, 0.02),
-      crate: mat(0x5a442e, 0.88, 0.04),
-      wood: mat(0x493625, 0.9, 0.01),
-      metal: mat(0x3a4038, 0.42, 0.48),
-      metalDark: mat(0x222824, 0.5, 0.55),
-      rust: mat(0x4a3428, 0.78, 0.28),
-      drum: mat(0x3a4030, 0.55, 0.35),
-      glass: mat(0x1a2218, 0.35, 0.15, 0x2a3a28, 0.08),
-      scorch: mat(0x1c1a16, 1, 0),
-      rubble: mat(0x4a4a40, 0.95, 0.04),
-      earth: mat(0x5a4a34, 1, 0.01)
+      dirt: Mats ? Mats.get('structure.dirt') : mat(0x4a3c2a, 1, 0),
+      dirtDark: Mats ? Mats.get('structure.dirtDark') : mat(0x3a3024, 1, 0),
+      sandbag: Mats ? Mats.get('structure.sandbag') : mat(0x6a5a3e, 0.98, 0.02),
+      crate: Mats ? Mats.get('structure.crate') : mat(0x5a442e, 0.88, 0.04),
+      wood: Mats ? Mats.get('structure.wood') : mat(0x493625, 0.9, 0.01),
+      metal: Mats ? Mats.get('structure.metal') : mat(0x3a4038, 0.42, 0.48),
+      metalDark: Mats ? Mats.get('structure.metalDark') : mat(0x222824, 0.5, 0.55),
+      rust: Mats ? Mats.get('structure.rust') : mat(0x4a3428, 0.78, 0.28),
+      drum: Mats ? Mats.get('structure.drum') : mat(0x3a4030, 0.55, 0.35),
+      glass: Mats ? Mats.get('structure.glass') : mat(0x1a2218, 0.35, 0.15, 0x2a3a28, 0.08),
+      scorch: Mats ? Mats.get('structure.scorch') : mat(0x1c1a16, 1, 0),
+      rubble: Mats ? Mats.get('structure.rubble') : mat(0x4a4a40, 0.95, 0.04),
+      earth: Mats ? Mats.get('structure.earth') : mat(0x5a4a34, 1, 0.01)
     };
 
     const dummy = new THREE.Object3D();
@@ -79,7 +82,10 @@
     ];
 
     function accentMat(side, color, rough, metal, intensity) {
-      const m = mat(color, rough == null ? 0.5 : rough, metal == null ? 0.22 : metal, color, intensity == null ? 0.14 : intensity);
+      // Mutable faction accents — unique instances so setAccentColor can retint
+      const m = Mats
+        ? Mats.create(color, rough == null ? 0.5 : rough, metal == null ? 0.22 : metal, color, intensity == null ? 0.14 : intensity)
+        : mat(color, rough == null ? 0.5 : rough, metal == null ? 0.22 : metal, color, intensity == null ? 0.14 : intensity);
       accentBySide[String(side)].push(m);
       ownedMats.push(m);
       return m;
@@ -87,14 +93,33 @@
 
     function factionMats(side, accentColor) {
       const bull = side < 0;
+      const wall = Mats
+        ? Mats.get(bull ? 'structure.wallBull' : 'structure.wallBear')
+        : mat(bull ? 0x5c5e54 : 0x4a4038, 0.92, 0.04);
+      const wallDark = Mats
+        ? Mats.get(bull ? 'structure.wallDarkBull' : 'structure.wallDarkBear')
+        : mat(bull ? 0x4a4e46 : 0x3a342c, 0.9, 0.05);
+      const concrete = Mats
+        ? Mats.get(bull ? 'structure.concreteBull' : 'structure.concreteBear')
+        : mat(bull ? 0x6a6c62 : 0x524840, 0.88, 0.06);
+      const roof = Mats
+        ? Mats.get(bull ? 'structure.roofBull' : 'structure.roofBear')
+        : mat(bull ? 0x2a3028 : 0x1c1814, 0.78, 0.12);
+      const roofTrim = Mats
+        ? Mats.get(bull ? 'structure.roofTrimBull' : 'structure.roofTrimBear')
+        : mat(bull ? 0x3a4038 : 0x2a221c, 0.7, 0.18);
+      const frame = Mats
+        ? Mats.get(bull ? 'structure.frameBull' : 'structure.frameBear')
+        : mat(bull ? 0x3a4238 : 0x2e2822, 0.65, 0.22);
+      const interior = Mats ? Mats.get('structure.interior') : mat(0x121410, 0.95, 0.02);
       return {
-        wall: mat(bull ? 0x5c5e54 : 0x4a4038, 0.92, 0.04),
-        wallDark: mat(bull ? 0x4a4e46 : 0x3a342c, 0.9, 0.05),
-        concrete: mat(bull ? 0x6a6c62 : 0x524840, 0.88, 0.06),
-        roof: mat(bull ? 0x2a3028 : 0x1c1814, 0.78, 0.12),
-        roofTrim: mat(bull ? 0x3a4038 : 0x2a221c, 0.7, 0.18),
-        frame: mat(bull ? 0x3a4238 : 0x2e2822, 0.65, 0.22),
-        interior: mat(0x121410, 0.95, 0.02),
+        wall: wall,
+        wallDark: wallDark,
+        concrete: concrete,
+        roof: roof,
+        roofTrim: roofTrim,
+        frame: frame,
+        interior: interior,
         accent: accentMat(side, accentColor, 0.48, 0.22, 0.16),
         accentSoft: accentMat(side, accentColor, 0.7, 0.1, 0.08),
         lamp: accentMat(side, accentColor, 0.35, 0.15, 0.55),
@@ -103,7 +128,12 @@
     }
 
     function registerFactionMats(fm) {
-      ownedMats.push(fm.wall, fm.wallDark, fm.concrete, fm.roof, fm.roofTrim, fm.frame, fm.interior);
+      // Shared registry mats are not disposed here — only track non-shared
+      [fm.wall, fm.wallDark, fm.concrete, fm.roof, fm.roofTrim, fm.frame, fm.interior].forEach(function (m) {
+        if (!m) return;
+        if (Mats && Mats.isShared && Mats.isShared(m)) return;
+        ownedMats.push(m);
+      });
     }
 
     function heightRange(x, z, hx, hz) {
@@ -652,8 +682,60 @@
 
     function placeNamed(group, building, x, z, hx, hz, yOff) {
       placeBuilding(building, x, z, hx, hz, yOff);
+      // v9.4.2: decorative → semantic LOD groups (detail); keep silhouette/core
+      if (building && building.userData) {
+        const decor = [];
+        const core = [];
+        building.traverse(function (ch) {
+          if (!ch.isMesh) return;
+          const n = (ch.name || '').toLowerCase();
+          if (n.indexOf('decor') >= 0 || n.indexOf('antenna') >= 0 || n.indexOf('banner') >= 0 ||
+              n.indexOf('blink') >= 0 || n.indexOf('light') >= 0 || n.indexOf('dish') >= 0) {
+            decor.push(ch);
+          } else if (n.indexOf('silhou') >= 0 || n.indexOf('hull') >= 0 || n.indexOf('keep') >= 0 ||
+                     n.indexOf('tower') >= 0 || n.indexOf('base') >= 0) {
+            core.push(ch);
+          }
+        });
+        if (decor.length) building.userData.decorative = decor;
+        const lodGroups = {
+          core: core.length ? core : null,
+          silhouette: core.length ? core : (building.userData.silhouette || null),
+          major: building.userData.factionAccent ? [building.userData.factionAccent] : null,
+          detail: decor.length ? decor : null,
+          limbs: null
+        };
+        if (global.LUNCBattle && LUNCBattle.lod && LUNCBattle.lod.registerLodGroups) {
+          LUNCBattle.lod.registerLodGroups(building, lodGroups);
+        } else {
+          building.userData.lodGroups = lodGroups;
+        }
+        building.userData.lodBand = 0;
+      }
       group.add(building);
       return building;
+    }
+
+
+    function tryGltfHQ(side, accentColor) {
+      const Assets = (global.LUNCBattle && LUNCBattle.assets) || null;
+      const Reg = (global.LUNCBattle && LUNCBattle.assetRegistry) || null;
+      if (!Assets || !Reg) return null;
+      const id = Reg.structureId
+        ? Reg.structureId(side < 0 ? 'bull' : 'bear', 'hq')
+        : ('structure.' + (side < 0 ? 'bull' : 'bear') + '.hq');
+      if (!Assets.shouldUseGltf || !Assets.shouldUseGltf(id)) return null;
+      try {
+        const root = Assets.instantiate(id, { color: accentColor, side: side, accentColor: accentColor });
+        if (!root) return null;
+        root.userData = root.userData || {};
+        root.userData.kind = 'hq';
+        root.userData.side = side;
+        root.userData.luncAssetSource = 'gltf';
+        return root;
+      } catch (_) {
+        return null;
+      }
     }
 
     function createFactionBase(side, accentColor) {
@@ -680,7 +762,16 @@
 
       let hq;
       if (bull) {
-        hq = placeNamed(g, buildBullCommand(fm, side), ox - 4, 0, 3.2, 3.4);
+        // v9.3: optional GLB HQ when ready; else procedural command center
+        const gltfHq = tryGltfHQ(side, accentColor);
+        if (gltfHq) {
+          hq = placeNamed(g, gltfHq, ox - 4, 0, 3.2, 3.4);
+        } else {
+          hq = placeNamed(g, buildBullCommand(fm, side), ox - 4, 0, 3.2, 3.4);
+          if (global.LUNCBattle && LUNCBattle.assets && LUNCBattle.assets.markProceduralSpawn) {
+            LUNCBattle.assets.markProceduralSpawn();
+          }
+        }
         placeNamed(g, buildBullBarracks(fm, side), ox - 2, 8.4, 2.8, 1.2);
         placeNamed(g, buildBullDepot(fm, side), ox - 2.2, -8.4, 2.4, 1.8);
         placeNamed(g, buildBullArty(fm, side), ox + 4.2, 12.2, 2.2, 2.2);
@@ -696,7 +787,15 @@
         addPad(g, ox - 2.2, -8.4, 5.6, 4.2);
         addPad(g, ox + 4.2, 12.2, 5.0, 5.0);
       } else {
-        hq = placeNamed(g, buildBearHQ(fm, side), ox + 3, 0, 3.5, 2.5);
+        const gltfHqB = tryGltfHQ(side, accentColor);
+        if (gltfHqB) {
+          hq = placeNamed(g, gltfHqB, ox + 3, 0, 3.5, 2.5);
+        } else {
+          hq = placeNamed(g, buildBearHQ(fm, side), ox + 3, 0, 3.5, 2.5);
+          if (global.LUNCBattle && LUNCBattle.assets && LUNCBattle.assets.markProceduralSpawn) {
+            LUNCBattle.assets.markProceduralSpawn();
+          }
+        }
         placeNamed(g, buildBearBarracks(fm, side), ox + 1.2, 8.5, 2.6, 1.4);
         placeNamed(g, buildBearHangar(fm, side), ox + 1.5, -8.5, 2.4, 2.1);
         placeNamed(g, buildBearArty(fm, side), ox - 4.0, -12.2, 2.0, 2.3);
@@ -762,6 +861,14 @@
       return g;
     }
 
+    function applyStructureLods(camera) {
+      try {
+        if (camera && global.LUNCBattle && LUNCBattle.lod && LUNCBattle.lod.updateStructuresLod) {
+          LUNCBattle.lod.updateStructuresLod(buildings, camera);
+        }
+      } catch (_) {}
+    }
+
     function updateStructures(dt, now) {
       for (let i = 0; i < radars.length; i++) {
         const r = radars[i];
@@ -776,6 +883,8 @@
       }
       for (let i = 0; i < blinkers.length; i++) {
         const k = blinkers[i];
+        if (k && k.parent && k.parent.userData && k.parent.userData.lodSkipFx) continue;
+        if (k && k.userData && k.userData.lodSkipFx) continue;
         if (!k || !k.mat) continue;
         if (k.mode === 'blink') {
           const on = Math.sin(now * 3.1 + k.phase) > 0.35;
@@ -825,7 +934,12 @@
       banners.length = 0;
       blinkers.length = 0;
       ownedGeos.forEach(function (geo) { if (geo && geo.dispose) geo.dispose(); });
-      ownedMats.forEach(function (m) { if (m && m.dispose) m.dispose(); });
+      ownedMats.forEach(function (m) {
+        if (!m) return;
+        if (Mats && Mats.isShared && Mats.isShared(m)) return;
+        if (Mats && Mats.dispose) Mats.dispose(m);
+        else if (m.dispose) m.dispose();
+      });
     }
 
     function getBuildings() {
@@ -835,12 +949,13 @@
     return {
       createFactionBase: createFactionBase,
       updateStructures: updateStructures,
+      applyStructureLods: applyStructureLods,
       setDamageState: setDamageState,
       getCommandCenter: getCommandCenter,
       getBuildings: getBuildings,
       setAccentColor: setAccentColor,
       dispose: dispose,
-      version: 'v8.8'
+      version: 'v9.4'
     };
   }
 

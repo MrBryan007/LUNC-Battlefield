@@ -2,8 +2,8 @@
     'use strict';
 
     // =====================================================
-    // LUNC ECOSYSTEM BATTLEFIELD v8 — RTS GRAPHICS OVERHAUL
-    // v8.1–v8.7 + v8.8 performance / graphics quality system
+    // LUNC ECOSYSTEM BATTLEFIELD v9.4.8 — non-JS/WebGL stall diagnostics + LOD/assets
+    // v8.1–v8.8 + v9.1–v9.3 preserved; LOD + asset diagnostics (procedural SAFE FALLBACK)
     // Original procedural art only. No third-party game assets.
     // Graphics-only: never alter market / Battle Strength / liq / burn math.
     // =====================================================
@@ -103,14 +103,49 @@
     const camera = new THREE.PerspectiveCamera(43, innerWidth / innerHeight, .1, 250);
     camera.position.set(0, 38, 48);
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    // v9.1: renderer abstraction — default WebGL (r128), optional WebGPU try/fallback
+    let rendererHandle = null;
+    let rendererBackend = 'webgl';
+    let rendererFallbackReason = null;
+    const stallMod = (window.LUNCBattle && LUNCBattle.stall) ? LUNCBattle.stall : null;
+    const wantAA = !(stallMod && stallMod.flags && stallMod.flags.aaOff);
+    if (window.LUNCBattle && LUNCBattle.renderer && typeof LUNCBattle.renderer.create === 'function') {
+      rendererHandle = LUNCBattle.renderer.create({
+        THREE: THREE,
+        antialias: wantAA,
+        powerPreference: 'high-performance'
+      });
+    } else {
+      rendererHandle = {
+        renderer: new THREE.WebGLRenderer({ antialias: wantAA, powerPreference: 'high-performance' }),
+        backend: 'webgl',
+        webgpuAvailable: null,
+        fallbackReason: 'LUNCBattle.renderer missing — direct WebGLRenderer',
+        capabilities: null,
+        dispose: function () {}
+      };
+    }
+    const renderer = rendererHandle.renderer;
+    rendererBackend = rendererHandle.backend || 'webgl';
+    rendererFallbackReason = rendererHandle.fallbackReason || null;
+    window.LUNCBattle = window.LUNCBattle || {};
+    LUNCBattle.activeRendererBackend = rendererBackend;
+    LUNCBattle.rendererFallbackReason = rendererFallbackReason;
     renderer.setSize(innerWidth, innerHeight);
-    // v8.8: pixel ratio + shadowMap applied via LUNCBattle.quality.apply (never recreate renderer)
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    renderer.outputEncoding = THREE.sRGBEncoding;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.02;
+    // v8.8/v9.1: pixel ratio + shadowMap via quality.apply (never recreate renderer)
+    // Shadow / encoding / toneMapping are WebGLRenderer APIs — safe on default path
+    if (renderer.shadowMap) {
+      renderer.shadowMap.enabled = true;
+      if (THREE.PCFSoftShadowMap) renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    }
+    if ('outputEncoding' in renderer && THREE.sRGBEncoding != null) {
+      renderer.outputEncoding = THREE.sRGBEncoding;
+    }
+    // v9.2: ACES retained but exposure restrained for MeshStandard PBR readability
+    if ('toneMapping' in renderer && THREE.ACESFilmicToneMapping != null) {
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 0.94;
+    }
     document.body.insertBefore(renderer.domElement, document.body.firstChild);
 
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
@@ -135,33 +170,115 @@
     });
     addEventListener('keyup', e => keys[e.code] = false);
 
-    scene.add(new THREE.HemisphereLight(0xd2dcc8, 0x1a1e14, .68));
-    const sun = new THREE.DirectionalLight(0xffe6c4, 1.28);
-    sun.position.set(-26, 50, 22);
+    // v9.2 lighting foundation — sun / hemi / fill / rim / faction accents (quality-scaled)
+    const hemi = new THREE.HemisphereLight(0xc8d4bc, 0x1c2018, 0.52);
+    scene.add(hemi);
+    const sun = new THREE.DirectionalLight(0xffe2b8, 1.05);
+    sun.position.set(-28, 52, 18);
     sun.castShadow = true;
     sun.shadow.mapSize.set(1024, 1024);
-    sun.shadow.camera.left = -62; sun.shadow.camera.right = 62; sun.shadow.camera.top = 44; sun.shadow.camera.bottom = -44;
-    sun.shadow.camera.near = 8; sun.shadow.camera.far = 120; sun.shadow.bias = -.0003;
+    // v9.4.5: tighter shadow frustum — fewer casters in map, close visuals intact
+    sun.shadow.camera.left = -48; sun.shadow.camera.right = 48; sun.shadow.camera.top = 34; sun.shadow.camera.bottom = -34;
+    sun.shadow.camera.near = 10; sun.shadow.camera.far = 100; sun.shadow.bias = -.0003;
     scene.add(sun);
-    const fill = new THREE.DirectionalLight(0x7aa5b0,.22); fill.position.set(35,18,-28); scene.add(fill);
+    const fill = new THREE.DirectionalLight(0x6a90a0, 0.18);
+    fill.position.set(38, 16, -30);
+    scene.add(fill);
+    const rim = new THREE.DirectionalLight(0xb0c4a8, 0.07);
+    rim.position.set(12, 28, 40);
+    scene.add(rim);
 
-    // v8.8 quality bootstrap (AUTO default; localStorage preference)
+    // Faction accent points — softer with PBR so bases read without blooming
+    const bullLight = new THREE.PointLight(tokens[current].color, 0.85, 42);
+    bullLight.position.set(-34, 7, 0);
+    bullLight.userData.baseIntensity = 0.85;
+    scene.add(bullLight);
+    const bearLight = new THREE.PointLight(0xe4675f, 0.75, 42);
+    bearLight.position.set(34, 7, 0);
+    bearLight.userData.baseIntensity = 0.75;
+    scene.add(bearLight);
+
+    // v8.8/v9.2 quality bootstrap (AUTO default; localStorage preference)
     if (window.LUNCBattle && LUNCBattle.quality) {
-      LUNCBattle.quality.apply(renderer, scene, sun, { fillLight: fill, immediate: true });
+      LUNCBattle.quality.apply(renderer, scene, sun, {
+        fillLight: fill,
+        hemiLight: hemi,
+        rimLight: rim,
+        accentLights: [bullLight, bearLight],
+        immediate: true
+      });
     } else {
       renderer.setPixelRatio(Math.min(devicePixelRatio || 1, innerWidth < 760 ? 1.35 : 1.8));
     }
 
-    const bullLight = new THREE.PointLight(tokens[current].color, 1.3, 45); bullLight.position.set(-34, 7, 0); scene.add(bullLight);
-    const bearLight = new THREE.PointLight(0xe4675f, 1.15, 45); bearLight.position.set(34, 7, 0); scene.add(bearLight);
+    // Shared PBR material factory → LUNCBattle.materials registry
+    if (window.LUNCBattle && LUNCBattle.materials && LUNCBattle.materials.init) {
+      LUNCBattle.materials.init(THREE);
+      try {
+        const qp = LUNCBattle.quality && LUNCBattle.quality.getEffectivePreset
+          ? LUNCBattle.quality.getEffectivePreset()
+          : null;
+        if (qp) LUNCBattle.materials.applyQuality(qp.lightingComplexity || qp.unitDetail || 'high');
+      } catch (_) {}
+    }
 
+    // v9.3: glTF/GLB asset pipeline — init early; never block first paint
+    let assetMode = 'AUTO';
+    if (window.LUNCBattle && LUNCBattle.assets && typeof LUNCBattle.assets.init === 'function') {
+      try {
+        const ainfo = LUNCBattle.assets.init(THREE);
+        assetMode = (ainfo && ainfo.mode) || LUNCBattle.assets.getMode() || 'AUTO';
+        LUNCBattle.assetMode = assetMode;
+      } catch (e) {
+        console.warn('[LUNCBattle] asset-loader init failed — procedural only', e);
+        assetMode = 'PROCEDURAL';
+        LUNCBattle.assetMode = assetMode;
+      }
+    } else {
+      LUNCBattle.assetMode = 'PROCEDURAL';
+    }
     function mat(color, rough=.72, metal=.08, emissive=0x000000, intensity=0) {
+      if (window.LUNCBattle && LUNCBattle.materials && LUNCBattle.materials.mat) {
+        return LUNCBattle.materials.mat(color, rough, metal, emissive, intensity);
+      }
       return new THREE.MeshStandardMaterial({ color, roughness:rough, metalness:metal, emissive, emissiveIntensity:intensity });
     }
 
+    // v9.4.8 — cadence + stall / GPU / A-B query hooks (see docs/V9-STALL.md, V9-CADENCE.md)
+    const cadence = (window.LUNCBattle && LUNCBattle.cadence) ? LUNCBattle.cadence : null;
+    const diagOn = !!(cadence && cadence.enabled);
+    const cFlags = (cadence && cadence.flags) ? cadence.flags : {
+      enabled: false, scene: 'full', dpr: null, shadowsOff: false,
+      fxOff: false, airOff: false, groundOff: false, terrainOff: false, structuresOff: false
+    };
+    function sceneIncludes(layer) {
+      return cadence && typeof cadence.sceneIncludes === 'function'
+        ? cadence.sceneIncludes(layer)
+        : true;
+    }
+    if (cadence && typeof cadence.bindRenderer === 'function') cadence.bindRenderer(renderer);
+    if (cadence && typeof cadence.setPerfFpsProvider === 'function') {
+      cadence.setPerfFpsProvider(function () {
+        try {
+          return (LUNCBattle.quality && LUNCBattle.quality.getState)
+            ? LUNCBattle.quality.getState().fps : null;
+        } catch (_) { return null; }
+      });
+    }
+    if (cadence && typeof cadence.applyAbHooks === 'function') {
+      cadence.applyAbHooks(renderer, sun);
+    }
+    if (stallMod && typeof stallMod.bind === 'function') {
+      stallMod.bind(renderer, scene);
+    }
+    if (stallMod && stallMod.flags && stallMod.flags.canvas && typeof stallMod.applyCanvasSize === 'function') {
+      stallMod.applyCanvasSize(renderer);
+    }
+    if (stallMod && typeof stallMod.applyUiOff === 'function') stallMod.applyUiOff();
+
     // v8.1 — modular terrain + environment (procedural, no GridHelper)
     const mobileGfx = innerWidth < 760;
-    const terrainApi = (window.LUNCBattle && LUNCBattle.terrain)
+    const terrainApi = (sceneIncludes('terrain') && window.LUNCBattle && LUNCBattle.terrain)
       ? LUNCBattle.terrain.createTerrain({ THREE, scene, mobile: mobileGfx })
       : null;
     if (!terrainApi) console.error('[LUNCBattle] terrain.js failed to load');
@@ -170,7 +287,7 @@
       : function (x, z) { return Math.sin(x * .075) * .4 + Math.cos(z * .1) * .3; };
     const ground = terrainApi ? terrainApi.ground : null;
 
-    const envApi = (window.LUNCBattle && LUNCBattle.environment)
+    const envApi = (sceneIncludes('structures') && window.LUNCBattle && LUNCBattle.environment)
       ? LUNCBattle.environment.createEnvironment({ THREE, scene, terrainHeight, mobile: mobileGfx, mat,
           densityScale: (LUNCBattle.quality && LUNCBattle.quality.getDensityScale) ? LUNCBattle.quality.getDensityScale().env : undefined,
           vegetationDensity: (LUNCBattle.quality && LUNCBattle.quality.getDensityScale) ? LUNCBattle.quality.getDensityScale().vegetation : undefined,
@@ -182,31 +299,35 @@
       scene.background = new THREE.Color(envApi.fog.background != null ? envApi.fog.background : 0x0c140e);
       scene.fog = new THREE.Fog(envApi.fog.fogColor, envApi.fog.fogNear, envApi.fog.fogFar);
     }
-    const woodMat=mat(0x493625,.9,.01);
+    // v9.2: wood/prop mats come from materials registry inside environment/structures
 
     // v8.3 — faction bases & structures (procedural, no GridHelper)
-    const structuresApi = (window.LUNCBattle && LUNCBattle.structures)
+    const structuresApi = (sceneIncludes('structures') && window.LUNCBattle && LUNCBattle.structures)
       ? LUNCBattle.structures.createApi({ THREE, scene, terrainHeight, mat, mobile: mobileGfx,
           densityScale: (LUNCBattle.quality && LUNCBattle.quality.getDensityScale) ? LUNCBattle.quality.getDensityScale().structure : undefined,
           shadowCast: (LUNCBattle.quality && LUNCBattle.quality.getEffectivePreset) ? LUNCBattle.quality.getEffectivePreset().shadowCast : undefined
         })
       : null;
-    if (!structuresApi) console.error('[LUNCBattle] structures.js failed to load');
-    const bullBase = structuresApi
-      ? structuresApi.createFactionBase(-1, tokens[current].color)
-      : new THREE.Group();
-    const bearBase = structuresApi
-      ? structuresApi.createFactionBase(1, 0xe4675f)
-      : new THREE.Group();
+    if (sceneIncludes('structures') && !structuresApi) console.error('[LUNCBattle] structures.js failed to load');
+    let bullBase = new THREE.Group();
+    let bearBase = new THREE.Group();
+    if (structuresApi) {
+      try {
+        bullBase = structuresApi.createFactionBase(-1, tokens[current].color);
+        bearBase = structuresApi.createFactionBase(1, 0xe4675f);
+      } catch (e) {
+        console.error('[LUNCBattle] createFactionBase failed', e);
+      }
+    }
 
     // v8.5 — price territory mapping & contested frontline (replaces simple poles/rope)
-    const priceTerritoryApi = (window.LUNCBattle && LUNCBattle.priceTerritory)
+    const priceTerritoryApi = (sceneIncludes('structures') && window.LUNCBattle && LUNCBattle.priceTerritory)
       ? LUNCBattle.priceTerritory.createApi({
           THREE, scene, terrainHeight, mobile: mobileGfx, pushFeed,
           DataTruth: (window.LUNCBattle && LUNCBattle.DataTruth) || null
         })
       : null;
-    if (!priceTerritoryApi) console.error('[LUNCBattle] price-territory.js failed to load');
+    if (sceneIncludes('structures') && !priceTerritoryApi) console.error('[LUNCBattle] price-territory.js failed to load');
     else {
       priceTerritoryApi.setToken({
         symbol: current,
@@ -242,19 +363,26 @@
 
     function createUnit(color, side, type) { return unitsApi.createUnit(color, side, type); }
     function formationSlots(count, side, type) { return unitsApi.formationSlots(count, side, type); }
-    function disposeArmy(arr) { unitsApi.disposeArmy(arr); }
-    function launchStrike(fromX,toX,z,color,power=1) { effectsApi.launchStrike(fromX,toX,z,color,power); }
-    function createExplosion(x,z,color,power=1,isBurn=false) { effectsApi.createExplosion(x,z,color,power,isBurn); }
+    function disposeArmy(arr) { if (unitsApi) unitsApi.disposeArmy(arr); }
+    function launchStrike(fromX,toX,z,color,power=1) {
+      if (cFlags.fxOff || !sceneIncludes('fx')) return;
+      if (effectsApi) effectsApi.launchStrike(fromX,toX,z,color,power);
+    }
+    function createExplosion(x,z,color,power=1,isBurn=false) {
+      if (cFlags.fxOff || !sceneIncludes('fx')) return;
+      if (effectsApi) effectsApi.createExplosion(x,z,color,power,isBurn);
+    }
+    const _muzzleScratch = new THREE.Vector3();
     function muzzleWorld(u) {
       const off = u.userData && u.userData.muzzleOffset;
       if (off && u.localToWorld) {
-        const v = off.clone();
-        u.updateMatrixWorld(true);
-        u.localToWorld(v);
-        return v;
+        // Reuse scratch; fireWeapon reads x/y/z immediately (no alloc / no force matrix rebuild)
+        _muzzleScratch.copy(off);
+        u.localToWorld(_muzzleScratch);
+        return _muzzleScratch;
       }
       const side = u.userData.side || -1;
-      return new THREE.Vector3(
+      return _muzzleScratch.set(
         u.position.x + side * -1.0,
         u.position.y + 1.1,
         u.position.z
@@ -264,18 +392,63 @@
     function rebuildUnits() {
       disposeArmy(bulls); disposeArmy(bears);
       const mobile=innerWidth<760;
-      const maxInf=mobile?22:30, maxArmor=mobile?7:10, maxArt=mobile?4:6;
+      // v9.4.4 denser armies (LOD keeps perf sane)
+      const maxInf=mobile?28:52, maxArmor=mobile?9:18, maxArt=mobile?5:9;
+      const maxHeli=mobile?2:4, maxJet=mobile?1:3;
       const counts = wall => ({
-        inf: Math.min(maxInf, Math.max(10,Math.round(10+wall*4.4))),
-        armor: Math.min(maxArmor,Math.max(3,Math.round(2+wall*1.45))),
-        art: Math.min(maxArt,Math.max(2,Math.round(1+wall*.72)))
+        inf: Math.min(maxInf, Math.max(14,Math.round(14+wall*5.2))),
+        armor: Math.min(maxArmor,Math.max(4,Math.round(3+wall*1.85))),
+        art: Math.min(maxArt,Math.max(2,Math.round(2+wall*.95))),
+        heli: Math.min(maxHeli, Math.max(mobile?1:2, Math.round((mobile?1:2)+wall*0.35))),
+        jet: Math.min(maxJet, Math.max(mobile?1:1, Math.round((mobile?1:1)+wall*0.28)))
       });
       const bc=counts(buyWall), rc=counts(sellWall);
-      unitsApi.spawnFormation(-1, tokens[current].color, bc, bulls);
-      unitsApi.spawnFormation(1, 0xe4675f, rc, bears);
+      if (unitsApi && sceneIncludes('ground') && !cFlags.groundOff) {
+        unitsApi.spawnFormation(-1, tokens[current].color, bc, bulls);
+        unitsApi.spawnFormation(1, 0xe4675f, rc, bears);
+      }
+      if (unitsApi && unitsApi.spawnAirWing && sceneIncludes('air') && !cFlags.airOff) {
+        unitsApi.spawnAirWing(-1, tokens[current].color, bc, bulls);
+        unitsApi.spawnAirWing(1, 0xe4675f, rc, bears);
+      }
       lastRebuild=Date.now();
     }
     rebuildUnits();
+
+    // v9.3: progressive background preload of tiny asset set (does not block first paint).
+    // Hot-swap of live units skipped — next rebuildUnits may pick up ready GLBs safely.
+    if (window.LUNCBattle && LUNCBattle.assets && typeof LUNCBattle.assets.preload === 'function') {
+      const preloadIds = [
+        'unit.bull.infantry', 'unit.bear.infantry',
+        'unit.bull.armor', 'unit.bear.armor',
+        'unit.bull.artillery', 'unit.bear.artillery',
+        'structure.bull.hq', 'structure.bear.hq',
+        'prop.crate', 'prop.barrel', 'prop.rock',
+        'unit.bull.missing_demo'
+      ];
+      // Defer to next macrotask so first frame paints procedural scene
+      setTimeout(function () {
+        try {
+          LUNCBattle.assets.preload(preloadIds).then(function (res) {
+            const st = LUNCBattle.assets.getStats ? LUNCBattle.assets.getStats() : {};
+            pushFeed(
+              'Assets ' + (st.effectiveMode || assetMode) +
+              ' · loaded ' + (st.loaded || 0) +
+              ' · failed ' + (st.failed || 0) +
+              ' (procedural fallback forever)',
+              'win'
+            );
+            // Hot-swap of live meshes skipped. In forced GLTF mode, one army rebuild
+            // after preload exercises instantiate() without mid-frame mesh surgery.
+            if (assetMode === 'GLTF') {
+              try { rebuildUnits(); } catch (_) {}
+            } else if (LUNCBattle.assets.tryHotSwap) {
+              LUNCBattle.assets.tryHotSwap();
+            }
+          }).catch(function () {});
+        } catch (_) {}
+      }, 0);
+    }
 
     // v8.6 — classic 3/4 RTS camera + Canvas 2D minimap (after units exist for getUnits)
     cameraCtrl = (window.LUNCBattle && LUNCBattle.cameraCtrl)
@@ -1018,18 +1191,412 @@
     }
     setInterval(updateBattleLogic,760);
 
+    // -------------------- v9.4.11 jet attack choreography --------------------
+    let jetRunSeq = 1;
+    const JET_MODES = {
+      REENTER: 'REENTER', APPROACH: 'APPROACH', ALIGN: 'ALIGN', INGRESS: 'INGRESS',
+      RELEASE: 'RELEASE', FLYTHROUGH: 'FLYTHROUGH', EGRESS: 'EGRESS', COOLDOWN: 'COOLDOWN'
+    };
+
+    function clearJetRun(ud) {
+      if (!ud) return;
+      ud.runId = null;
+      ud.runAim = null;
+      ud.runWeapon = null;
+      ud.entryVec = null;
+      ud.exitVec = null;
+      ud.releaseGate = null;
+      ud.attackCorridor = null;
+      ud.releaseShotsLeft = 0;
+      ud.releaseAcc = 0;
+      ud.releaseElapsed = 0;
+      ud.releaseDone = false;
+      ud.bombsDropped = 0;
+      ud.flythroughT = 0;
+      ud.alignT = 0;
+      ud.pitch = 0;
+    }
+
+    function pickJetAim(side, enemies) {
+      // O(N) cluster preference: armor → arty → infantry → frontline strip
+      let ax1 = 0, az1 = 0, n1 = 0;
+      let ax2 = 0, az2 = 0, n2 = 0;
+      let ax0 = 0, az0 = 0, n0 = 0;
+      const strip = 18;
+      for (let i = 0; i < enemies.length; i++) {
+        const e = enemies[i];
+        if (!e || !e.userData || e.userData.air) continue;
+        const t = e.userData.type | 0;
+        const x = e.position.x, z = e.position.z;
+        if (Math.abs(x - targetX) > strip) continue;
+        // Prefer enemies on the opposing side of frontline relative to this jet's faction
+        if (side < 0 && x < targetX - 2) continue;
+        if (side > 0 && x > targetX + 2) continue;
+        if (t === 1) { ax1 += x; az1 += z; n1++; }
+        else if (t === 2) { ax2 += x; az2 += z; n2++; }
+        else if (t === 0) { ax0 += x; az0 += z; n0++; }
+      }
+      let x, z, src;
+      if (n1 >= 2) { x = ax1 / n1; z = az1 / n1; src = 'armor'; }
+      else if (n2 >= 1) { x = ax2 / n2; z = az2 / n2; src = 'arty'; }
+      else if (n0 >= 4) { x = ax0 / n0; z = az0 / n0; src = 'inf'; }
+      else {
+        x = targetX + (-side) * (2 + Math.random() * 4);
+        z = (Math.random() - 0.5) * 16;
+        src = 'frontline';
+      }
+      // Stable ground aim with light lane variation
+      z += (Math.random() - 0.5) * 2.5;
+      x += (Math.random() - 0.5) * 1.5;
+      const y = terrainHeight(x, z);
+      return { x: x, y: y, z: z, src: src };
+    }
+
+    function beginJetRun(u, side) {
+      const ud = u.userData;
+      const enemies = side < 0 ? bears : bulls;
+      const aim = pickJetAim(side, enemies);
+      const runId = 'j' + (jetRunSeq++);
+      const weapons = ['strafe', 'bomb', 'rocket'];
+      // Slight bias toward strafe for readability, then bomb/rocket
+      const roll = Math.random();
+      const weapon = roll < 0.42 ? 'strafe' : (roll < 0.72 ? 'bomb' : 'rocket');
+      const laneZ = aim.z + (Math.random() - 0.5) * 3;
+      const entryX = side * (56 + Math.random() * 10);
+      const exitX = -side * (58 + Math.random() * 8);
+      const entryZ = laneZ + (Math.random() - 0.5) * 4;
+      const exitZ = laneZ + (Math.random() - 0.5) * 6 + (-side) * (Math.random() * 4);
+      const dirX = aim.x - entryX;
+      const dirZ = aim.z - entryZ;
+      const len = Math.max(1e-3, Math.sqrt(dirX * dirX + dirZ * dirZ));
+      const nx = dirX / len, nz = dirZ / len;
+      // Release before overflying aim (gate along corridor / by x)
+      const releaseAlong = Math.max(8, len * (0.62 + Math.random() * 0.12));
+      const releaseGateX = entryX + nx * releaseAlong;
+      const releaseGateZ = entryZ + nz * releaseAlong;
+      ud.runId = runId;
+      ud.runAim = { x: aim.x, y: aim.y, z: aim.z, src: aim.src };
+      ud.runWeapon = weapon;
+      ud.entryVec = { x: nx, z: nz, ox: entryX, oz: entryZ };
+      ud.exitVec = {
+        x: Math.sign(exitX - aim.x) || -side,
+        z: (exitZ - aim.z) * 0.08,
+        ox: exitX, oz: exitZ
+      };
+      ud.releaseGate = { x: releaseGateX, z: releaseGateZ, along: releaseAlong };
+      ud.attackCorridor = {
+        originX: entryX, originZ: entryZ,
+        dirX: nx, dirZ: nz,
+        width: 3.2 + Math.random() * 1.4,
+        aimX: aim.x, aimZ: aim.z
+      };
+      ud.variation = {
+        cruise: (mobileGfx ? 20 : 28) + Math.random() * 4,
+        alt: 8.5 + Math.random() * 2.4,
+        bankSign: Math.random() < 0.5 ? -1 : 1
+      };
+      ud.releaseShotsLeft = weapon === 'strafe' ? (4 + (Math.random() * 5 | 0)) : (weapon === 'bomb' ? (Math.random() < 0.45 ? 2 : 1) : (Math.random() < 0.35 ? 2 : 1));
+      ud.releaseAcc = 0;
+      ud.releaseElapsed = 0;
+      ud.releaseDone = false;
+      ud.bombsDropped = 0;
+      ud.flythroughT = 0;
+      ud.alignT = 0;
+      ud.pitch = 0;
+      ud.alt = ud.variation.alt;
+      // Place at entry for approach
+      u.position.x = entryX;
+      u.position.z = entryZ;
+      u.position.y = ud.alt;
+      ud.airMode = JET_MODES.APPROACH;
+      ud.facing = Math.atan2(nx, nz);
+      // Audio hook points (no audio system in v9.4.11)
+      ud.audioHooks = { approach: true, flyby: false, release: false, impact: false };
+      return runId;
+    }
+
+    function jetAimInvalid(ud, side) {
+      if (!ud || !ud.runAim) return true;
+      const a = ud.runAim;
+      if (!isFinite(a.x) || !isFinite(a.z)) return true;
+      // Completely invalid if aim drifted absurdly far from frontline strip
+      if (Math.abs(a.x - targetX) > 40) return true;
+      return false;
+    }
+
+    function fireJetWeapon(u, side) {
+      const ud = u.userData;
+      if (!ud || !ud.runId || !ud.runAim || !effectsApi || !effectsApi.fireWeapon) return;
+      if (cFlags.fxOff || !sceneIncludes('fx')) return;
+      const aim = ud.runAim;
+      const corr = ud.attackCorridor || {};
+      const color = side < 0 ? tokens[current].color : 0xe4675f;
+      const muz = muzzleWorld(u);
+      const runId = ud.runId;
+      const weapon = ud.runWeapon;
+      const width = corr.width || 3.5;
+      const onHit = function (info) {
+        // Null-safe: jet may have been disposed; no throw
+        try {
+          if (!u || !u.userData) return;
+          if (u.userData.runId !== runId && u.userData.runId != null) return;
+          u.userData.audioHooks = u.userData.audioHooks || {};
+          u.userData.audioHooks.impact = true;
+        } catch (_) {}
+      };
+      if (weapon === 'strafe') {
+        if (ud.releaseShotsLeft <= 0) return;
+        const t = 1 - ud.releaseShotsLeft / 8;
+        const lat = (Math.random() - 0.5) * width * 0.55;
+        // Offset along corridor perpendicular (approx world Z if flying mostly ±X)
+        const px = - (corr.dirZ || 0);
+        const pz = (corr.dirX || 1);
+        const plen = Math.max(1e-3, Math.sqrt(px * px + pz * pz));
+        const ox = (px / plen) * lat;
+        const oz = (pz / plen) * lat;
+        const toX = aim.x + ox + (corr.dirX || 0) * (1.5 + t * 4);
+        const toZ = aim.z + oz + (corr.dirZ || 0) * (1.5 + t * 4);
+        effectsApi.fireWeapon({
+          from: { x: muz.x, y: muz.y, z: muz.z },
+          to: { x: toX, y: terrainHeight(toX, toZ) + 0.3, z: toZ },
+          kind: 'tracer',
+          color: color,
+          power: mobileGfx ? 0.85 : 1.05,
+          side: side,
+          runId: runId,
+          jetStrike: true,
+          onHit: onHit
+        });
+        ud.releaseShotsLeft--;
+      } else if (weapon === 'bomb') {
+        if (ud.releaseShotsLeft <= 0) return;
+        const stagger = ud.bombsDropped * 0.85;
+        const toX = aim.x + (corr.dirX || 0) * stagger + (Math.random() - 0.5) * 0.8;
+        const toZ = aim.z + (corr.dirZ || 0) * stagger + (Math.random() - 0.5) * 0.8;
+        effectsApi.fireWeapon({
+          from: { x: muz.x, y: muz.y - 0.35, z: muz.z },
+          to: { x: toX, y: terrainHeight(toX, toZ) + 0.25, z: toZ },
+          kind: 'bomb',
+          color: color,
+          power: mobileGfx ? 1.35 : 1.7,
+          side: side,
+          runId: runId,
+          jetStrike: true,
+          onHit: onHit
+        });
+        ud.bombsDropped++;
+        ud.releaseShotsLeft--;
+      } else {
+        // rocket — 1 or short pair
+        if (ud.releaseShotsLeft <= 0) return;
+        const pairOff = ud.releaseShotsLeft === 2 ? -0.7 : (ud.bombsDropped ? 0.7 : 0);
+        const toX = aim.x + pairOff * 0.3 + (corr.dirX || 0) * 0.5;
+        const toZ = aim.z + pairOff + (corr.dirZ || 0) * 0.5;
+        effectsApi.fireWeapon({
+          from: { x: muz.x, y: muz.y, z: muz.z },
+          to: { x: toX, y: terrainHeight(toX, toZ) + 0.35, z: toZ },
+          kind: 'rocket',
+          color: color,
+          power: mobileGfx ? 1.25 : 1.55,
+          side: side,
+          runId: runId,
+          jetStrike: true,
+          readableSpeed: 20,
+          onHit: onHit
+        });
+        ud.bombsDropped++;
+        ud.releaseShotsLeft--;
+      }
+      if (unitsApi && unitsApi.setAnimState) {
+        unitsApi.setAnimState(u, (window.LUNCBattle && LUNCBattle.animations && LUNCBattle.animations.STATES.FIRE) || 'FIRE', performance.now() * 0.001);
+      } else {
+        ud.animState = 'FIRE';
+        ud.fireUntil = performance.now() * 0.001 + 0.22;
+      }
+      ud.audioHooks = ud.audioHooks || {};
+      ud.audioHooks.release = true;
+    }
+
+    function tickJetCombat(u, side, dt, now) {
+      const ud = u.userData;
+      let mode = ud.airMode || JET_MODES.REENTER;
+      // Normalize legacy lowercase modes from older spawns
+      if (mode === 'ingress' || mode === 'reenter' || mode === 'egress') {
+        mode = JET_MODES.REENTER;
+        ud.airMode = mode;
+      }
+      const prevX = u.position.x;
+      const prevZ = u.position.z;
+      const cruise = (ud.variation && ud.variation.cruise) || (mobileGfx ? 22 : 30);
+      const alt = (ud.variation && ud.variation.alt) || ud.alt || 9.5;
+
+      if (mode === JET_MODES.COOLDOWN || mode === JET_MODES.REENTER) {
+        ud.runCooldown = (ud.runCooldown != null ? ud.runCooldown : 0) - dt;
+        u.position.y = alt + 2;
+        // Park far off-map during cooldown
+        if (Math.abs(u.position.x) < 50) {
+          u.position.x = side * 68;
+        }
+        if (ud.runCooldown <= 0) {
+          beginJetRun(u, side);
+        } else if (mode === JET_MODES.REENTER && !ud.runId) {
+          beginJetRun(u, side);
+        }
+      } else if (jetAimInvalid(ud, side) && mode !== JET_MODES.EGRESS && mode !== JET_MODES.COOLDOWN) {
+        // Abort safely to egress
+        ud.airMode = JET_MODES.EGRESS;
+        mode = JET_MODES.EGRESS;
+      } else if (mode === JET_MODES.APPROACH) {
+        const ev = ud.entryVec || { x: -side, z: 0 };
+        const gate = ud.releaseGate || { x: targetX, z: 0 };
+        const alignX = gate.x - ev.x * 14;
+        const alignZ = gate.z - ev.z * 14;
+        const dx = alignX - u.position.x;
+        const dz = alignZ - u.position.z;
+        const dist = Math.sqrt(dx * dx + dz * dz) || 1;
+        const step = cruise * dt;
+        if (step >= dist * 0.85 || dist < 6) {
+          ud.airMode = JET_MODES.ALIGN;
+          ud.alignT = 0;
+        } else {
+          u.position.x += (dx / dist) * step;
+          u.position.z += (dz / dist) * step;
+        }
+        u.position.y = alt + 0.6;
+        ud.facing = Math.atan2(dx, dz);
+        ud.pitch = -0.04;
+      } else if (mode === JET_MODES.ALIGN) {
+        const ev = ud.entryVec || { x: -side, z: 0 };
+        ud.alignT = (ud.alignT || 0) + dt;
+        // Match corridor heading; nudge onto aim lane
+        ud.facing = Math.atan2(ev.x, ev.z || 1e-4);
+        const laneZ = (ud.runAim && ud.runAim.z != null) ? ud.runAim.z : u.position.z;
+        u.position.z += (laneZ - u.position.z) * Math.min(1, dt * 2.2);
+        u.position.x += ev.x * cruise * 0.55 * dt;
+        u.position.y = alt + 0.35;
+        ud.pitch = -0.06;
+        if (ud.alignT > 0.55) {
+          ud.airMode = JET_MODES.INGRESS;
+        }
+      } else if (mode === JET_MODES.INGRESS) {
+        const ev = ud.entryVec || { x: -side, z: 0 };
+        const gate = ud.releaseGate;
+        u.position.x += ev.x * cruise * dt;
+        u.position.z += ev.z * cruise * dt;
+        // Hold lane toward aim
+        if (ud.runAim) {
+          u.position.z += (ud.runAim.z - u.position.z) * Math.min(1, dt * 1.2);
+        }
+        u.position.y = alt;
+        ud.facing = Math.atan2(ev.x, ev.z || 1e-4);
+        ud.pitch = -0.1;
+        // Reach release gate (before overflying aim)
+        const gx = gate ? gate.x : (ud.runAim ? ud.runAim.x - ev.x * 6 : targetX);
+        const crossed = (ev.x >= 0) ? (u.position.x >= gx) : (u.position.x <= gx);
+        if (crossed) {
+          ud.airMode = JET_MODES.RELEASE;
+          ud.releaseAcc = 0;
+        }
+      } else if (mode === JET_MODES.RELEASE) {
+        const ev = ud.entryVec || { x: -side, z: 0 };
+        // Stable attitude, continue forward slowly through release window
+        u.position.x += ev.x * cruise * 0.85 * dt;
+        u.position.z += ev.z * cruise * 0.85 * dt;
+        u.position.y = alt;
+        ud.facing = Math.atan2(ev.x, ev.z || 1e-4);
+        ud.pitch = -0.02;
+        ud.releaseElapsed = (ud.releaseElapsed || 0) + dt;
+        ud.releaseAcc = (ud.releaseAcc || 0) + dt;
+        const interval = ud.runWeapon === 'strafe' ? 0.07 : (ud.runWeapon === 'bomb' ? 0.22 : 0.16);
+        if (!ud.releaseDone && ud.releaseAcc >= interval) {
+          ud.releaseAcc = 0;
+          fireJetWeapon(u, side);
+          if (ud.releaseShotsLeft <= 0) ud.releaseDone = true;
+        }
+        // End release after burst or timeout
+        if (ud.releaseDone || ud.releaseElapsed > 0.85) {
+          ud.releaseDone = true;
+          ud.airMode = JET_MODES.FLYTHROUGH;
+          ud.flythroughT = 0;
+        }
+      } else if (mode === JET_MODES.FLYTHROUGH) {
+        const ev = ud.entryVec || { x: -side, z: 0 };
+        ud.flythroughT = (ud.flythroughT || 0) + dt;
+        u.position.x += ev.x * cruise * 1.05 * dt;
+        u.position.z += ev.z * cruise * dt;
+        u.position.y = alt + 0.4 + ud.flythroughT * 0.8;
+        ud.facing = Math.atan2(ev.x, ev.z || 1e-4);
+        ud.pitch = 0.04;
+        ud.audioHooks = ud.audioHooks || {};
+        ud.audioHooks.flyby = true;
+        if (ud.flythroughT > 0.85) {
+          ud.airMode = JET_MODES.EGRESS;
+        }
+      } else if (mode === JET_MODES.EGRESS) {
+        const xv = ud.exitVec || { x: -side, z: 0, ox: -side * 62, oz: 0 };
+        const exitX = xv.ox != null ? xv.ox : (-side * 62);
+        const exitZ = xv.oz != null ? xv.oz : u.position.z;
+        const dx = exitX - u.position.x;
+        const dz = (exitZ - u.position.z) * 0.35;
+        const dist = Math.sqrt(dx * dx + dz * dz) || 1;
+        const step = cruise * 1.15 * dt;
+        if (step >= dist || Math.abs(u.position.x) > 55) {
+          u.position.x = exitX;
+          u.position.z = exitZ;
+          clearJetRun(ud);
+          ud.airMode = JET_MODES.COOLDOWN;
+          ud.runCooldown = mobileGfx ? (5.5 + Math.random() * 3.5) : (3.8 + Math.random() * 2.8);
+        } else {
+          u.position.x += (dx / dist) * step;
+          u.position.z += (dz / dist) * step * 0.85;
+        }
+        u.position.y = Math.min(14, alt + 1.8 + Math.min(3, Math.abs(u.position.x) * 0.02));
+        ud.facing = Math.atan2(dx, dz || 1e-4);
+        ud.pitch = 0.12;
+        const bankSign = (ud.variation && ud.variation.bankSign) || 1;
+        u.rotation.z = THREE.MathUtils.clamp(bankSign * 0.28, -0.45, 0.45);
+      }
+
+      // Common orientation: heading + bank from lateral velocity (except EGRESS sets bank)
+      const vx = u.position.x - prevX;
+      const vz = u.position.z - prevZ;
+      ud.speed = Math.sqrt(vx * vx + vz * vz) / Math.max(dt, 1e-4);
+      ud.velX = vx / Math.max(dt, 1e-4);
+      if (ud.facing == null && (Math.abs(vx) + Math.abs(vz)) > 1e-5) {
+        ud.facing = Math.atan2(vx, vz);
+      }
+      if (mode !== JET_MODES.EGRESS && mode !== JET_MODES.COOLDOWN && mode !== JET_MODES.REENTER) {
+        const wantBank = THREE.MathUtils.clamp(-vz * 0.2, -0.4, 0.4);
+        u.rotation.z += (wantBank - u.rotation.z) * Math.min(1, dt * 6);
+      }
+      if (ud.pitch != null) {
+        u.rotation.x = THREE.MathUtils.clamp(ud.pitch, -0.2, 0.18);
+      }
+      u.position.y = Math.max(7.5, u.position.y);
+    }
+
     function maybeFire(u,enemyColor,dt) {
+      if (cFlags.fxOff || !sceneIncludes('fx')) return false;
+      const type=u.userData.type|0;
+      // v9.4.11: jets fire ONLY from RELEASE phase via fireJetWeapon (runId-synced)
+      if (type === 4) return false;
       u.userData.shot-=dt;
       if(u.userData.shot>0) return false;
+      const isAir = type===3 || u.userData.air;
       const front=Math.abs(u.position.x-targetX);
-      const base=u.userData.type===2?3.7:u.userData.type===1?2.5:1.7;
-      u.userData.shot=base+Math.random()*base*1.8;
-      if(front<24 && Math.random()<.42) {
+      const base = type===3 ? 1.35 : type===2 ? 3.7 : type===1 ? 2.5 : 1.7;
+      u.userData.shot=base+Math.random()*base*(isAir?1.1:1.8);
+      const rangeOk = isAir ? (front < 28 && u.position.y > 4) : (front < 24);
+      const chance = isAir ? 0.48 : 0.42;
+      if(rangeOk && Math.random()<chance) {
         const side=u.userData.side;
-        const toX=targetX+side*(Math.random()*5-2.5);
-        const z=u.position.z+(Math.random()-.5)*4;
-        const kind = u.userData.type===2 ? 'arty' : (u.userData.type===1 ? 'shell' : 'tracer');
-        const power = u.userData.type===2 ? 1.1 : (u.userData.type===1 ? 0.85 : 0.55);
+        const toX=targetX + (isAir ? (Math.random()-.5)*10 : side*(Math.random()*5-2.5));
+        const z=u.position.z+(Math.random()-.5)*(isAir?8:4);
+        let kind, power;
+        if (type===3) { kind = Math.random() < 0.55 ? 'rocket' : 'tracer'; power = kind==='rocket' ? 0.95 : 0.6; }
+        else if (type===2) { kind='arty'; power=1.1; }
+        else if (type===1) { kind='shell'; power=0.85; }
+        else { kind='tracer'; power=0.55; }
         const color = side<0 ? tokens[current].color : 0xe4675f;
         const muz = muzzleWorld(u);
         if (effectsApi && effectsApi.fireWeapon) {
@@ -1048,8 +1615,8 @@
           unitsApi.setAnimState(u, (window.LUNCBattle && LUNCBattle.animations && LUNCBattle.animations.STATES.FIRE) || 'FIRE', performance.now()*.001);
         } else {
           u.userData.animState = 'FIRE';
-          u.userData.fireUntil = performance.now()*.001 + (u.userData.type===2?0.28:0.18);
-          u.userData.reloadUntil = u.userData.fireUntil + (u.userData.type===2?1.6:0.7);
+          u.userData.fireUntil = performance.now()*.001 + (type===2?0.28:0.18);
+          u.userData.reloadUntil = u.userData.fireUntil + (type===2?1.6:0.7);
           u.userData.recoil = 1;
         }
         return true;
@@ -1066,23 +1633,69 @@
         for (let i = 0; i < particlePool.length; i++) {
           if (particlePool[i].userData && particlePool[i].userData.smoke) smokeN++;
         }
+        var matCount = null;
+        try {
+          if (window.LUNCBattle && LUNCBattle.materials && LUNCBattle.materials.getCount) {
+            matCount = LUNCBattle.materials.getCount();
+          }
+        } catch (_) {}
         return {
           units: bulls.length + bears.length,
           projectiles: projectilePool.length,
           particles: particlePool.length,
           explosions: activeExplosionApprox,
-          smoke: smokeN
+          smoke: smokeN,
+          materials: matCount ? matCount.total : null,
+          materialsShared: matCount ? matCount.shared : null
         };
       });
     }
     function animate() {
       requestAnimationFrame(animate);
-      const dt=Math.min(.04,clock.getDelta());
-      if (window.LUNCBattle && LUNCBattle.quality && LUNCBattle.quality.tick) {
-        LUNCBattle.quality.tick(dt, renderer);
+      if (cadence) cadence.markRaf();
+      // v9.4.7 CRITICAL: PERF/FPS must use wall-clock RAF interval (performance.now), NOT sim-capped dt.
+      // Old path: dt=Math.min(.04,clock.getDelta()) → quality.tick(dt) could never report worse than 25 FPS / 40.0ms.
+      const wallNowMs = performance.now();
+      let wallDtSec = 1 / 60;
+      if (animate._lastWallMs != null) {
+        wallDtSec = Math.max(0, (wallNowMs - animate._lastWallMs) / 1000);
+      }
+      animate._lastWallMs = wallNowMs;
+      // Drain THREE.Clock so getDelta stays consistent if used elsewhere; do not feed it to PERF.
+      clock.getDelta();
+      const dt = Math.min(0.04, wallDtSec > 0 ? wallDtSec : 0.0167);
+      const freezeSim = !!(stallMod && stallMod.flags && stallMod.flags.freeze);
+      if (cadence && !freezeSim) cadence.markSim();
+      if (window.LUNCBattle && LUNCBattle.lod && LUNCBattle.lod.beginFrame) {
+        LUNCBattle.lod.beginFrame();
       }
       if (cameraCtrl) cameraShake = cameraCtrl.update(dt, keys, cameraShake);
       else controls.update();
+      if (freezeSim) {
+        if (window.LUNCBattle && LUNCBattle.lod && LUNCBattle.lod.endFrame) {
+          LUNCBattle.lod.endFrame();
+        }
+        function runQualityFreeze() {
+          if (window.LUNCBattle && LUNCBattle.quality && LUNCBattle.quality.tick) {
+            LUNCBattle.quality.tick(wallDtSec, renderer);
+          }
+        }
+        if (cadence && cadence.time) cadence.time('quality', runQualityFreeze);
+        else runQualityFreeze();
+        function runRenderFreeze() {
+          if (stallMod && typeof stallMod.timedRender === 'function') {
+            stallMod.timedRender(renderer, scene, camera);
+          } else if (!(stallMod && stallMod.flags && stallMod.flags.norender)) {
+            renderer.render(scene, camera);
+          }
+          if (cadence) cadence.markRender();
+        }
+        if (cadence && cadence.time) cadence.time('render', runRenderFreeze);
+        else runRenderFreeze();
+        if (stallMod && typeof stallMod.endFrame === 'function') stallMod.endFrame(renderer, scene, camera);
+        if (cadence && cadence.endFrame) cadence.endFrame(renderer);
+        return;
+      }
       if (priceTerritoryApi) {
         priceTerritoryApi.updateFrontline(dt);
         targetX = priceTerritoryApi.getFrontlineX();
@@ -1092,12 +1705,61 @@
       }
 
       const now=performance.now()*.001;
+      function tickAirCombat(u, side, dt, now) {
+        const ud = u.userData;
+        const type = ud.type | 0;
+        const prevX = u.position.x;
+        const prevZ = u.position.z;
+        if (type === 3) {
+          // Helicopter: orbit / strafe near frontline, fire rockets/guns
+          ud.orbitAngle = (ud.orbitAngle || 0) + dt * (ud.orbitSpeed || 0.4);
+          const r = ud.orbitRadius || 12;
+          const cx = targetX + side * (3.5 + Math.sin(now * 0.2 + (ud.phase || 0)) * 2);
+          const homeZ = ud.homeZ != null ? ud.homeZ : 0;
+          const nx = cx + Math.cos(ud.orbitAngle) * r * 0.55;
+          const nz = homeZ + Math.sin(ud.orbitAngle) * r * 0.85;
+          u.position.x = nx;
+          u.position.z = nz;
+          const alt = ud.alt || 9;
+          u.position.y = alt + Math.sin(now * 1.4 + (ud.phase || 0)) * 0.35;
+          const vx = u.position.x - prevX;
+          const vz = u.position.z - prevZ;
+          ud.speed = Math.sqrt(vx * vx + vz * vz) / Math.max(dt, 1e-4);
+          ud.facing = Math.atan2(vx, vz);
+          // bank slightly into turn
+          u.rotation.z = THREE.MathUtils.clamp(-(vx) * 0.08, -0.35, 0.35);
+          maybeFire(u, side < 0 ? 0xe4675f : tokens[current].color, dt);
+        } else if (type === 4) {
+          // v9.4.11: authoritative jet attack choreography (runId-synced impacts)
+          tickJetCombat(u, side, dt, now);
+        }
+        if (type !== 4) {
+          ud.velX = (u.position.x - prevX) / Math.max(dt, 1e-4);
+        }
+        if (unitsApi && unitsApi.tickUnit) {
+          unitsApi.tickUnit(u, dt, now, {
+            momentum: momentum, targetX: targetX, mobile: mobileGfx,
+            cameraPos: camera.position,
+            camera: camera,
+            enableLodSwap: false
+          });
+        }
+        // Keep altitude (do not snap to terrain)
+        if (type === 3) u.position.y = Math.max(6.5, u.position.y);
+        if (type === 4) u.position.y = Math.max(7.5, u.position.y);
+      }
+
       function moveArmy(arr,side) {
         const momAbs = Math.abs(momentum);
         const contested = momAbs < 0.055;
         const urgent = momAbs > 0.12;
         arr.forEach(u=>{
-          const type=u.userData.type, rank=type===0?0:type===1?1:2;
+          const type=u.userData.type|0;
+          if (type === 3 || type === 4 || u.userData.air) {
+            tickAirCombat(u, side, dt, now);
+            return;
+          }
+          const rank=type===0?0:type===1?1:2;
           let desired=targetX+side*(7.8+rank*6.2+Math.floor((u.userData.index||0)/(type===0?8:5))*1.6);
           // Keep staging: bulls west / bears east; infantry may only slightly overrun frontline
           const maxOver = type===0 ? 2.2 : (type===1 ? 1.2 : 0.4);
@@ -1123,55 +1785,159 @@
           if (unitsApi && unitsApi.tickUnit) {
             unitsApi.tickUnit(u, dt, now, {
               momentum: momentum, targetX: targetX, mobile: mobileGfx,
-              cameraPos: camera.position
+              cameraPos: camera.position,
+              camera: camera,
+              enableLodSwap: !!(window.LUNCBattle && LUNCBattle.assets && LUNCBattle.assets.getMode && LUNCBattle.assets.getMode() === 'GLTF')
             });
           }
           // v8.3: apply rootBob after tickUnit so infantry bob is same-frame
           u.position.y = terrainHeight(u.position.x, u.position.z) + (u.userData.rootBob || 0);
         });
       }
-      moveArmy(bulls,-1); moveArmy(bears,1);
-
-      if (effectsApi && typeof effectsApi.tick === 'function') {
-        effectsApi.tick(dt, now);
-      } else {
-        for(let i=projectilePool.length-1;i>=0;i--){
-          const b=projectilePool[i],dx=b.userData.tx-b.position.x,step=Math.sign(dx)*b.userData.speed*dt;
-          b.position.x+=Math.abs(step)>Math.abs(dx)?dx:step; b.position.y+=Math.sin(now*10+i)*.015; b.userData.life-=dt;
-          if(Math.abs(dx)<.25||b.userData.life<=0){createExplosion(b.position.x,b.position.z,b.userData.color,b.userData.power*.75);scene.remove(b);projectilePool.splice(i,1);}
+      function runUnits() {
+        // Ground units only timed as "units"; air branch timed separately below.
+        function moveGround(arr, side) {
+          const momAbs = Math.abs(momentum);
+          const contested = momAbs < 0.055;
+          const urgent = momAbs > 0.12;
+          arr.forEach(u => {
+            const type = u.userData.type | 0;
+            if (type === 3 || type === 4 || u.userData.air) return;
+            const rank = type === 0 ? 0 : type === 1 ? 1 : 2;
+            let desired = targetX + side * (7.8 + rank * 6.2 + Math.floor((u.userData.index || 0) / (type === 0 ? 8 : 5)) * 1.6);
+            const maxOver = type === 0 ? 2.2 : (type === 1 ? 1.2 : 0.4);
+            if (side < 0) desired = Math.min(desired, targetX - 0.6 + maxOver);
+            else desired = Math.max(desired, targetX + 0.6 - maxOver);
+            const dx = desired - u.position.x;
+            let rate;
+            if (type === 0) rate = urgent ? 2.1 : contested ? 0.55 : 1.35;
+            else if (type === 1) rate = urgent ? 0.95 : contested ? 0.35 : 0.7;
+            else rate = contested ? 0.12 : 0.28;
+            if (contested && Math.abs(dx) < 1.2) rate *= 0.25;
+            const step = dx * Math.min(1, dt * rate);
+            const prevX = u.position.x;
+            u.position.x += step;
+            u.userData.speed = Math.abs(step) / Math.max(dt, 1e-4);
+            u.userData.velX = (u.position.x - prevX) / Math.max(dt, 1e-4);
+            u.userData.facing = side < 0 ? Math.PI / 2 : -Math.PI / 2;
+            maybeFire(u, side < 0 ? 0xe4675f : tokens[current].color, dt);
+            if (unitsApi && unitsApi.tickUnit) {
+              unitsApi.tickUnit(u, dt, now, {
+                momentum: momentum, targetX: targetX, mobile: mobileGfx,
+                cameraPos: camera.position, camera: camera,
+                enableLodSwap: !!(window.LUNCBattle && LUNCBattle.assets && LUNCBattle.assets.getMode && LUNCBattle.assets.getMode() === 'GLTF')
+              });
+            }
+            u.position.y = terrainHeight(u.position.x, u.position.z) + (u.userData.rootBob || 0);
+          });
         }
-        for(let i=particlePool.length-1;i>=0;i--){
-          const q=particlePool[i]; q.userData.life-=dt; q.position.x+=q.userData.vx*dt; q.position.y+=q.userData.vy*dt; q.position.z+=q.userData.vz*dt;
-          if(!q.userData.smoke) q.userData.vy-=5.1*dt; else q.scale.multiplyScalar(1+dt*.45);
-          q.material.opacity=Math.max(0,q.userData.smoke?q.userData.life*.19:q.userData.life*1.2);
-          if(q.userData.life<=0){scene.remove(q);particlePool.splice(i,1);}
+        moveGround(bulls, -1); moveGround(bears, 1);
+      }
+      function runAir() {
+        function moveAir(arr, side) {
+          arr.forEach(u => {
+            const type = u.userData.type | 0;
+            if (!(type === 3 || type === 4 || u.userData.air)) return;
+            tickAirCombat(u, side, dt, now);
+          });
+        }
+        moveAir(bulls, -1); moveAir(bears, 1);
+      }
+      if (cadence && cadence.time) {
+        cadence.time('units', runUnits);
+        cadence.time('air', runAir);
+      } else {
+        moveArmy(bulls, -1); moveArmy(bears, 1);
+      }
+
+      function runEffects() {
+        if (effectsApi && typeof effectsApi.tick === 'function') {
+          effectsApi.tick(dt, now, camera);
+        } else {
+          for (let i = projectilePool.length - 1; i >= 0; i--) {
+            const b = projectilePool[i], dx = b.userData.tx - b.position.x, step = Math.sign(dx) * b.userData.speed * dt;
+            b.position.x += Math.abs(step) > Math.abs(dx) ? dx : step; b.position.y += Math.sin(now * 10 + i) * .015; b.userData.life -= dt;
+            if (Math.abs(dx) < .25 || b.userData.life <= 0) { createExplosion(b.position.x, b.position.z, b.userData.color, b.userData.power * .75); scene.remove(b); projectilePool.splice(i, 1); }
+          }
+          for (let i = particlePool.length - 1; i >= 0; i--) {
+            const q = particlePool[i]; q.userData.life -= dt; q.position.x += q.userData.vx * dt; q.position.y += q.userData.vy * dt; q.position.z += q.userData.vz * dt;
+            if (!q.userData.smoke) q.userData.vy -= 5.1 * dt; else q.scale.multiplyScalar(1 + dt * .45);
+            q.material.opacity = Math.max(0, q.userData.smoke ? q.userData.life * .19 : q.userData.life * 1.2);
+            if (q.userData.life <= 0) { scene.remove(q); particlePool.splice(i, 1); }
+          }
         }
       }
+      if (cadence && cadence.time) cadence.time('effects', runEffects);
+      else runEffects();
+
       // camera shake applied inside cameraCtrl.update (no permanent target drift)
-      bullLight.intensity=1.1+Math.sin(now*1.3)*.16; bearLight.intensity=1.05+Math.cos(now*1.25)*.14;
-      if (envApi && typeof envApi.update === 'function') envApi.update(dt, now);
-      if (structuresApi && typeof structuresApi.updateStructures === 'function') structuresApi.updateStructures(dt, now);
-      if (minimapApi) {
-        if (priceTerritoryApi && priceTerritoryApi.getDefenseMarkers) {
-          minimapApi.setDefenses(priceTerritoryApi.getDefenseMarkers());
+      bullLight.intensity = 1.1 + Math.sin(now * 1.3) * .16; bearLight.intensity = 1.05 + Math.cos(now * 1.25) * .14;
+
+      function runLod() {
+        if (envApi && typeof envApi.update === 'function') envApi.update(dt, now, camera);
+        if (structuresApi && typeof structuresApi.applyStructureLods === 'function') structuresApi.applyStructureLods(camera);
+        if (structuresApi && typeof structuresApi.updateStructures === 'function') structuresApi.updateStructures(dt, now);
+        if (window.LUNCBattle && LUNCBattle.lod && LUNCBattle.lod.endFrame) {
+          LUNCBattle.lod.endFrame();
+        }
+      }
+      if (cadence && cadence.time) cadence.time('lod', runLod);
+      else runLod();
+
+      function runMinimap() {
+        if (!minimapApi) return;
+        if (!animate._defAcc) animate._defAcc = 0;
+        animate._defAcc += dt;
+        if (animate._defAcc >= 0.5) {
+          animate._defAcc = 0;
+          if (priceTerritoryApi && priceTerritoryApi.getDefenseMarkers) {
+            minimapApi.setDefenses(priceTerritoryApi.getDefenseMarkers());
+          }
         }
         minimapApi.draw();
       }
-      renderer.render(scene,camera);
+      if (cadence && cadence.time) cadence.time('minimap', runMinimap);
+      else runMinimap();
+
+      function runQuality() {
+        if (window.LUNCBattle && LUNCBattle.quality && LUNCBattle.quality.tick) {
+          // Wall-clock RAF interval only — never pass Math.min(0.04) sim dt.
+          LUNCBattle.quality.tick(wallDtSec, renderer);
+        }
+      }
+      if (cadence && cadence.time) cadence.time('quality', runQuality);
+      else runQuality();
+
+      function runRender() {
+        if (stallMod && typeof stallMod.timedRender === 'function') {
+          stallMod.timedRender(renderer, scene, camera);
+        } else if (!(stallMod && stallMod.flags && stallMod.flags.norender)) {
+          renderer.render(scene, camera);
+        }
+        if (cadence) cadence.markRender();
+      }
+      if (cadence && cadence.time) cadence.time('render', runRender);
+      else runRender();
+
+      if (stallMod && typeof stallMod.endFrame === 'function') {
+        stallMod.endFrame(renderer, scene, camera);
+      }
+      if (cadence && cadence.endFrame) cadence.endFrame(renderer);
     }
 
     addEventListener('resize',()=>{
       camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();
       renderer.setSize(innerWidth,innerHeight);
       if (window.LUNCBattle && LUNCBattle.quality && LUNCBattle.quality.apply) {
-        LUNCBattle.quality.apply(renderer, scene, sun, { fillLight: fill, immediate: false });
+        LUNCBattle.quality.apply(renderer, scene, sun, { fillLight: fill, hemiLight: hemi, rimLight: rim, accentLights: [bullLight, bearLight], immediate: false });
       } else {
         renderer.setPixelRatio(Math.min(devicePixelRatio||1,innerWidth<760?1.35:1.8));
       }
+      if (cadence && typeof cadence.applyAbHooks === 'function') cadence.applyAbHooks(renderer, sun);
     });
 
     updateStatusUI();
-    pushFeed('Battlefield ' + ((window.LUNCBattle && LUNCBattle.config && LUNCBattle.config.BUILD) || 'v8') + ' · graphics quality system','win');
+    pushFeed('Battlefield ' + ((window.LUNCBattle && LUNCBattle.config && LUNCBattle.config.BUILD) || 'v8') + ' · LOD + asset pipeline','win');
     pushFeed('Market pressure moves formations and the contested front','info');
     pushFeed('Public build uses HTTPS-safe data feeds','info');
     animate();
