@@ -4,7 +4,7 @@ Classic-RTS-inspired Terra Classic intelligence battlefield.
 
 **Build (main / live):** v8.x — RTS Command HUD + War Room (see `docs/V8-GRAPHICS.md`).
 
-**v9 (feature branch only):** `feat/v9-next-gen-renderer` — **v9.4.8 stall + cadence diagnostics** (GPU timers, `?stall=1`, webgl-baseline A–E, wall-clock PERF; see `docs/V9-STALL.md`, `docs/V9-CADENCE.md`) on **v9.4.6** mesh-merge draw cut + v9.4.4–5 density/LOD/FX. Default WebGL (Three **r128**) with procedural SAFE FALLBACK. Impostors / SkeletonUtils / KTX2 deferred to v9.5. Also `docs/V9-PERF.md` + `docs/V9-LOD.md`. Not merged to main; live Pages stays on v8 until an explicit merge.
+**v9 (feature branch only):** `feat/v9-next-gen-renderer` — **v9.4.9 authored armor + artillery kit** (LOD0–3 silhouettes; see `docs/V9-ARMOR.md`) on **v9.4.8** stall/cadence diagnostics + **v9.4.6** mesh-merge + LOD. Default WebGL (Three **r128**) with procedural SAFE FALLBACK. Impostors / SkeletonUtils / KTX2 deferred to v9.5. Also `docs/V9-PERF.md` + `docs/V9-LOD.md`. Not merged to main; live Pages stays on v8 until an explicit merge.
 
 **Live site:** https://mrbryan007.github.io/LUNC-Battlefield/
 
@@ -20,7 +20,7 @@ js/materials.js # v9.2 PBR registry
 js/cadence-diag.js  # v9.4.8 FPS cadence harness (?diag=1)
 js/stall-diag.js    # v9.4.8 non-JS/WebGL stall harness (?stall=1)
 js/lod.js  # v9.4.6 LOD + impostor-only LOD3
-js/units.js  # v9.4.6 merged unit meshes
+js/units.js  # v9.4.9 authored armor/arty + v9.4.6 mesh merge
 js/…  # see docs/V9-PERF.md
 js/assets.js / js/asset-loader.js  # v9.3–v9.4.4 glTF + generation-token lifecycle
 js/main.js

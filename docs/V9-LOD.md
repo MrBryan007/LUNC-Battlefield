@@ -24,6 +24,9 @@
 - AUTO still refuses smokeTest GLBs as unit visuals (procedural SAFE FALLBACK)
 - Air: procedural heli (type 3) + jet (type 4) — orbit/strafe/bomb with effectsApi; denser ground caps in battle-engine
 
+
+**v9.4.9 authored armor + artillery:** original low-poly MBT + SPG/field kit in `units.js` (see `docs/V9-ARMOR.md`). Track slabs stay in tank `core` through LOD2; hatch/coax/wheels are `detail`. Artillery keeps long barrel + open mount/shield through LOD2; LOD3 stubs reshaped (longer Z hull / longer gun). Helis/jets unchanged.
+
 **Prerequisite:** v9.1–v9.3 (renderer, PBR, glTF pipeline). Three.js stays **r128**. **No Three upgrade. No v9.5 in this milestone.**
 
 ## Goals

@@ -1,4 +1,4 @@
-/* Unit builders / formations — v9.4.6 mesh merge: fewer draws / shared baked geos */
+/* Unit builders / formations — v9.4.9 authored armor+arty kit; v9.4.6 mesh-merge preserved */
 (function (global) {
   'use strict';
   const LB = global.LUNCBattle;
@@ -51,26 +51,32 @@
       backpack: new THREE.BoxGeometry(0.28, 0.32, 0.14),
       boot: new THREE.BoxGeometry(0.12, 0.08, 0.18),
       bannerStub: new THREE.BoxGeometry(0.04, 0.28, 0.08),
-      // armor
-      hullMain: new THREE.BoxGeometry(1.55, 0.52, 1.05),
-      hullBevel: new THREE.BoxGeometry(1.35, 0.22, 0.95),
-      hullSkirt: new THREE.BoxGeometry(1.7, 0.16, 1.15),
-      turretCyl: new THREE.CylinderGeometry(0.32, 0.42, 0.34, 7),
-      turretBox: new THREE.BoxGeometry(0.72, 0.28, 0.62),
-      turretBear: new THREE.CylinderGeometry(0.28, 0.48, 0.38, 6),
-      cannon: new THREE.CylinderGeometry(0.055, 0.07, 1.15, 6),
-      wheel: new THREE.CylinderGeometry(0.16, 0.16, 0.14, 7),
-      trackBlock: new THREE.BoxGeometry(0.38, 0.14, 0.12),
-      snorkel: new THREE.CylinderGeometry(0.03, 0.035, 0.55, 5),
-      antenna: new THREE.CylinderGeometry(0.012, 0.012, 0.7, 4),
-      // artillery
-      carriage: new THREE.BoxGeometry(0.95, 0.28, 0.7),
-      carriageSide: new THREE.BoxGeometry(0.12, 0.35, 0.85),
-      artyWheel: new THREE.CylinderGeometry(0.32, 0.32, 0.14, 8),
-      barrelLong: new THREE.CylinderGeometry(0.07, 0.095, 1.65, 6),
-      trailLeg: new THREE.CylinderGeometry(0.045, 0.055, 1.05, 5),
-      trailFoot: new THREE.BoxGeometry(0.16, 0.08, 0.22),
-      shield: new THREE.BoxGeometry(0.08, 0.45, 0.55),
+      // armor — v9.4.9 authored MBT kit (local +Z forward; world size ≈ prior tanks)
+      hullLower: new THREE.BoxGeometry(1.28, 0.5, 1.85),
+      hullGlacis: new THREE.BoxGeometry(1.12, 0.26, 0.58),
+      hullUpper: new THREE.BoxGeometry(1.08, 0.2, 1.05),
+      hullSkirt: new THREE.BoxGeometry(0.09, 0.24, 1.72),
+      hullEngine: new THREE.BoxGeometry(1.02, 0.2, 0.48),
+      trackSlab: new THREE.BoxGeometry(0.24, 0.3, 1.92),
+      turretMain: new THREE.BoxGeometry(1.0, 0.36, 0.92),
+      turretCap: new THREE.BoxGeometry(0.52, 0.1, 0.48),
+      cannon: new THREE.CylinderGeometry(0.048, 0.062, 1.55, 6),
+      cannonMantlet: new THREE.BoxGeometry(0.3, 0.24, 0.22),
+      wheel: new THREE.CylinderGeometry(0.135, 0.135, 0.11, 6),
+      coax: new THREE.CylinderGeometry(0.018, 0.02, 0.38, 4),
+      hatch: new THREE.BoxGeometry(0.22, 0.08, 0.22),
+      antenna: new THREE.CylinderGeometry(0.01, 0.01, 0.55, 4),
+      // artillery — v9.4.9 SPG / field hybrid (distinct from MBT)
+      artyChassis: new THREE.BoxGeometry(0.92, 0.3, 2.05),
+      artyDeck: new THREE.BoxGeometry(0.82, 0.14, 1.15),
+      artyMount: new THREE.BoxGeometry(0.42, 0.24, 0.38),
+      artyShield: new THREE.BoxGeometry(0.78, 0.52, 0.07),
+      artyWheel: new THREE.CylinderGeometry(0.26, 0.26, 0.12, 7),
+      barrelLong: new THREE.CylinderGeometry(0.052, 0.078, 2.5, 6),
+      barrelBreech: new THREE.BoxGeometry(0.34, 0.28, 0.42),
+      trailLeg: new THREE.CylinderGeometry(0.038, 0.048, 1.2, 5),
+      trailFoot: new THREE.BoxGeometry(0.18, 0.07, 0.22),
+      stabilizer: new THREE.BoxGeometry(0.08, 0.32, 0.08),
       // air — heli
       heliCabin: new THREE.BoxGeometry(0.85, 0.42, 0.55),
       heliNose: new THREE.BoxGeometry(0.35, 0.28, 0.4),
@@ -197,54 +203,98 @@
         ]);
       });
     }
+    // v9.4.9: authored armor / arty merged kits (same-material bake; +Z forward)
+    function geoArmorHullAccent() {
+      return cachedMerged('armor.hullAccent', function () {
+        return mergeGeos([
+          bakeGeo(GEO.hullLower, 0, 0.42, 0, 0, 0, 0, 1, 1, 1),
+          bakeGeo(GEO.hullGlacis, 0, 0.62, 0.72, -0.32, 0, 0, 1, 1, 1),
+          bakeGeo(GEO.hullUpper, 0, 0.72, 0.08, 0, 0, 0, 1, 1, 1)
+        ]);
+      });
+    }
+    function geoArmorHullDark() {
+      return cachedMerged('armor.hullDark', function () {
+        return mergeGeos([
+          bakeGeo(GEO.hullSkirt, -0.68, 0.38, 0.02, 0, 0, 0, 1, 1, 1),
+          bakeGeo(GEO.hullSkirt, 0.68, 0.38, 0.02, 0, 0, 0, 1, 1, 1),
+          bakeGeo(GEO.hullEngine, 0, 0.78, -0.72, 0, 0, 0, 1, 1, 1)
+        ]);
+      });
+    }
+    function geoArmorHullWash() {
+      return cachedMerged('armor.hullWash', function () {
+        return bakeGeo(GEO.hullUpper, 0, 0.74, -0.15, 0, 0, 0, 0.92, 0.55, 0.7);
+      });
+    }
+        function geoArmorTracks() {
+      return cachedMerged('armor.tracks', function () {
+        return mergeGeos([
+          bakeGeo(GEO.trackSlab, -0.74, 0.28, 0, 0, 0, 0, 1, 1, 1),
+          bakeGeo(GEO.trackSlab, 0.74, 0.28, 0, 0, 0, 0, 1, 1, 1)
+        ]);
+      });
+    }
     function geoArmorWheels() {
       return cachedMerged('armor.wheels', function () {
         const parts = [];
-        [-0.52, 0.52].forEach(function (z) {
-          [-0.55, -0.18, 0.18, 0.55].forEach(function (x) {
-            parts.push(bakeGeo(GEO.wheel, x, 0.22, z, 0, 0, Math.PI / 2, 1, 1, 1));
+        [-0.74, 0.74].forEach(function (x) {
+          [-0.58, 0, 0.58].forEach(function (z) {
+            parts.push(bakeGeo(GEO.wheel, x, 0.2, z, 0, 0, Math.PI / 2, 1, 1, 1));
           });
         });
         return mergeGeos(parts);
       });
     }
-    function geoArmorTracks() {
-      return cachedMerged('armor.tracks', function () {
+    function geoArmorTurretAccent() {
+      return cachedMerged('armor.turretAccent', function () {
         return mergeGeos([
-          bakeGeo(GEO.trackBlock, 0, 0.2, -0.52, 0, 0, 0, 4.2, 1, 1),
-          bakeGeo(GEO.trackBlock, 0, 0.2, 0.52, 0, 0, 0, 4.2, 1, 1)
+          bakeGeo(GEO.turretMain, 0, 0.18, 0, 0, 0, 0, 1, 1, 1),
+          bakeGeo(GEO.cannonMantlet, 0, 0.12, 0.52, 0, 0, 0, 1, 1, 1)
         ]);
       });
     }
-    function geoArtySides() {
-      return cachedMerged('arty.sides', function () {
+    function geoArtyChassisBody() {
+      return cachedMerged('arty.chassisBody', function () {
         return mergeGeos([
-          bakeGeo(GEO.carriageSide, 0, 0.45, 0.32, 0, 0, 0, 1, 1, 1),
-          bakeGeo(GEO.carriageSide, 0, 0.45, -0.32, 0, 0, 0, 1, 1, 1)
+          bakeGeo(GEO.artyChassis, 0, 0.36, -0.05, 0, 0, 0, 1, 1, 1),
+          bakeGeo(GEO.artyDeck, 0, 0.55, 0.05, 0, 0, 0, 1, 1, 1)
+        ]);
+      });
+    }
+    function geoArtyMountShield() {
+      return cachedMerged('arty.mountShield', function () {
+        return mergeGeos([
+          bakeGeo(GEO.artyMount, 0, 0.72, 0.35, 0, 0, 0, 1, 1, 1),
+          bakeGeo(GEO.artyShield, 0, 0.85, 0.58, 0, 0, 0, 1, 1, 1)
         ]);
       });
     }
     function geoArtyWheels() {
       return cachedMerged('arty.wheels', function () {
         return mergeGeos([
-          bakeGeo(GEO.artyWheel, 0.05, 0.32, -0.42, 0, 0, Math.PI / 2, 1, 1, 1),
-          bakeGeo(GEO.artyWheel, 0.05, 0.32, 0.42, 0, 0, Math.PI / 2, 1, 1, 1)
+          bakeGeo(GEO.artyWheel, -0.55, 0.26, 0.35, 0, 0, Math.PI / 2, 1, 1, 1),
+          bakeGeo(GEO.artyWheel, 0.55, 0.26, 0.35, 0, 0, Math.PI / 2, 1, 1, 1),
+          bakeGeo(GEO.artyWheel, -0.55, 0.26, -0.55, 0, 0, Math.PI / 2, 1, 1, 1),
+          bakeGeo(GEO.artyWheel, 0.55, 0.26, -0.55, 0, 0, Math.PI / 2, 1, 1, 1)
         ]);
       });
     }
     function geoArtyTrails() {
       return cachedMerged('arty.trails', function () {
         return mergeGeos([
-          bakeGeo(GEO.trailLeg, -0.55, 0.2, 0.28, 0, 0.35, Math.PI / 2, 1, 1, 1),
-          bakeGeo(GEO.trailLeg, -0.55, 0.2, -0.28, 0, -0.35, Math.PI / 2, 1, 1, 1)
+          bakeGeo(GEO.trailLeg, -0.28, 0.22, -0.95, 1.05, 0.28, 0, 1, 1, 1),
+          bakeGeo(GEO.trailLeg, 0.28, 0.22, -0.95, 1.05, -0.28, 0, 1, 1, 1),
+          bakeGeo(GEO.stabilizer, -0.42, 0.2, -0.15, 0, 0, 0, 1, 1, 1),
+          bakeGeo(GEO.stabilizer, 0.42, 0.2, -0.15, 0, 0, 0, 1, 1, 1)
         ]);
       });
     }
     function geoArtyFeet() {
       return cachedMerged('arty.feet', function () {
         return mergeGeos([
-          bakeGeo(GEO.trailFoot, -1.05, 0.06, 0.42, 0, 0, 0, 1, 1, 1),
-          bakeGeo(GEO.trailFoot, -1.05, 0.06, -0.42, 0, 0, 0, 1, 1, 1)
+          bakeGeo(GEO.trailFoot, -0.42, 0.05, -1.45, 0, 0.25, 0, 1, 1, 1),
+          bakeGeo(GEO.trailFoot, 0.42, 0.05, -1.45, 0, -0.25, 0, 1, 1, 1)
         ]);
       });
     }
@@ -492,81 +542,68 @@
       const g = new THREE.Group();
       const isBull = side < 0;
       const accent = accentMat(color, 0.08);
+      const body = isBull ? bodyMatBull : bodyMatBear;
       const parts = {};
 
       const casters = [];
       const hullG = new THREE.Group();
-      const hull = trackCaster(casters, meshFrom(GEO.hullMain, accent, true));
-      hull.position.y = 0.52;
-      const bevel = meshFrom(GEO.hullBevel, bodyMatBull);
-      bevel.material = isBull ? bodyMatBull : bodyMatBear;
-      bevel.position.y = 0.78;
-      const skirt = meshFrom(GEO.hullSkirt, darkMat);
-      skirt.position.y = 0.32;
-      if (!isBull) skirt.scale.set(1.05, 1.15, 1.08);
-      hullG.add(hull, bevel, skirt);
+      // v9.4.9: merged hull by material — accent caster + dark skirts/engine + track slabs in core
+      const hullAccent = trackCaster(casters, meshFrom(geoArmorHullAccent(), accent, true));
+      const hullDark = meshFrom(geoArmorHullDark(), darkMat);
+      const tracksMerged = meshFrom(geoArmorTracks(), trackMat);
+      tracksMerged.userData.baseY = 0.28;
+      // Subtle faction body wash on upper plate (shared body mat; no extra draw if merged look OK)
+      const hullWash = meshFrom(geoArmorHullWash(), body);
+      hullG.add(hullAccent, hullDark, tracksMerged, hullWash);
       parts.hull = hullG;
 
-      // v9.4.6: merge all wheels (1 mesh) + both track rows (1 mesh) — same trackMat
       const wheelsMerged = meshFrom(geoArmorWheels(), trackMat);
       hullG.add(wheelsMerged);
-      const tracksMerged = meshFrom(geoArmorTracks(), trackMat);
-      tracksMerged.userData.baseY = 0.2;
-      hullG.add(tracksMerged);
       const wheels = [wheelsMerged];
       const tracks = [tracksMerged];
       parts.wheels = wheels;
       parts.tracks = tracks;
 
-      // Turret group (rotates)
+      // Turret pivot (yaw) — wider-than-tall MBT turret, slightly forward of mid
       const turret = new THREE.Group();
-      turret.position.y = 0.92;
-      let turretMesh;
-      if (isBull) {
-        turretMesh = trackCaster(casters, meshFrom(GEO.turretCyl, accent, true));
-        const lid = meshFrom(GEO.turretBox, metalMat);
-        lid.position.y = 0.2;
-        lid.scale.set(0.85, 0.7, 0.9);
-        turret.add(turretMesh, lid);
-        const ant = meshFrom(GEO.antenna, metalMatDark);
-        ant.position.set(-0.2, 0.45, -0.15);
-        turret.add(ant);
-      } else {
-        turretMesh = trackCaster(casters, meshFrom(GEO.turretBear, accent, true));
-        const cupola = meshFrom(GEO.turretBox, metalMatDark);
-        cupola.position.y = 0.22;
-        cupola.scale.set(0.7, 0.85, 0.75);
-        turret.add(turretMesh, cupola);
-        const snorkel = meshFrom(GEO.snorkel, metalMat);
-        snorkel.position.set(0.15, 0.4, -0.25);
-        turret.add(snorkel);
-      }
+      turret.position.set(0, 0.88, 0.12);
+      const turretMesh = trackCaster(casters, meshFrom(geoArmorTurretAccent(), accent, true));
+      const turretLid = meshFrom(GEO.turretCap, metalMat);
+      turretLid.position.set(0, 0.4, -0.05);
+      turret.add(turretMesh, turretLid);
+
+      // LOD0-only details: hatch + coax MG + antenna
+      const hatch = meshFrom(GEO.hatch, metalMatDark);
+      hatch.position.set(0.22, 0.42, -0.12);
+      const coax = meshFrom(GEO.coax, metalMat);
+      coax.rotation.x = Math.PI / 2;
+      coax.position.set(-0.28, 0.18, 0.55);
+      const ant = meshFrom(GEO.antenna, metalMatDark);
+      ant.position.set(-0.32, 0.55, -0.28);
+      turret.add(hatch, coax, ant);
       parts.turret = turret;
 
-      // Cannon group (recoil on z)
+      // Cannon (recoil on local +Z)
       const cannonG = new THREE.Group();
       const cannon = meshFrom(GEO.cannon, metalMat);
       cannon.rotation.x = Math.PI / 2;
-      cannon.position.z = 0.55;
-      cannon.userData.baseZ = 0.55;
+      cannon.position.z = 1.05;
+      cannon.userData.baseZ = 1.05;
       cannonG.add(cannon);
-      cannonG.position.y = 0.05;
+      cannonG.position.y = 0.12;
       turret.add(cannonG);
       parts.cannon = cannon;
 
       g.add(hullG, turret);
 
-      // v9.4.4: hull+turret+cannon stay in core through LOD0–2 (tanks must read as tanks)
-      const armorDetail = wheels.slice();
-      turret.children.forEach(function (ch) {
-        if (ch !== cannonG && ch !== turretMesh) armorDetail.push(ch);
-      });
+      // LOD: core keeps hull+tracks slabs+turret+cannon through LOD2; detail = wheels/hatch/coax/ant
+      const armorDetail = [wheelsMerged, hatch, coax, ant, turretLid];
       const lodGroups = {
         core: [hullG, turret],
         silhouette: [hullG, turret],
         major: [],
         detail: armorDetail,
-        limbs: tracks.slice()
+        limbs: []
       };
       if (global.LUNCBattle && LUNCBattle.lod && LUNCBattle.lod.registerLodGroups) {
         LUNCBattle.lod.registerLodGroups(g, lodGroups);
@@ -589,7 +626,7 @@
         weaponRef: cannon,
         weapon: cannon,
         trackPhase: Math.random() * Math.PI * 2,
-        muzzleOffset: new THREE.Vector3(0, 1.0, 1.1),
+        muzzleOffset: new THREE.Vector3(0, 1.05, 1.7),
         rootBob: 0,
         recoil: 0
       });
@@ -605,57 +642,45 @@
 
       const casters = [];
       const carriage = new THREE.Group();
-      const base = trackCaster(casters, meshFrom(GEO.carriage, darkMat, true));
-      base.position.y = 0.38;
-      // v9.4.6: sides / wheels / trails / feet → one mesh each (matched materials)
-      const sides = meshFrom(geoArtySides(), body);
-      const shield = meshFrom(GEO.shield, accent);
-      shield.position.set(0.35, 0.62, 0);
-      carriage.add(base, sides, shield);
+      // Longer thinner SPG chassis + open mount/shield (NOT closed MBT turret)
+      const chassis = trackCaster(casters, meshFrom(geoArtyChassisBody(), darkMat, true));
+      const mountShield = meshFrom(geoArtyMountShield(), accent);
+      const trailsMerged = meshFrom(geoArtyTrails(), darkMat);
+      const feetMerged = meshFrom(geoArtyFeet(), metalMatDark);
+      carriage.add(chassis, mountShield, trailsMerged, feetMerged);
       parts.carriage = carriage;
+      parts.trails = [trailsMerged];
 
       const wheelsMerged = meshFrom(geoArtyWheels(), trackMat);
       carriage.add(wheelsMerged);
       const wheels = [wheelsMerged];
       parts.wheels = wheels;
 
-      const trailsMerged = meshFrom(geoArtyTrails(), darkMat);
-      const feetMerged = meshFrom(geoArtyFeet(), metalMatDark);
-      carriage.add(trailsMerged, feetMerged);
-      parts.trails = [trailsMerged];
-      const trail1 = trailsMerged;
-      const trail2 = trailsMerged;
-      const foot1 = feetMerged;
-      const foot2 = feetMerged;
-
-      // Barrel group — elevate (rotation.x) + recoil (position.z)
+      // Barrel group — longer gun (≈1.6× tank), elevated rest pose, recoil on z
       const barrelG = new THREE.Group();
-      barrelG.position.set(0.15, 0.72, 0);
-      barrelG.rotation.x = -0.22;
-      barrelG.userData.baseElev = -0.22;
+      barrelG.position.set(0, 0.82, 0.25);
+      barrelG.rotation.x = -0.32;
+      barrelG.userData.baseElev = -0.32;
       barrelG.userData.baseZ = 0;
       const barrelMesh = trackCaster(casters, meshFrom(GEO.barrelLong, metalMat, true));
       barrelMesh.rotation.x = Math.PI / 2;
-      barrelMesh.position.z = 0.7;
+      barrelMesh.position.z = 1.15;
       barrelG.add(barrelMesh);
-      const breech = meshFrom(GEO.carriage, accent);
-      breech.scale.set(0.35, 0.55, 0.4);
-      breech.position.set(-0.15, 0, 0);
+      const breech = meshFrom(GEO.barrelBreech, accent);
+      breech.position.set(0, 0, -0.15);
       barrelG.add(breech);
       parts.barrel = barrelG;
 
       g.add(carriage, barrelG);
+      g.scale.setScalar(1.08);
 
-      // Scale up slightly — distinctly larger than infantry
-      g.scale.setScalar(1.15);
-
-      // v9.4.4: carriage+barrel stay recognizable through LOD0–2
+      // Core keeps carriage (incl. trails/shield silhouette) + long barrel through LOD2
       const lodGroups = {
         core: [carriage, barrelG],
         silhouette: [carriage, barrelG],
         major: [],
-        detail: [wheelsMerged, trailsMerged, feetMerged, shield],
-        limbs: [trailsMerged]
+        detail: [wheelsMerged, feetMerged, breech],
+        limbs: []
       };
       if (global.LUNCBattle && LUNCBattle.lod && LUNCBattle.lod.registerLodGroups) {
         LUNCBattle.lod.registerLodGroups(g, lodGroups);
@@ -677,7 +702,7 @@
         facing: side < 0 ? Math.PI / 2 : -Math.PI / 2,
         weaponRef: barrelMesh,
         weapon: barrelMesh,
-        muzzleOffset: new THREE.Vector3(0, 1.1, 1.4),
+        muzzleOffset: new THREE.Vector3(0, 1.15, 2.2),
         rootBob: 0,
         recoil: 0
       });

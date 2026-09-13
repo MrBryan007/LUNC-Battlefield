@@ -1,3 +1,5 @@
+> **v9.4.9:** Authored armor/arty kit (LOD silhouettes). Mesh-merge strategy retained; see **`docs/V9-ARMOR.md`**. FPS not re-measured on SwiftShader box — cite v9.4.8 M1 baseline.
+
 > **v9.4.8:** Calls ~65 @ ~5.4 FPS wall — JS only ~4 ms. Stall instrumentation in **`docs/V9-STALL.md`** (not more mesh merges).
 
 > **v9.4.7 follow-up:** PERF was able to lock at 25/40ms due to sim-capped `dt` → `quality.tick`. See **`docs/V9-CADENCE.md`** for the wall-clock fix, RAF probe, and scene/A-B isolation matrix.

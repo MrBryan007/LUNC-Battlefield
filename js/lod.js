@@ -1,4 +1,4 @@
-/* LUNC Battlefield v9.4.6 — true LOD + impostor-only LOD3 + mesh-merge companion
+/* LUNC Battlefield v9.4.9 — true LOD + impostor-only LOD3 + authored armor stubs
  * LUNCBattle.lod — camera distance → LOD0–3; never despawns simulation state.
  * Missing LOD / GLB → procedural SAFE FALLBACK forever. No black canvas.
  */
@@ -35,11 +35,11 @@
   function getStubGeos(THREE) {
     if (_stubGeo) return _stubGeo;
     _stubGeo = {
-      tankHull: new THREE.BoxGeometry(1.25, 0.38, 0.78),
-      tankTurret: new THREE.BoxGeometry(0.48, 0.24, 0.42),
-      tankBarrel: new THREE.CylinderGeometry(0.04, 0.05, 0.75, 5),
-      artyCarriage: new THREE.BoxGeometry(0.9, 0.28, 0.55),
-      artyBarrel: new THREE.CylinderGeometry(0.05, 0.07, 1.1, 5),
+      tankHull: new THREE.BoxGeometry(1.15, 0.4, 1.45),
+      tankTurret: new THREE.BoxGeometry(0.72, 0.28, 0.62),
+      tankBarrel: new THREE.CylinderGeometry(0.035, 0.045, 0.95, 5),
+      artyCarriage: new THREE.BoxGeometry(0.75, 0.26, 1.35),
+      artyBarrel: new THREE.CylinderGeometry(0.04, 0.06, 1.55, 5),
       heliCabin: new THREE.BoxGeometry(0.7, 0.32, 0.45),
       heliRotor: new THREE.CylinderGeometry(0.85, 0.85, 0.03, 10),
       jetFuse: new THREE.BoxGeometry(1.5, 0.22, 0.28),
@@ -517,13 +517,13 @@
         return m;
       }
       if (type === 1) {
-        addMesh(geos.tankHull, 0.42);
-        addMesh(geos.tankTurret, 0.68);
-        addMesh(geos.tankBarrel, 0.68, 0.48, Math.PI / 2);
+        addMesh(geos.tankHull, 0.4);
+        addMesh(geos.tankTurret, 0.72, 0.08);
+        addMesh(geos.tankBarrel, 0.72, 0.7, Math.PI / 2);
       } else if (type === 2) {
-        addMesh(geos.artyCarriage, 0.35);
-        var bar = addMesh(geos.artyBarrel, 0.55, 0.35, Math.PI / 2);
-        bar.rotation.z = -0.25;
+        addMesh(geos.artyCarriage, 0.34);
+        var bar = addMesh(geos.artyBarrel, 0.62, 0.55, Math.PI / 2);
+        bar.rotation.z = -0.28;
       } else if (type === 3) {
         addMesh(geos.heliCabin, 0.5);
         addMesh(geos.heliRotor, 0.72);
