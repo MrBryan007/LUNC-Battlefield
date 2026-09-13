@@ -1,4 +1,4 @@
-/* LUNC Battlefield v9.4.10 — graphics quality + stall-aware PERF (throttled UI) */
+/* LUNC Battlefield v9.4.11 — graphics quality + stall-aware PERF (throttled UI) */
 (function (global) {
   'use strict';
 
@@ -634,7 +634,7 @@
     overlayEl.className = 'perf-overlay';
     overlayEl.setAttribute('aria-hidden', 'true');
     overlayEl.innerHTML =
-      '<div class="perf-title">PERF · v9.4.10</div>' +
+      '<div class="perf-title">PERF · v9.4.11</div>' +
       '<div class="perf-section" id="perfGfx"></div>' +
       '<div class="perf-section" id="perfAssets"></div>' +
       '<div class="perf-section perf-feeds" id="perfFeeds"></div>';
@@ -878,7 +878,7 @@
 
   // Public API
   var api = {
-    version: 'v9.4.10',
+    version: 'v9.4.11',
     MODES: MODES,
     PRESETS: PRESETS,
     FEED_STATES: FEED_STATES,
