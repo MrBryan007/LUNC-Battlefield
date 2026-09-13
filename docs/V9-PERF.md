@@ -1,3 +1,5 @@
+> **v9.4.11:** Jet attack choreography + runId-synced impacts (no magic setTimeout blasts). Army density / effect caps unchanged; expect FPS ≈ v9.4.10 M1 baseline (~60 HIGH) if Metal soak confirms.
+
 > **v9.4.10:** AUTO quality ceiling capped at **HIGH** (never auto-select/promote ULTRA) + Retina dPR≥1.5 hardware-score tax — interactive headroom on MacBook/windowed Chrome. Manual ULTRA still works. M1 headless still ~60 FPS @ HIGH/ULTRA; feel lag was AUTO→ULTRA under Retina load.
 
 > **v9.4.9:** Authored armor/arty kit (LOD silhouettes). Mesh-merge strategy retained; see **`docs/V9-ARMOR.md`**. FPS not re-measured on SwiftShader box — cite v9.4.8 M1 baseline.

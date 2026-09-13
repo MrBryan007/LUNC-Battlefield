@@ -1191,24 +1191,409 @@
     }
     setInterval(updateBattleLogic,760);
 
+    // -------------------- v9.4.11 jet attack choreography --------------------
+    let jetRunSeq = 1;
+    const JET_MODES = {
+      REENTER: 'REENTER', APPROACH: 'APPROACH', ALIGN: 'ALIGN', INGRESS: 'INGRESS',
+      RELEASE: 'RELEASE', FLYTHROUGH: 'FLYTHROUGH', EGRESS: 'EGRESS', COOLDOWN: 'COOLDOWN'
+    };
+
+    function clearJetRun(ud) {
+      if (!ud) return;
+      ud.runId = null;
+      ud.runAim = null;
+      ud.runWeapon = null;
+      ud.entryVec = null;
+      ud.exitVec = null;
+      ud.releaseGate = null;
+      ud.attackCorridor = null;
+      ud.releaseShotsLeft = 0;
+      ud.releaseAcc = 0;
+      ud.releaseElapsed = 0;
+      ud.releaseDone = false;
+      ud.bombsDropped = 0;
+      ud.flythroughT = 0;
+      ud.alignT = 0;
+      ud.pitch = 0;
+    }
+
+    function pickJetAim(side, enemies) {
+      // O(N) cluster preference: armor → arty → infantry → frontline strip
+      let ax1 = 0, az1 = 0, n1 = 0;
+      let ax2 = 0, az2 = 0, n2 = 0;
+      let ax0 = 0, az0 = 0, n0 = 0;
+      const strip = 18;
+      for (let i = 0; i < enemies.length; i++) {
+        const e = enemies[i];
+        if (!e || !e.userData || e.userData.air) continue;
+        const t = e.userData.type | 0;
+        const x = e.position.x, z = e.position.z;
+        if (Math.abs(x - targetX) > strip) continue;
+        // Prefer enemies on the opposing side of frontline relative to this jet's faction
+        if (side < 0 && x < targetX - 2) continue;
+        if (side > 0 && x > targetX + 2) continue;
+        if (t === 1) { ax1 += x; az1 += z; n1++; }
+        else if (t === 2) { ax2 += x; az2 += z; n2++; }
+        else if (t === 0) { ax0 += x; az0 += z; n0++; }
+      }
+      let x, z, src;
+      if (n1 >= 2) { x = ax1 / n1; z = az1 / n1; src = 'armor'; }
+      else if (n2 >= 1) { x = ax2 / n2; z = az2 / n2; src = 'arty'; }
+      else if (n0 >= 4) { x = ax0 / n0; z = az0 / n0; src = 'inf'; }
+      else {
+        x = targetX + (-side) * (2 + Math.random() * 4);
+        z = (Math.random() - 0.5) * 16;
+        src = 'frontline';
+      }
+      // Stable ground aim with light lane variation
+      z += (Math.random() - 0.5) * 2.5;
+      x += (Math.random() - 0.5) * 1.5;
+      const y = terrainHeight(x, z);
+      return { x: x, y: y, z: z, src: src };
+    }
+
+    function beginJetRun(u, side) {
+      const ud = u.userData;
+      const enemies = side < 0 ? bears : bulls;
+      const aim = pickJetAim(side, enemies);
+      const runId = 'j' + (jetRunSeq++);
+      const weapons = ['strafe', 'bomb', 'rocket'];
+      // Slight bias toward strafe for readability, then bomb/rocket
+      const roll = Math.random();
+      const weapon = roll < 0.42 ? 'strafe' : (roll < 0.72 ? 'bomb' : 'rocket');
+      const laneZ = aim.z + (Math.random() - 0.5) * 3;
+      const entryX = side * (56 + Math.random() * 10);
+      const exitX = -side * (58 + Math.random() * 8);
+      const entryZ = laneZ + (Math.random() - 0.5) * 4;
+      const exitZ = laneZ + (Math.random() - 0.5) * 6 + (-side) * (Math.random() * 4);
+      const dirX = aim.x - entryX;
+      const dirZ = aim.z - entryZ;
+      const len = Math.max(1e-3, Math.sqrt(dirX * dirX + dirZ * dirZ));
+      const nx = dirX / len, nz = dirZ / len;
+      // Release before overflying aim (gate along corridor / by x)
+      const releaseAlong = Math.max(8, len * (0.62 + Math.random() * 0.12));
+      const releaseGateX = entryX + nx * releaseAlong;
+      const releaseGateZ = entryZ + nz * releaseAlong;
+      ud.runId = runId;
+      ud.runAim = { x: aim.x, y: aim.y, z: aim.z, src: aim.src };
+      ud.runWeapon = weapon;
+      ud.entryVec = { x: nx, z: nz, ox: entryX, oz: entryZ };
+      ud.exitVec = {
+        x: Math.sign(exitX - aim.x) || -side,
+        z: (exitZ - aim.z) * 0.08,
+        ox: exitX, oz: exitZ
+      };
+      ud.releaseGate = { x: releaseGateX, z: releaseGateZ, along: releaseAlong };
+      ud.attackCorridor = {
+        originX: entryX, originZ: entryZ,
+        dirX: nx, dirZ: nz,
+        width: 3.2 + Math.random() * 1.4,
+        aimX: aim.x, aimZ: aim.z
+      };
+      ud.variation = {
+        cruise: (mobileGfx ? 20 : 28) + Math.random() * 4,
+        alt: 8.5 + Math.random() * 2.4,
+        bankSign: Math.random() < 0.5 ? -1 : 1
+      };
+      ud.releaseShotsLeft = weapon === 'strafe' ? (4 + (Math.random() * 5 | 0)) : (weapon === 'bomb' ? (Math.random() < 0.45 ? 2 : 1) : (Math.random() < 0.35 ? 2 : 1));
+      ud.releaseAcc = 0;
+      ud.releaseElapsed = 0;
+      ud.releaseDone = false;
+      ud.bombsDropped = 0;
+      ud.flythroughT = 0;
+      ud.alignT = 0;
+      ud.pitch = 0;
+      ud.alt = ud.variation.alt;
+      // Place at entry for approach
+      u.position.x = entryX;
+      u.position.z = entryZ;
+      u.position.y = ud.alt;
+      ud.airMode = JET_MODES.APPROACH;
+      ud.facing = Math.atan2(nx, nz);
+      // Audio hook points (no audio system in v9.4.11)
+      ud.audioHooks = { approach: true, flyby: false, release: false, impact: false };
+      return runId;
+    }
+
+    function jetAimInvalid(ud, side) {
+      if (!ud || !ud.runAim) return true;
+      const a = ud.runAim;
+      if (!isFinite(a.x) || !isFinite(a.z)) return true;
+      // Completely invalid if aim drifted absurdly far from frontline strip
+      if (Math.abs(a.x - targetX) > 40) return true;
+      return false;
+    }
+
+    function fireJetWeapon(u, side) {
+      const ud = u.userData;
+      if (!ud || !ud.runId || !ud.runAim || !effectsApi || !effectsApi.fireWeapon) return;
+      if (cFlags.fxOff || !sceneIncludes('fx')) return;
+      const aim = ud.runAim;
+      const corr = ud.attackCorridor || {};
+      const color = side < 0 ? tokens[current].color : 0xe4675f;
+      const muz = muzzleWorld(u);
+      const runId = ud.runId;
+      const weapon = ud.runWeapon;
+      const width = corr.width || 3.5;
+      const onHit = function (info) {
+        // Null-safe: jet may have been disposed; no throw
+        try {
+          if (!u || !u.userData) return;
+          if (u.userData.runId !== runId && u.userData.runId != null) return;
+          u.userData.audioHooks = u.userData.audioHooks || {};
+          u.userData.audioHooks.impact = true;
+        } catch (_) {}
+      };
+      if (weapon === 'strafe') {
+        if (ud.releaseShotsLeft <= 0) return;
+        const t = 1 - ud.releaseShotsLeft / 8;
+        const lat = (Math.random() - 0.5) * width * 0.55;
+        // Offset along corridor perpendicular (approx world Z if flying mostly ±X)
+        const px = - (corr.dirZ || 0);
+        const pz = (corr.dirX || 1);
+        const plen = Math.max(1e-3, Math.sqrt(px * px + pz * pz));
+        const ox = (px / plen) * lat;
+        const oz = (pz / plen) * lat;
+        const toX = aim.x + ox + (corr.dirX || 0) * (1.5 + t * 4);
+        const toZ = aim.z + oz + (corr.dirZ || 0) * (1.5 + t * 4);
+        effectsApi.fireWeapon({
+          from: { x: muz.x, y: muz.y, z: muz.z },
+          to: { x: toX, y: terrainHeight(toX, toZ) + 0.3, z: toZ },
+          kind: 'tracer',
+          color: color,
+          power: mobileGfx ? 0.85 : 1.05,
+          side: side,
+          runId: runId,
+          jetStrike: true,
+          onHit: onHit
+        });
+        ud.releaseShotsLeft--;
+      } else if (weapon === 'bomb') {
+        if (ud.releaseShotsLeft <= 0) return;
+        const stagger = ud.bombsDropped * 0.85;
+        const toX = aim.x + (corr.dirX || 0) * stagger + (Math.random() - 0.5) * 0.8;
+        const toZ = aim.z + (corr.dirZ || 0) * stagger + (Math.random() - 0.5) * 0.8;
+        effectsApi.fireWeapon({
+          from: { x: muz.x, y: muz.y - 0.35, z: muz.z },
+          to: { x: toX, y: terrainHeight(toX, toZ) + 0.25, z: toZ },
+          kind: 'bomb',
+          color: color,
+          power: mobileGfx ? 1.35 : 1.7,
+          side: side,
+          runId: runId,
+          jetStrike: true,
+          onHit: onHit
+        });
+        ud.bombsDropped++;
+        ud.releaseShotsLeft--;
+      } else {
+        // rocket — 1 or short pair
+        if (ud.releaseShotsLeft <= 0) return;
+        const pairOff = ud.releaseShotsLeft === 2 ? -0.7 : (ud.bombsDropped ? 0.7 : 0);
+        const toX = aim.x + pairOff * 0.3 + (corr.dirX || 0) * 0.5;
+        const toZ = aim.z + pairOff + (corr.dirZ || 0) * 0.5;
+        effectsApi.fireWeapon({
+          from: { x: muz.x, y: muz.y, z: muz.z },
+          to: { x: toX, y: terrainHeight(toX, toZ) + 0.35, z: toZ },
+          kind: 'rocket',
+          color: color,
+          power: mobileGfx ? 1.25 : 1.55,
+          side: side,
+          runId: runId,
+          jetStrike: true,
+          readableSpeed: 20,
+          onHit: onHit
+        });
+        ud.bombsDropped++;
+        ud.releaseShotsLeft--;
+      }
+      if (unitsApi && unitsApi.setAnimState) {
+        unitsApi.setAnimState(u, (window.LUNCBattle && LUNCBattle.animations && LUNCBattle.animations.STATES.FIRE) || 'FIRE', performance.now() * 0.001);
+      } else {
+        ud.animState = 'FIRE';
+        ud.fireUntil = performance.now() * 0.001 + 0.22;
+      }
+      ud.audioHooks = ud.audioHooks || {};
+      ud.audioHooks.release = true;
+    }
+
+    function tickJetCombat(u, side, dt, now) {
+      const ud = u.userData;
+      let mode = ud.airMode || JET_MODES.REENTER;
+      // Normalize legacy lowercase modes from older spawns
+      if (mode === 'ingress' || mode === 'reenter' || mode === 'egress') {
+        mode = JET_MODES.REENTER;
+        ud.airMode = mode;
+      }
+      const prevX = u.position.x;
+      const prevZ = u.position.z;
+      const cruise = (ud.variation && ud.variation.cruise) || (mobileGfx ? 22 : 30);
+      const alt = (ud.variation && ud.variation.alt) || ud.alt || 9.5;
+
+      if (mode === JET_MODES.COOLDOWN || mode === JET_MODES.REENTER) {
+        ud.runCooldown = (ud.runCooldown != null ? ud.runCooldown : 0) - dt;
+        u.position.y = alt + 2;
+        // Park far off-map during cooldown
+        if (Math.abs(u.position.x) < 50) {
+          u.position.x = side * 68;
+        }
+        if (ud.runCooldown <= 0) {
+          beginJetRun(u, side);
+        } else if (mode === JET_MODES.REENTER && !ud.runId) {
+          beginJetRun(u, side);
+        }
+      } else if (jetAimInvalid(ud, side) && mode !== JET_MODES.EGRESS && mode !== JET_MODES.COOLDOWN) {
+        // Abort safely to egress
+        ud.airMode = JET_MODES.EGRESS;
+        mode = JET_MODES.EGRESS;
+      } else if (mode === JET_MODES.APPROACH) {
+        const ev = ud.entryVec || { x: -side, z: 0 };
+        const gate = ud.releaseGate || { x: targetX, z: 0 };
+        const alignX = gate.x - ev.x * 14;
+        const alignZ = gate.z - ev.z * 14;
+        const dx = alignX - u.position.x;
+        const dz = alignZ - u.position.z;
+        const dist = Math.sqrt(dx * dx + dz * dz) || 1;
+        const step = cruise * dt;
+        if (step >= dist * 0.85 || dist < 6) {
+          ud.airMode = JET_MODES.ALIGN;
+          ud.alignT = 0;
+        } else {
+          u.position.x += (dx / dist) * step;
+          u.position.z += (dz / dist) * step;
+        }
+        u.position.y = alt + 0.6;
+        ud.facing = Math.atan2(dx, dz);
+        ud.pitch = -0.04;
+      } else if (mode === JET_MODES.ALIGN) {
+        const ev = ud.entryVec || { x: -side, z: 0 };
+        ud.alignT = (ud.alignT || 0) + dt;
+        // Match corridor heading; nudge onto aim lane
+        ud.facing = Math.atan2(ev.x, ev.z || 1e-4);
+        const laneZ = (ud.runAim && ud.runAim.z != null) ? ud.runAim.z : u.position.z;
+        u.position.z += (laneZ - u.position.z) * Math.min(1, dt * 2.2);
+        u.position.x += ev.x * cruise * 0.55 * dt;
+        u.position.y = alt + 0.35;
+        ud.pitch = -0.06;
+        if (ud.alignT > 0.55) {
+          ud.airMode = JET_MODES.INGRESS;
+        }
+      } else if (mode === JET_MODES.INGRESS) {
+        const ev = ud.entryVec || { x: -side, z: 0 };
+        const gate = ud.releaseGate;
+        u.position.x += ev.x * cruise * dt;
+        u.position.z += ev.z * cruise * dt;
+        // Hold lane toward aim
+        if (ud.runAim) {
+          u.position.z += (ud.runAim.z - u.position.z) * Math.min(1, dt * 1.2);
+        }
+        u.position.y = alt;
+        ud.facing = Math.atan2(ev.x, ev.z || 1e-4);
+        ud.pitch = -0.1;
+        // Reach release gate (before overflying aim)
+        const gx = gate ? gate.x : (ud.runAim ? ud.runAim.x - ev.x * 6 : targetX);
+        const crossed = (ev.x >= 0) ? (u.position.x >= gx) : (u.position.x <= gx);
+        if (crossed) {
+          ud.airMode = JET_MODES.RELEASE;
+          ud.releaseAcc = 0;
+        }
+      } else if (mode === JET_MODES.RELEASE) {
+        const ev = ud.entryVec || { x: -side, z: 0 };
+        // Stable attitude, continue forward slowly through release window
+        u.position.x += ev.x * cruise * 0.85 * dt;
+        u.position.z += ev.z * cruise * 0.85 * dt;
+        u.position.y = alt;
+        ud.facing = Math.atan2(ev.x, ev.z || 1e-4);
+        ud.pitch = -0.02;
+        ud.releaseElapsed = (ud.releaseElapsed || 0) + dt;
+        ud.releaseAcc = (ud.releaseAcc || 0) + dt;
+        const interval = ud.runWeapon === 'strafe' ? 0.07 : (ud.runWeapon === 'bomb' ? 0.22 : 0.16);
+        if (!ud.releaseDone && ud.releaseAcc >= interval) {
+          ud.releaseAcc = 0;
+          fireJetWeapon(u, side);
+          if (ud.releaseShotsLeft <= 0) ud.releaseDone = true;
+        }
+        // End release after burst or timeout
+        if (ud.releaseDone || ud.releaseElapsed > 0.85) {
+          ud.releaseDone = true;
+          ud.airMode = JET_MODES.FLYTHROUGH;
+          ud.flythroughT = 0;
+        }
+      } else if (mode === JET_MODES.FLYTHROUGH) {
+        const ev = ud.entryVec || { x: -side, z: 0 };
+        ud.flythroughT = (ud.flythroughT || 0) + dt;
+        u.position.x += ev.x * cruise * 1.05 * dt;
+        u.position.z += ev.z * cruise * dt;
+        u.position.y = alt + 0.4 + ud.flythroughT * 0.8;
+        ud.facing = Math.atan2(ev.x, ev.z || 1e-4);
+        ud.pitch = 0.04;
+        ud.audioHooks = ud.audioHooks || {};
+        ud.audioHooks.flyby = true;
+        if (ud.flythroughT > 0.85) {
+          ud.airMode = JET_MODES.EGRESS;
+        }
+      } else if (mode === JET_MODES.EGRESS) {
+        const xv = ud.exitVec || { x: -side, z: 0, ox: -side * 62, oz: 0 };
+        const exitX = xv.ox != null ? xv.ox : (-side * 62);
+        const exitZ = xv.oz != null ? xv.oz : u.position.z;
+        const dx = exitX - u.position.x;
+        const dz = (exitZ - u.position.z) * 0.35;
+        const dist = Math.sqrt(dx * dx + dz * dz) || 1;
+        const step = cruise * 1.15 * dt;
+        if (step >= dist || Math.abs(u.position.x) > 55) {
+          u.position.x = exitX;
+          u.position.z = exitZ;
+          clearJetRun(ud);
+          ud.airMode = JET_MODES.COOLDOWN;
+          ud.runCooldown = mobileGfx ? (5.5 + Math.random() * 3.5) : (3.8 + Math.random() * 2.8);
+        } else {
+          u.position.x += (dx / dist) * step;
+          u.position.z += (dz / dist) * step * 0.85;
+        }
+        u.position.y = Math.min(14, alt + 1.8 + Math.min(3, Math.abs(u.position.x) * 0.02));
+        ud.facing = Math.atan2(dx, dz || 1e-4);
+        ud.pitch = 0.12;
+        const bankSign = (ud.variation && ud.variation.bankSign) || 1;
+        u.rotation.z = THREE.MathUtils.clamp(bankSign * 0.28, -0.45, 0.45);
+      }
+
+      // Common orientation: heading + bank from lateral velocity (except EGRESS sets bank)
+      const vx = u.position.x - prevX;
+      const vz = u.position.z - prevZ;
+      ud.speed = Math.sqrt(vx * vx + vz * vz) / Math.max(dt, 1e-4);
+      ud.velX = vx / Math.max(dt, 1e-4);
+      if (ud.facing == null && (Math.abs(vx) + Math.abs(vz)) > 1e-5) {
+        ud.facing = Math.atan2(vx, vz);
+      }
+      if (mode !== JET_MODES.EGRESS && mode !== JET_MODES.COOLDOWN && mode !== JET_MODES.REENTER) {
+        const wantBank = THREE.MathUtils.clamp(-vz * 0.2, -0.4, 0.4);
+        u.rotation.z += (wantBank - u.rotation.z) * Math.min(1, dt * 6);
+      }
+      if (ud.pitch != null) {
+        u.rotation.x = THREE.MathUtils.clamp(ud.pitch, -0.2, 0.18);
+      }
+      u.position.y = Math.max(7.5, u.position.y);
+    }
+
     function maybeFire(u,enemyColor,dt) {
       if (cFlags.fxOff || !sceneIncludes('fx')) return false;
+      const type=u.userData.type|0;
+      // v9.4.11: jets fire ONLY from RELEASE phase via fireJetWeapon (runId-synced)
+      if (type === 4) return false;
       u.userData.shot-=dt;
       if(u.userData.shot>0) return false;
-      const type=u.userData.type|0;
-      const isAir = type===3 || type===4 || u.userData.air;
+      const isAir = type===3 || u.userData.air;
       const front=Math.abs(u.position.x-targetX);
-      const base = type===4 ? 2.2 : type===3 ? 1.35 : type===2 ? 3.7 : type===1 ? 2.5 : 1.7;
+      const base = type===3 ? 1.35 : type===2 ? 3.7 : type===1 ? 2.5 : 1.7;
       u.userData.shot=base+Math.random()*base*(isAir?1.1:1.8);
-      const rangeOk = isAir ? (front < (type===4 ? 38 : 28) && u.position.y > 4) : (front < 24);
-      const chance = isAir ? (type===4 ? 0.55 : 0.48) : 0.42;
+      const rangeOk = isAir ? (front < 28 && u.position.y > 4) : (front < 24);
+      const chance = isAir ? 0.48 : 0.42;
       if(rangeOk && Math.random()<chance) {
         const side=u.userData.side;
         const toX=targetX + (isAir ? (Math.random()-.5)*10 : side*(Math.random()*5-2.5));
         const z=u.position.z+(Math.random()-.5)*(isAir?8:4);
         let kind, power;
-        if (type===4) { kind='rocket'; power = mobileGfx ? 1.15 : 1.45; }
-        else if (type===3) { kind = Math.random() < 0.55 ? 'rocket' : 'tracer'; power = kind==='rocket' ? 0.95 : 0.6; }
+        if (type===3) { kind = Math.random() < 0.55 ? 'rocket' : 'tracer'; power = kind==='rocket' ? 0.95 : 0.6; }
         else if (type===2) { kind='arty'; power=1.1; }
         else if (type===1) { kind='shell'; power=0.85; }
         else { kind='tracer'; power=0.55; }
@@ -1223,14 +1608,6 @@
             power: power,
             side: side
           });
-          // Jet bomb ripple — second impact near first for kinetic pass feel
-          if (type===4 && !mobileGfx && Math.random() < 0.55 && effectsApi.createExplosion) {
-            const bx = toX + (Math.random()-.5)*3;
-            const bz = z + (Math.random()-.5)*3;
-            setTimeout(function () {
-              try { createExplosion(bx, bz, color, 1.05 + Math.random()*0.35); } catch (_) {}
-            }, 180 + Math.random()*220);
-          }
         } else {
           launchStrike(u.position.x+side*-1.0,toX,z,color,power);
         }
@@ -1238,8 +1615,8 @@
           unitsApi.setAnimState(u, (window.LUNCBattle && LUNCBattle.animations && LUNCBattle.animations.STATES.FIRE) || 'FIRE', performance.now()*.001);
         } else {
           u.userData.animState = 'FIRE';
-          u.userData.fireUntil = performance.now()*.001 + (type===2||type===4?0.28:0.18);
-          u.userData.reloadUntil = u.userData.fireUntil + (type===2?1.6:type===4?0.9:0.7);
+          u.userData.fireUntil = performance.now()*.001 + (type===2?0.28:0.18);
+          u.userData.reloadUntil = u.userData.fireUntil + (type===2?1.6:0.7);
           u.userData.recoil = 1;
         }
         return true;
@@ -1353,55 +1730,12 @@
           u.rotation.z = THREE.MathUtils.clamp(-(vx) * 0.08, -0.35, 0.35);
           maybeFire(u, side < 0 ? 0xe4675f : tokens[current].color, dt);
         } else if (type === 4) {
-          // Jet: fast cross-battlefield strafe / bomb pass, exit, re-enter
-          let mode = ud.airMode || 'ingress';
-          const alt = ud.alt || 15;
-          const cruise = mobileGfx ? 22 : 32;
-          if (mode === 'reenter') {
-            ud.runCooldown = (ud.runCooldown || 0) - dt;
-            u.position.y = alt;
-            if (ud.runCooldown <= 0) {
-              ud.airMode = 'ingress';
-              u.position.x = side * (58 + Math.random() * 10);
-              u.position.z = (ud.homeZ != null ? ud.homeZ : 0) + (Math.random() - 0.5) * 8;
-            }
-          } else if (mode === 'egress') {
-            const exitX = -side * 62;
-            const dx = exitX - u.position.x;
-            const step = Math.sign(dx) * cruise * dt;
-            if (Math.abs(step) >= Math.abs(dx)) {
-              u.position.x = exitX;
-              ud.airMode = 'reenter';
-              ud.runCooldown = mobileGfx ? (5 + Math.random() * 4) : (3.5 + Math.random() * 3);
-            } else {
-              u.position.x += step;
-            }
-            u.position.y = alt + 1.5;
-            ud.facing = side < 0 ? -Math.PI / 2 : Math.PI / 2; // flying outbound
-            ud.speed = cruise;
-          } else {
-            // ingress / strafe toward and across frontline
-            const aimX = -side * 48;
-            const dx = aimX - u.position.x;
-            const step = Math.sign(dx || -side) * cruise * dt;
-            u.position.x += step;
-            u.position.z += Math.sin(now * 0.7 + (ud.phase || 0)) * dt * 1.8;
-            u.position.y = alt + Math.sin(now * 2 + (ud.phase || 0)) * 0.4;
-            ud.facing = Math.atan2(step, 0.001);
-            ud.speed = cruise;
-            ud.airMode = 'ingress';
-            // Strafe window near frontline — shoot/bomb
-            if (Math.abs(u.position.x - targetX) < 26) {
-              maybeFire(u, side < 0 ? 0xe4675f : tokens[current].color, dt);
-            }
-            // Crossed far side → egress
-            if ((side < 0 && u.position.x > 42) || (side > 0 && u.position.x < -42)) {
-              ud.airMode = 'egress';
-            }
-          }
-          u.rotation.z = THREE.MathUtils.clamp((u.position.z - prevZ) * -0.15, -0.4, 0.4);
+          // v9.4.11: authoritative jet attack choreography (runId-synced impacts)
+          tickJetCombat(u, side, dt, now);
         }
-        ud.velX = (u.position.x - prevX) / Math.max(dt, 1e-4);
+        if (type !== 4) {
+          ud.velX = (u.position.x - prevX) / Math.max(dt, 1e-4);
+        }
         if (unitsApi && unitsApi.tickUnit) {
           unitsApi.tickUnit(u, dt, now, {
             momentum: momentum, targetX: targetX, mobile: mobileGfx,
@@ -1412,7 +1746,7 @@
         }
         // Keep altitude (do not snap to terrain)
         if (type === 3) u.position.y = Math.max(6.5, u.position.y);
-        if (type === 4) u.position.y = Math.max(11, u.position.y);
+        if (type === 4) u.position.y = Math.max(7.5, u.position.y);
       }
 
       function moveArmy(arr,side) {

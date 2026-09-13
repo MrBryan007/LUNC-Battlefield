@@ -1,4 +1,4 @@
-/* LUNC Battlefield v9.4.6 — combat effects pooling + tighter transparent FX caps */
+/* LUNC Battlefield v9.4.11 — combat FX pools + jet runId-synced impacts */
 (function (global) {
   'use strict';
   const LB = global.LUNCBattle;
@@ -57,6 +57,7 @@
       shell: new THREE.CylinderGeometry(0.09, 0.07, 0.55, 6),
       arty: new THREE.SphereGeometry(0.16, 7, 6),
       rocket: new THREE.ConeGeometry(0.09, 0.55, 6),
+      bomb: new THREE.SphereGeometry(0.14, 7, 6),
       spark: new THREE.SphereGeometry(0.1, 5, 4),
       smoke: new THREE.SphereGeometry(0.28, 7, 6),
       scorch: new THREE.CircleGeometry(1, 10),
@@ -113,6 +114,7 @@
         if (kind === 'shell') geo = GEO.shell;
         else if (kind === 'arty') geo = GEO.arty;
         else if (kind === 'rocket') geo = GEO.rocket;
+        else if (kind === 'bomb') geo = GEO.bomb;
         // One mat per pooled mesh (reused forever) — avoids alloc storm
         mesh = new THREE.Mesh(geo, SHARED.proj.clone());
         mesh.castShadow = false;
@@ -495,15 +497,21 @@
         life = Math.min(3.2, dist / speed + 0.55);
         arcH = 4.5 + power * 1.8;
         flashScale = 1.35;
+      } else if (kind === 'bomb') {
+        // Ballistic drop: readable downward arc; impact only when projectile reaches ground aim
+        speed = 11 + power * 2.2;
+        life = Math.min(2.8, dist / speed + 0.55);
+        arcH = -(2.8 + power * 0.9); // negative = drop below chord toward ground
+        flashScale = 0.35;
       } else { // rocket
-        speed = 14 + power * 3;
+        speed = (opts.readableSpeed != null ? opts.readableSpeed : (18 + power * 3.5));
         life = Math.min(2.4, dist / speed + 0.35);
-        arcH = 1.8 + power * 0.6;
+        arcH = 0.55 + power * 0.25;
         flashScale = 1.1;
         kind = 'rocket';
       }
 
-      mesh.lookAt(to.x, y1 + arcH * 0.4, to.z != null ? to.z : from.z);
+      mesh.lookAt(to.x, y1 + Math.abs(arcH) * 0.25, to.z != null ? to.z : from.z);
       mesh.userData = {
         _poolKind: kind,
         kind: kind,
@@ -521,7 +529,10 @@
         side: side,
         arcH: arcH,
         trailAcc: 0,
-        hit: false
+        hit: false,
+        runId: opts.runId != null ? opts.runId : null,
+        jetStrike: !!opts.jetStrike,
+        onHit: typeof opts.onHit === 'function' ? opts.onHit : null
       };
       projectilePool.push(mesh);
 
@@ -780,8 +791,8 @@
           if (progress >= 0.995 || ud.life <= 0) ud.hit = true;
         }
 
-        // Rocket exhaust trail
-        if (ud.kind === 'rocket' && !ud.hit) {
+        // Rocket / bomb trail
+        if ((ud.kind === 'rocket' || ud.kind === 'bomb') && !ud.hit) {
           ud.trailAcc = (ud.trailAcc || 0) + dt;
           if (ud.trailAcc > (mobile ? 0.07 : 0.045)) {
             ud.trailAcc = 0;
@@ -810,15 +821,38 @@
         }
 
         if (ud.hit) {
-          if (ud.kind === 'arty' || ud.kind === 'rocket') {
-            explosion(b.position.x, b.position.z, {
-              power: ud.power * 0.85,
+          const hx = b.position.x;
+          const hz = b.position.z;
+          const jetBoost = ud.jetStrike ? 1.22 : 1;
+          if (ud.kind === 'arty' || ud.kind === 'rocket' || ud.kind === 'bomb') {
+            explosion(hx, hz, {
+              power: ud.power * 0.85 * jetBoost,
               color: ud.color,
-              kind: ud.kind
+              kind: ud.kind === 'bomb' ? 'blast' : ud.kind
             });
+            if (ud.jetStrike) {
+              spawnParticleBurst(hx, terrainHeight(hx, hz) + 0.55, hz, {
+                count: mobile ? 3 : 5,
+                power: 1.05 * ud.power,
+                smoke: true,
+                scale: 1.25
+              });
+            }
           } else {
-            impact(b.position.x, b.position.z, ud.kind, ud.power * 0.85, ud.color);
+            impact(hx, hz, ud.kind, ud.power * 0.85 * jetBoost, ud.color);
+            if (ud.jetStrike && ud.kind === 'tracer') {
+              spawnParticleBurst(hx, terrainHeight(hx, hz) + 0.25, hz, {
+                count: mobile ? 2 : 4,
+                power: 0.7,
+                palette: [0x8b7355, 0xc4a574, ud.color || 0xffe08a],
+                spread: 0.7
+              });
+            }
           }
+          if (typeof ud.onHit === 'function') {
+            try { ud.onHit({ x: hx, z: hz, runId: ud.runId, kind: ud.kind, mesh: b }); } catch (_) {}
+          }
+          ud.onHit = null;
           releaseProjectile(b);
         }
       }

@@ -321,6 +321,9 @@
     if (ud.facing != null) {
       unit.rotation.y = dampAngle(unit.rotation.y, ud.facing, dt, 6);
     }
+    if (ud.pitch != null) {
+      unit.rotation.x += (ud.pitch - unit.rotation.x) * Math.min(1, dt * 5);
+    }
     // subtle engine pulse via scale on engine meshes
     const parts = ud.parts || {};
     if (parts.engines) {

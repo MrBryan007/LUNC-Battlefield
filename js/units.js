@@ -827,7 +827,7 @@
       // Nose along +X in mesh space → local +Z for facing
       fuseG.rotation.y = -Math.PI / 2;
       g.add(fuseG);
-      g.scale.setScalar(1.1);
+      g.scale.setScalar(1.35); // v9.4.11 readable jet presence
 
       const lodGroups = {
         core: [fuseG],
@@ -859,10 +859,12 @@
         weapon: fuse,
         muzzleOffset: new THREE.Vector3(0, 0.2, 0.7),
         rootBob: 0,
-        alt: 14 + Math.random() * 4,
-        airMode: 'ingress',
-        runCooldown: Math.random() * 4,
-        bank: 0
+        alt: 8.5 + Math.random() * 2.5,
+        airMode: 'COOLDOWN',
+        runCooldown: 0.4 + Math.random() * 2.5,
+        runId: null,
+        bank: 0,
+        pitch: 0
       });
       return g;
     }
@@ -947,7 +949,15 @@
     }
 
     function disposeArmy(arr) {
-      arr.forEach(function (u) { scene.remove(u); });
+      arr.forEach(function (u) {
+        if (u && u.userData) {
+          // v9.4.11: drop run refs so in-flight projectile onHit stays null-safe
+          u.userData.runId = null;
+          u.userData.onHit = null;
+          u.userData.airMode = 'COOLDOWN';
+        }
+        scene.remove(u);
+      });
       arr.length = 0;
     }
 
@@ -988,13 +998,13 @@
         const u = createUnit(color, side, 4);
         const z = (j - (nJet - 1) / 2) * 11 + side * 2;
         const startX = side * (55 + j * 8);
-        const alt = u.userData.alt || 15;
+        const alt = u.userData.alt || 9.5;
         u.position.set(startX, alt, z);
         u.userData.home = { x: startX, z: z };
         u.userData.homeZ = z;
         u.userData.index = idx++;
-        u.userData.airMode = 'ingress';
-        u.userData.runCooldown = j * 2.5 + Math.random();
+        u.userData.airMode = 'COOLDOWN';
+        u.userData.runCooldown = 0.6 + j * 2.2 + Math.random();
         list.push(u);
       }
     }
