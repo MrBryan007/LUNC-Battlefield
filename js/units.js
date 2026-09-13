@@ -1,4 +1,4 @@
-/* Unit builders / formations — v9.4.9 authored armor+arty kit; v9.4.6 mesh-merge preserved */
+/* Unit builders / formations — v9.4.13 cluster/fireteam slots; v9.4.9 authored armor+arty kit */
 (function (global) {
   'use strict';
   const LB = global.LUNCBattle;
@@ -929,21 +929,59 @@
       return g;
     }
 
+    function det01(i, salt) {
+      const x = Math.sin((i + 1.17) * 12.9898 + salt * 78.233) * 43758.5453;
+      return x - Math.floor(x);
+    }
+
+    /**
+     * v9.4.13 — cluster / fireteam slots. Deterministic (index+type+side only).
+     * Infantry: 4-man wedges. Armor: staggered pairs. Artillery: 2-gun batteries.
+     * Depth is distance behind the live frontline (applied in battle-engine).
+     */
     function formationSlots(count, side, type) {
       const slots = [];
-      const cols = type === 0 ? 8 : 5;
-      const spacingZ = type === 0 ? 2.25 : 3.5;
-      const spacingX = type === 0 ? 1.95 : 3.35;
-      const back = type === 0 ? 8.6 : type === 1 ? 15 : 21;
+      const clusterSize = type === 0 ? 4 : 2;
+      const nClusters = Math.max(1, Math.ceil(count / clusterSize));
+      const zSpan = type === 0 ? 26 : type === 1 ? 21 : 17;
+      const baseDepth = type === 0 ? 6.15 : type === 1 ? 12.8 : 20.4;
+      const infOff = [
+        { d: 0.00, z: 0.00 },
+        { d: 0.72, z: 1.18 },
+        { d: 0.86, z: -1.12 },
+        { d: 1.68, z: 0.22 }
+      ];
+      const armOff = [
+        { d: 0.00, z: 0.00 },
+        { d: 1.55, z: 2.25 }
+      ];
+      const artOff = [
+        { d: 0.00, z: 0.00 },
+        { d: 1.35, z: 2.55 }
+      ];
+      const memberOff = type === 0 ? infOff : type === 1 ? armOff : artOff;
+
       for (let i = 0; i < count; i++) {
-        const row = Math.floor(i / cols);
-        const col = i % cols;
-        // Deterministic jitter from index (no Math.random — stable formations)
-        const jx = ((i * 17) % 7) * 0.04 - 0.12;
-        const jz = ((i * 13) % 5) * 0.05 - 0.1;
-        const z = (col - (cols - 1) / 2) * spacingZ + (row % 2 ? spacingZ * 0.5 : 0) + jz;
-        const x = side * (back + row * spacingX) + jx * side;
-        slots.push({ x: x, z: z });
+        const ci = Math.floor(i / clusterSize);
+        const mi = i % clusterSize;
+        const t = nClusters === 1 ? 0 : (ci + 0.5) / nClusters - 0.5;
+        let clusterZ = t * zSpan;
+        clusterZ += (det01(ci, 3 + type) - 0.5) * (type === 0 ? 2.15 : 1.7);
+        // Pull first/last clusters slightly inward so the Z range stays occupied, including center
+        if (nClusters > 2 && (ci === 0 || ci === nClusters - 1)) {
+          clusterZ *= 0.92;
+        }
+        const clusterDepth = baseDepth
+          + (det01(ci, 7 + type) - 0.32) * (type === 0 ? 2.4 : 2.0)
+          + (ci % 3) * (type === 0 ? 0.45 : 0.7);
+        const mo = memberOff[mi % memberOff.length];
+        const jx = (det01(i, 11) - 0.5) * 0.48;
+        const jz = (det01(i, 19) - 0.5) * 0.62;
+        const depth = clusterDepth + mo.d + jx;
+        const z = clusterZ + mo.z + jz;
+        const x = side * depth;
+        const yaw = (det01(i, 29) - 0.5) * (type === 0 ? 0.28 : 0.16);
+        slots.push({ x: x, z: z, depth: depth, yaw: yaw, cluster: ci });
       }
       return slots;
     }
@@ -971,6 +1009,8 @@
           const u = createUnit(color, side, type);
           u.position.set(s.x, terrainHeight(s.x, s.z), s.z);
           u.userData.home = s;
+          u.userData.homeYaw = s.yaw || 0;
+          u.userData.cluster = s.cluster;
           u.userData.index = i;
           list.push(u);
         });
@@ -1085,7 +1125,7 @@
       setAnimState: setAnimState,
       tickUnit: tickUnit,
       GEO: GEO,
-      version: 'v9.4.6'
+      version: 'v9.4.13'
     };
   }
 

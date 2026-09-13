@@ -1,3 +1,5 @@
+> **v9.4.13:** Terrain/frontline depth + cluster formations. Extra dirt patches / small craters / broken frontline props; army density unchanged. **M1 Metal not measured here** — cite v9.4.11 baseline (~60 HIGH). Do not treat SwiftShader as acceptance.
+
 > **v9.4.12.1:** FX cleanup — hard-capped/recycled shockwave rings (LOW 2 / MED 4 / HIGH 6 / ULTRA 8); burn/liq wrapper no longer double-applies camera shake. Combat shake policy unchanged. **M1 Metal not re-measured here** — cite v9.4.11/v9.4.12 baseline (~60 HIGH). Do not treat SwiftShader as acceptance.
 
 > **v9.4.12:** Impact / FX polish (hierarchy, debris, aftermath, distance-attenuated shake). Army density / jet choreography unchanged. Expect FPS ≈ v9.4.11 M1 HIGH baseline (~60) — FX stay pooled + capped. Do not treat SwiftShader as acceptance.
@@ -77,7 +79,7 @@ Profile with `renderer.info` / PERF overlay (`?perf=1`, fixed Graphics **HIGH**)
 
 ## BUILD
 
-`v9.4.12.1` · cache `?v=20260913v94121` · PERF label `v9.4.12.1` (FX cleanup; AUTO max HIGH).
+`v9.4.13` · cache `?v=20260913v9413` · PERF label `v9.4.13` (terrain/formations; AUTO max HIGH).
 
 ---
 

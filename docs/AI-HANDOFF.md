@@ -2,37 +2,34 @@
 
 Git is the source of truth. If this file disagrees with Git, Git wins and this file must be corrected.
 
-**Updated:** 2026-09-13 (v9.4.12.1 cleanup)
+**Updated:** 2026-09-13 (v9.4.13 terrain / formations)
 
 ## Current
 
 | Item | Value |
 | --- | --- |
-| BUILD | `v9.4.12.1` |
+| BUILD | `v9.4.13` |
 | Branch | `feat/v9-next-gen-renderer` |
-| Parent | `0f79c202c971277038a2fe2e4b2c5b36a76a5bc7` (v9.4.12 FX polish) |
+| Parent | `2448c5b79b5a5e0ca6d419009441654ac06582c4` (v9.4.12.1 FX cleanup) |
 | PR | [#4](https://github.com/MrBryan007/LUNC-Battlefield/pull/4) **DRAFT / OPEN** |
 | Production / `main` | **v8.8** · SHA `47a61b6c2485b4b3fd17b8ad793f5a7498ade7f9` |
 | Live Pages | https://mrbryan007.github.io/LUNC-Battlefield/ (v8.8) |
 | Three.js | **r128** WebGL default |
-| Cache bust | `?v=20260913v94121` |
+| Cache bust | `?v=20260913v9413` |
 
-## Last accepted milestone (v9.4.12)
+## Last accepted milestone (v9.4.12.1)
 
-Battlefield impact / FX polish on GitHub. Jet state machine unchanged.
+Shockwave hard-cap + recycle. Burn/liq wrappers no longer double-apply camera shake.
 
-## This pass (v9.4.12.1)
+## This pass (v9.4.13)
 
-Narrow cleanup only:
+Terrain / frontline depth + cluster formations. Fireteams / tank pairs / arty batteries. Broken no-man's-land on the **true** `getFrontlineX()`. Narrower center track. Market math unchanged.
 
-- Shockwave rings hard-capped + recycled (LOW 2 / MED 4 / HIGH 6 / ULTRA 8)
-- Duplicate camera shake removed from `playBurnFX` / `playLiquidationFX` wrappers — one event, one shake from the impact/explosion path
-- Combat shake policy unchanged (trauma², dt decay, distance-attenuated, major impacts only)
-- **M1 Metal not re-measured in this sandbox.** Prior valid baseline remains HIGH ~60. Software rasterizer numbers are invalid.
+**M1 Metal not measured in this sandbox.** Prior valid baseline HIGH ~60. Software FPS is invalid. M1 soak is still required for acceptance.
 
 ## Current next task after this report
 
-Stop. Do not start v9.4.13 automatically. Next if Bryan approves: terrain/frontline depth + less grid formations.
+Stop. Do not start v9.4.14 automatically. Expected next if Bryan approves: helicopter choreography rewrite.
 
 ## DO NOT
 

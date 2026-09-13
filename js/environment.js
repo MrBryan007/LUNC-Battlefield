@@ -9,7 +9,7 @@
 
   function blockedSpot(x, z) {
     // Central road strip |x|<5 or base keep zones |x|>42 && |z|<14
-    if (Math.abs(x) < 5) return true;
+    if (Math.abs(x) < 2.4) return true;
     if (Math.abs(x) > 42 && Math.abs(z) < 14) return true;
     return false;
   }

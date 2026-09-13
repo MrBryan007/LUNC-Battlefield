@@ -1777,11 +1777,14 @@
             return;
           }
           const rank=type===0?0:type===1?1:2;
-          let desired=targetX+side*(7.8+rank*6.2+Math.floor((u.userData.index||0)/(type===0?8:5))*1.6);
+          const depth = (u.userData.home && u.userData.home.depth != null)
+            ? u.userData.home.depth
+            : (7.8 + rank * 6.2);
+          let desired=targetX+side*depth;
           // Keep staging: bulls west / bears east; infantry may only slightly overrun frontline
-          const maxOver = type===0 ? 2.2 : (type===1 ? 1.2 : 0.4);
-          if (side < 0) desired = Math.min(desired, targetX - 0.6 + maxOver);
-          else desired = Math.max(desired, targetX + 0.6 - maxOver);
+          const maxOver = type===0 ? 2.4 : (type===1 ? 1.15 : 0.35);
+          if (side < 0) desired = Math.min(desired, targetX - 0.85 + maxOver);
+          else desired = Math.max(desired, targetX + 0.85 - maxOver);
           const dx=desired-u.position.x;
           // Speed from momentum urgency: stronger |momentum| → faster approach
           let rate;
@@ -1797,7 +1800,7 @@
           u.userData.speed = speed;
           u.userData.velX = (u.position.x - prevX) / Math.max(dt, 1e-4);
           // Orient toward enemy frontline (±x)
-          u.userData.facing = side < 0 ? Math.PI / 2 : -Math.PI / 2;
+          u.userData.facing = (side < 0 ? Math.PI / 2 : -Math.PI / 2) + ((u.userData.home && u.userData.home.yaw) || 0);
           maybeFire(u, side<0?0xe4675f:tokens[current].color, dt);
           if (unitsApi && unitsApi.tickUnit) {
             unitsApi.tickUnit(u, dt, now, {
@@ -1821,10 +1824,13 @@
             const type = u.userData.type | 0;
             if (type === 3 || type === 4 || u.userData.air) return;
             const rank = type === 0 ? 0 : type === 1 ? 1 : 2;
-            let desired = targetX + side * (7.8 + rank * 6.2 + Math.floor((u.userData.index || 0) / (type === 0 ? 8 : 5)) * 1.6);
-            const maxOver = type === 0 ? 2.2 : (type === 1 ? 1.2 : 0.4);
-            if (side < 0) desired = Math.min(desired, targetX - 0.6 + maxOver);
-            else desired = Math.max(desired, targetX + 0.6 - maxOver);
+            const depth = (u.userData.home && u.userData.home.depth != null)
+              ? u.userData.home.depth
+              : (7.8 + rank * 6.2);
+            let desired = targetX + side * depth;
+            const maxOver = type === 0 ? 2.4 : (type === 1 ? 1.15 : 0.35);
+            if (side < 0) desired = Math.min(desired, targetX - 0.85 + maxOver);
+            else desired = Math.max(desired, targetX + 0.85 - maxOver);
             const dx = desired - u.position.x;
             let rate;
             if (type === 0) rate = urgent ? 2.1 : contested ? 0.55 : 1.35;
@@ -1836,7 +1842,7 @@
             u.position.x += step;
             u.userData.speed = Math.abs(step) / Math.max(dt, 1e-4);
             u.userData.velX = (u.position.x - prevX) / Math.max(dt, 1e-4);
-            u.userData.facing = side < 0 ? Math.PI / 2 : -Math.PI / 2;
+            u.userData.facing = (side < 0 ? Math.PI / 2 : -Math.PI / 2) + ((u.userData.home && u.userData.home.yaw) || 0);
             maybeFire(u, side < 0 ? 0xe4675f : tokens[current].color, dt);
             if (unitsApi && unitsApi.tickUnit) {
               unitsApi.tickUnit(u, dt, now, {

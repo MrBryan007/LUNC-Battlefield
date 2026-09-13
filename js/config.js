@@ -1,4 +1,4 @@
-/* LUNC Battlefield v9.4.12.1 — shared config (GitHub Pages safe) */
+/* LUNC Battlefield v9.4.13 — shared config (GitHub Pages safe) */
 (function (global) {
   'use strict';
   const DataTruth = Object.freeze({
@@ -56,8 +56,8 @@
   };
 
   const config = {
-    BUILD: 'v9.4.12.1',
-    TITLE: 'LUNC Ecosystem Battlefield v9.4.12.1 — FX cleanup (WebGL r128)',
+    BUILD: 'v9.4.13',
+    TITLE: 'LUNC Ecosystem Battlefield v9.4.13 — terrain / formations (WebGL r128)',
     DataTruth,
     tokens,
     apiBase: resolveApiBase(),
