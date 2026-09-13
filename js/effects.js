@@ -1,4 +1,4 @@
-/* LUNC Battlefield v9.4.12 — combat impact / FX polish (pooled, quality-capped) */
+/* LUNC Battlefield v9.4.12.1 — combat impact / FX polish (pooled, quality-capped) */
 (function (global) {
   'use strict';
   const LB = global.LUNCBattle;
@@ -25,11 +25,12 @@
           smoke: qCaps.smoke,
           scorches: qCaps.scorches,
           debris: qCaps.debris != null ? qCaps.debris : (mobile ? 10 : 22),
-          aftermath: qCaps.aftermath != null ? qCaps.aftermath : (mobile ? 2 : 4)
+          aftermath: qCaps.aftermath != null ? qCaps.aftermath : (mobile ? 2 : 4),
+          shockwaves: qCaps.shockwaves != null ? qCaps.shockwaves : (mobile ? 3 : 6)
         }
       : (mobile
-        ? { projectiles: 24, particles: 50, explosions: 4, smoke: 6, scorches: 10, debris: 10, aftermath: 2 }
-        : { projectiles: 48, particles: 120, explosions: 8, smoke: 16, scorches: 24, debris: 22, aftermath: 4 });
+        ? { projectiles: 24, particles: 50, explosions: 4, smoke: 6, scorches: 10, debris: 10, aftermath: 2, shockwaves: 3 }
+        : { projectiles: 48, particles: 120, explosions: 8, smoke: 16, scorches: 24, debris: 22, aftermath: 4, shockwaves: 6 });
     let effectDurationScale = (qCaps && qCaps.effectDurationScale != null) ? qCaps.effectDurationScale : 1;
     if (ctx.qualityCaps) {
       Object.assign(CAPS, {
@@ -39,7 +40,8 @@
         smoke: ctx.qualityCaps.smoke != null ? ctx.qualityCaps.smoke : CAPS.smoke,
         scorches: ctx.qualityCaps.scorches != null ? ctx.qualityCaps.scorches : CAPS.scorches,
         debris: ctx.qualityCaps.debris != null ? ctx.qualityCaps.debris : CAPS.debris,
-        aftermath: ctx.qualityCaps.aftermath != null ? ctx.qualityCaps.aftermath : CAPS.aftermath
+        aftermath: ctx.qualityCaps.aftermath != null ? ctx.qualityCaps.aftermath : CAPS.aftermath,
+        shockwaves: ctx.qualityCaps.shockwaves != null ? ctx.qualityCaps.shockwaves : CAPS.shockwaves
       });
       if (ctx.qualityCaps.effectDurationScale != null) effectDurationScale = ctx.qualityCaps.effectDurationScale;
     }
@@ -547,6 +549,15 @@
 
     function shockwave(x, z, scale) {
       scale = scale == null ? 1 : scale;
+      const cap = Math.max(1, CAPS.shockwaves != null ? CAPS.shockwaves : (mobile ? 3 : 6));
+      while (shockwaves.length >= cap) {
+        const old = shockwaves.shift();
+        if (old) {
+          old.visible = false;
+          if (old.parent) scene.remove(old);
+          if (inactiveRings.length < cap * 2) inactiveRings.push(old);
+        }
+      }
       let ring = inactiveRings.pop() || null;
       if (!ring) {
         ring = new THREE.Mesh(GEO.ring, SHARED.ring.clone());
@@ -951,7 +962,7 @@
         shockwave(toX, zz, 0.9 + scaled.power * 0.25);
         maybeStressStructure(toX, zz, scaled.tier, isLongLiq ? -1 : 1);
       }
-      applyShake(scaled.shake, scaled.power, { x: toX, z: zz, kind: kind === 'rocket' ? 'rocket' : 'arty' });
+      // v9.4.12.1: shake comes from the projectile impact/explosion path only (no wrapper double-apply)
       return scaled;
     }
 
@@ -978,7 +989,7 @@
         tier: scaled.tier,
         sideHint: null
       });
-      applyShake(scaled.shake, power, { x: x, z: z, kind: 'burn' });
+      // v9.4.12.1: explosion() already applyShake's once for kind 'burn'
       return scaled;
     }
 
@@ -1189,7 +1200,7 @@
           r.visible = false;
           if (r.parent) scene.remove(r);
           shockwaves.splice(i, 1);
-          if (inactiveRings.length < 16) inactiveRings.push(r);
+          if (inactiveRings.length < (CAPS.shockwaves || 6) * 2) inactiveRings.push(r);
         }
       }
 
@@ -1240,12 +1251,13 @@
       if (next.scorches != null) CAPS.scorches = next.scorches;
       if (next.debris != null) CAPS.debris = next.debris;
       if (next.aftermath != null) CAPS.aftermath = next.aftermath;
+      if (next.shockwaves != null) CAPS.shockwaves = next.shockwaves;
       if (next.effectDurationScale != null) effectDurationScale = next.effectDurationScale;
       return CAPS;
     }
 
     return {
-      version: 'v9.4.12',
+      version: 'v9.4.12.1',
       caps: CAPS,
       setCaps: setCaps,
       getDurationScale: function () { return effectDurationScale; },

@@ -2,49 +2,37 @@
 
 Git is the source of truth. If this file disagrees with Git, Git wins and this file must be corrected.
 
-**Updated:** 2026-09-13 (v9.4.12 pass)
+**Updated:** 2026-09-13 (v9.4.12.1 cleanup)
 
 ## Current
 
 | Item | Value |
 | --- | --- |
-| BUILD | `v9.4.12` |
+| BUILD | `v9.4.12.1` |
 | Branch | `feat/v9-next-gen-renderer` |
-| Last accepted GitHub tip before this pass | `0fde76fae4d4c7ae83123fa89b58eaafad58438e` (v9.4.11 PERF label) |
-| Feature parent | `cb9dcee4e458eb17aac3937b19e14f7e01974ccf` (v9.4.11 jet choreography) |
+| Parent | `0f79c202c971277038a2fe2e4b2c5b36a76a5bc7` (v9.4.12 FX polish) |
 | PR | [#4](https://github.com/MrBryan007/LUNC-Battlefield/pull/4) **DRAFT / OPEN** |
 | Production / `main` | **v8.8** · SHA `47a61b6c2485b4b3fd17b8ad793f5a7498ade7f9` |
 | Live Pages | https://mrbryan007.github.io/LUNC-Battlefield/ (v8.8) |
 | Three.js | **r128** WebGL default |
-| Cache bust | `?v=20260913v9412` |
+| Cache bust | `?v=20260913v94121` |
 
-## Last accepted milestone (v9.4.11)
+## Last accepted milestone (v9.4.12)
 
-Jet attack choreography: `REENTER → APPROACH → ALIGN → INGRESS → RELEASE → FLYTHROUGH → EGRESS → COOLDOWN`. Unique `runId` per pass. Causal chain: jet → release → projectile → hit → FX. No opportunistic type-4 `maybeFire`. No magic `setTimeout` bomb blasts.
+Battlefield impact / FX polish on GitHub. Jet state machine unchanged.
 
-## This pass (v9.4.12)
+## This pass (v9.4.12.1)
 
-Battlefield impact / FX polish. Readable power ladder (small arms < tank < artillery < rocket < jet bomb). Layered pooled FX. Barrel-tip muzzles. Trauma² camera shake (arty/bomb/burn + heavy nearby rocket, distance-attenuated). Heli rockets half visual scale. Jet state machine **unchanged**.
+Narrow cleanup only:
 
-## Hardware performance baseline (acceptance)
-
-**Valid:** MacBook Pro 17,1 · Apple M1 · Metal via ANGLE · Chrome · HIGH ~60 FPS, heavy combat ~60, GPU ~2.1–3.2 ms, CPU submit ~2.0–2.5 ms, 48–74 units.
-
-**Invalid:** SwiftShader / llvmpipe / Microsoft Basic Render Driver. Do not tune the product around software rasterizers.
-
-## Visual architecture constraints
-
-- Local **+Z = forward** (gun / muzzle).
-- Tank LOD0–2: hull + turret + cannon. Artillery LOD0–2: chassis + long barrel. Never flat building-like tanks.
-- AUTO quality **caps at HIGH**. Manual ULTRA remains. Retina/high-DPR hardware-score tax preserved.
-- Army density is product identity (≈48–74). Do not cut armies as the FX performance lever.
-- Procedural art is SAFE FALLBACK. Original art only. Newhedge is a visual benchmark, **never copy**.
+- Shockwave rings hard-capped + recycled (LOW 2 / MED 4 / HIGH 6 / ULTRA 8)
+- Duplicate camera shake removed from `playBurnFX` / `playLiquidationFX` wrappers — one event, one shake from the impact/explosion path
+- Combat shake policy unchanged (trauma², dt decay, distance-attenuated, major impacts only)
+- **M1 Metal not re-measured in this sandbox.** Prior valid baseline remains HIGH ~60. Software rasterizer numbers are invalid.
 
 ## Current next task after this report
 
-Stop. Do not start v9.4.13 automatically.
-
-Likely later (Bryan-approved only): terrain/frontline depth + less grid formations → helicopter choreography rewrite → env spectacle → audio → authored jet mesh. Broad v9.5 / SkeletonUtils / AnimationMixer / skinned GLB only if explicitly ordered.
+Stop. Do not start v9.4.13 automatically. Next if Bryan approves: terrain/frontline depth + less grid formations.
 
 ## DO NOT
 

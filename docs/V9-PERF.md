@@ -1,3 +1,5 @@
+> **v9.4.12.1:** FX cleanup — hard-capped/recycled shockwave rings (LOW 2 / MED 4 / HIGH 6 / ULTRA 8); burn/liq wrapper no longer double-applies camera shake. Combat shake policy unchanged. **M1 Metal not re-measured here** — cite v9.4.11/v9.4.12 baseline (~60 HIGH). Do not treat SwiftShader as acceptance.
+
 > **v9.4.12:** Impact / FX polish (hierarchy, debris, aftermath, distance-attenuated shake). Army density / jet choreography unchanged. Expect FPS ≈ v9.4.11 M1 HIGH baseline (~60) — FX stay pooled + capped. Do not treat SwiftShader as acceptance.
 
 > **v9.4.11:** Jet attack choreography + runId-synced impacts (no magic setTimeout blasts). Army density / effect caps unchanged; expect FPS ≈ v9.4.10 M1 baseline (~60 HIGH) if Metal soak confirms.
@@ -75,7 +77,7 @@ Profile with `renderer.info` / PERF overlay (`?perf=1`, fixed Graphics **HIGH**)
 
 ## BUILD
 
-`v9.4.12` · cache `?v=20260913v9412` · PERF label `v9.4.12` (impact/FX polish; AUTO max HIGH).
+`v9.4.12.1` · cache `?v=20260913v94121` · PERF label `v9.4.12.1` (FX cleanup; AUTO max HIGH).
 
 ---
 

@@ -1,4 +1,4 @@
-/* LUNC Battlefield v9.4.12 — graphics quality + stall-aware PERF (throttled UI) */
+/* LUNC Battlefield v9.4.12.1 — graphics quality + stall-aware PERF (throttled UI) */
 (function (global) {
   'use strict';
 
@@ -55,6 +55,7 @@
       scorches: p.scorches,
       debris: p.debris,
       aftermath: p.aftermath,
+      shockwaves: p.shockwaves,
       minimapHz: p.minimapHz,
       animComplexity: p.animComplexity,
       lightingComplexity: p.lightingComplexity,
@@ -84,6 +85,7 @@
       scorches: 8,
       debris: 6,
       aftermath: 1,
+      shockwaves: 2,
       minimapHz: 7,
       animComplexity: 'low',
       lightingComplexity: 'low',
@@ -110,6 +112,7 @@
       scorches: 12,
       debris: 12,
       aftermath: 2,
+      shockwaves: 4,
       minimapHz: 8,
       animComplexity: 'medium',
       lightingComplexity: 'medium',
@@ -136,6 +139,7 @@
       scorches: 18,
       debris: 22,
       aftermath: 4,
+      shockwaves: 6,
       minimapHz: 8,
       animComplexity: 'high',
       lightingComplexity: 'high',
@@ -162,6 +166,7 @@
       scorches: 22,
       debris: 28,
       aftermath: 5,
+      shockwaves: 8,
       minimapHz: 10,
       animComplexity: 'ultra',
       lightingComplexity: 'ultra',
@@ -644,7 +649,7 @@
     overlayEl.className = 'perf-overlay';
     overlayEl.setAttribute('aria-hidden', 'true');
     overlayEl.innerHTML =
-      '<div class="perf-title">PERF · v9.4.12</div>' +
+      '<div class="perf-title">PERF · v9.4.12.1</div>' +
       '<div class="perf-section" id="perfGfx"></div>' +
       '<div class="perf-section" id="perfAssets"></div>' +
       '<div class="perf-section perf-feeds" id="perfFeeds"></div>';
@@ -874,6 +879,7 @@
       scorches: p.scorches,
       debris: p.debris,
       aftermath: p.aftermath,
+      shockwaves: p.shockwaves,
       effectDurationScale: p.effectDurationScale
     };
   }
@@ -890,7 +896,7 @@
 
   // Public API
   var api = {
-    version: 'v9.4.12',
+    version: 'v9.4.12.1',
     MODES: MODES,
     PRESETS: PRESETS,
     FEED_STATES: FEED_STATES,

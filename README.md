@@ -4,7 +4,7 @@ Classic-RTS-inspired Terra Classic intelligence battlefield.
 
 **Build (main / live):** v8.x — RTS Command HUD + War Room (see `docs/V8-GRAPHICS.md`).
 
-**v9 (feature branch only):** `feat/v9-next-gen-renderer` — **v9.4.12 impact / FX polish** on **v9.4.11** jet attack choreography (runId-synced strafe/bomb/rocket) + **v9.4.10** AUTO≤HIGH + **v9.4.9** armor/arty kit + **v9.4.8** stall/cadence + **v9.4.6** mesh-merge + LOD. Default WebGL (Three **r128**) with procedural SAFE FALLBACK. Impostors / SkeletonUtils / KTX2 deferred to v9.5. Also `docs/V9-FX.md` + `docs/V9-AIR-UNITS.md` + `docs/V9-PERF.md`. Not merged to main; live Pages stays on v8 until an explicit merge.
+**v9 (feature branch only):** `feat/v9-next-gen-renderer` — **v9.4.12.1 FX cleanup** (shockwave cap + single-path shake) on **v9.4.12** impact polish + **v9.4.11** jet choreography + **v9.4.10** AUTO≤HIGH + **v9.4.9** armor/arty kit. Default WebGL (Three **r128**) with procedural SAFE FALLBACK. Impostors / SkeletonUtils / KTX2 deferred to v9.5. Also `docs/V9-FX.md` + `docs/V9-AIR-UNITS.md` + `docs/V9-PERF.md`. Not merged to main; live Pages stays on v8 until an explicit merge.
 
 **Live site:** https://mrbryan007.github.io/LUNC-Battlefield/
 

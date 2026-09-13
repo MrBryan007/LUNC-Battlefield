@@ -22,7 +22,8 @@ Goal: clearer combat impact hierarchy, hit feedback, and spectacle while preserv
 - Muzzle flashes **do not float away** (near-zero vertical velocity, short life).
 - Tracers thinned (not laser beams). Heli rockets use `visualScale` 0.52 / `trailScale` 0.45 so they do not read as jet-scale.
 - Camera shake: **trauma²**, **dt decay**, **distance-attenuated**, only **arty / bomb / burn** (plus heavy nearby rocket). Applied after OrbitControls; target is never shaken.
-- Quality: LOW keeps core flash+impact and strict debris/aftermath caps. HIGH/ULTRA add debris, smoke, fire cores. **Army population is not the quality lever.**
+- **v9.4.12.1:** shockwave rings hard-capped (LOW 2 / MED 4 / HIGH 6 / ULTRA 8) and recycled. `playBurnFX` / `playLiquidationFX` no longer apply a second shake; impact/explosion owns shake.
+- Quality: LOW keeps core flash+impact and strict debris/aftermath/shockwave caps. HIGH/ULTRA add debris, smoke, fire cores. **Army population is not the quality lever.**
 - Jet choreography **unchanged** (v9.4.11 state machine + `runId` → projectile → hit → FX). No magic `setTimeout` blasts.
 - Helicopter **AI unchanged**; only rocket scale / pod muzzle / trail / impact presentation.
 
@@ -33,8 +34,8 @@ Goal: clearer combat impact hierarchy, hit feedback, and spectacle while preserv
 - `js/camera.js` — trauma² + dt decay
 - `js/animations.js` — slightly stronger, fast-recovering barrel recoil
 - `js/units.js` — muzzle offsets at barrel/pod tips
-- `js/quality.js` — `debris` / `aftermath` caps
-- `js/config.js` / `index.html` — BUILD `v9.4.12` · cache `?v=20260913v9412`
+- `js/quality.js` — `debris` / `aftermath` / `shockwaves` caps
+- `js/config.js` / `index.html` — BUILD `v9.4.12.1` · cache `?v=20260913v94121`
 
 ## Non-goals (this pass)
 
