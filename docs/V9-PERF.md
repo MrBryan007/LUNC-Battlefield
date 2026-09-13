@@ -1,4 +1,7 @@
+> **v9.4.12:** Impact / FX polish (hierarchy, debris, aftermath, distance-attenuated shake). Army density / jet choreography unchanged. Expect FPS ≈ v9.4.11 M1 HIGH baseline (~60) — FX stay pooled + capped. Do not treat SwiftShader as acceptance.
+
 > **v9.4.11:** Jet attack choreography + runId-synced impacts (no magic setTimeout blasts). Army density / effect caps unchanged; expect FPS ≈ v9.4.10 M1 baseline (~60 HIGH) if Metal soak confirms.
+
 
 > **v9.4.10:** AUTO quality ceiling capped at **HIGH** (never auto-select/promote ULTRA) + Retina dPR≥1.5 hardware-score tax — interactive headroom on MacBook/windowed Chrome. Manual ULTRA still works. M1 headless still ~60 FPS @ HIGH/ULTRA; feel lag was AUTO→ULTRA under Retina load.
 
@@ -72,7 +75,7 @@ Profile with `renderer.info` / PERF overlay (`?perf=1`, fixed Graphics **HIGH**)
 
 ## BUILD
 
-`v9.4.10` · cache `?v=20260913v9410` · PERF label `v9.4.10` (AUTO max HIGH).
+`v9.4.12` · cache `?v=20260913v9412` · PERF label `v9.4.12` (impact/FX polish; AUTO max HIGH).
 
 ---
 

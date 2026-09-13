@@ -626,7 +626,7 @@
         weaponRef: cannon,
         weapon: cannon,
         trackPhase: Math.random() * Math.PI * 2,
-        muzzleOffset: new THREE.Vector3(0, 1.05, 1.7),
+        muzzleOffset: new THREE.Vector3(0, 1.08, 1.85),
         rootBob: 0,
         recoil: 0
       });
@@ -702,7 +702,7 @@
         facing: side < 0 ? Math.PI / 2 : -Math.PI / 2,
         weaponRef: barrelMesh,
         weapon: barrelMesh,
-        muzzleOffset: new THREE.Vector3(0, 1.15, 2.2),
+        muzzleOffset: new THREE.Vector3(0, 1.35, 2.45),
         rootBob: 0,
         recoil: 0
       });
@@ -781,7 +781,7 @@
         facing: side < 0 ? Math.PI / 2 : -Math.PI / 2,
         weaponRef: podL,
         weapon: podL,
-        muzzleOffset: new THREE.Vector3(0, 0.35, 0.55),
+        muzzleOffset: new THREE.Vector3(0, 0.42, 0.95),
         rootBob: 0,
         alt: 8.5 + Math.random() * 2.5,
         orbitAngle: Math.random() * Math.PI * 2,

@@ -245,8 +245,8 @@
       const c = parts.cannon;
       const baseZ = c.userData.baseZ != null ? c.userData.baseZ : 0.55;
       if (state === STATES.FIRE || (ud.recoil && ud.recoil > 0.05)) {
-        ud.recoil = Math.max(0, (ud.recoil || 0) - dt * 4.5);
-        c.position.z = baseZ - ud.recoil * 0.35;
+        ud.recoil = Math.max(0, (ud.recoil || 0) - dt * 5.2);
+        c.position.z = baseZ - ud.recoil * 0.5;
       } else {
         c.position.z = lerp(c.position.z, baseZ, clamp(dt * 6, 0, 1));
         ud.recoil = 0;
@@ -284,7 +284,7 @@
       const baseZ = b.userData.baseZ != null ? b.userData.baseZ : 0.7;
       if (state === STATES.FIRE || (ud.recoil && ud.recoil > 0.05)) {
         ud.recoil = Math.max(0, (ud.recoil || 0) - dt * 2.8);
-        b.position.z = baseZ - ud.recoil * 0.45;
+        b.position.z = baseZ - ud.recoil * 0.62;
       } else {
         b.position.z = lerp(b.position.z, baseZ, clamp(dt * 4, 0, 1));
         if (state !== STATES.FIRE) ud.recoil = 0;

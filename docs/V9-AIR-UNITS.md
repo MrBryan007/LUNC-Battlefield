@@ -20,3 +20,7 @@ Each pass stores on `userData`: `runId`, `runAim`, `runWeapon`, `entryVec`, `exi
 **FX:** pooled projectiles (incl. `bomb` kind); `fireWeapon` accepts `runId` / `onHit` / `jetStrike`. Quality caps still apply.
 
 **Audio:** hook flags only (`audioHooks.approach|flyby|release|impact`) — no audio system in this pass.
+
+## v9.4.12 FX (no choreography change)
+
+Jet state machine, `runId`, corridor, and weapon release are **unchanged**. v9.4.12 only polishes impact presentation (bomb T5 layered blast, rocket trails that start at launch and die on hit, thinner strafe tracers). Helicopter AI is unchanged; rocket `visualScale` 0.52 so pods do not launch jet-sized missiles. See `docs/V9-FX.md`.

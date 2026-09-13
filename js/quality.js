@@ -1,4 +1,4 @@
-/* LUNC Battlefield v9.4.11 — graphics quality + stall-aware PERF (throttled UI) */
+/* LUNC Battlefield v9.4.12 — graphics quality + stall-aware PERF (throttled UI) */
 (function (global) {
   'use strict';
 
@@ -53,6 +53,8 @@
       explosions: p.explosions,
       projectiles: p.projectiles,
       scorches: p.scorches,
+      debris: p.debris,
+      aftermath: p.aftermath,
       minimapHz: p.minimapHz,
       animComplexity: p.animComplexity,
       lightingComplexity: p.lightingComplexity,
@@ -80,6 +82,8 @@
       explosions: 3,
       projectiles: 20,
       scorches: 8,
+      debris: 6,
+      aftermath: 1,
       minimapHz: 7,
       animComplexity: 'low',
       lightingComplexity: 'low',
@@ -104,6 +108,8 @@
       explosions: 4,
       projectiles: 28,
       scorches: 12,
+      debris: 12,
+      aftermath: 2,
       minimapHz: 8,
       animComplexity: 'medium',
       lightingComplexity: 'medium',
@@ -128,6 +134,8 @@
       explosions: 6,
       projectiles: 40,
       scorches: 18,
+      debris: 22,
+      aftermath: 4,
       minimapHz: 8,
       animComplexity: 'high',
       lightingComplexity: 'high',
@@ -152,6 +160,8 @@
       explosions: 8,
       projectiles: 48,
       scorches: 22,
+      debris: 28,
+      aftermath: 5,
       minimapHz: 10,
       animComplexity: 'ultra',
       lightingComplexity: 'ultra',
@@ -634,7 +644,7 @@
     overlayEl.className = 'perf-overlay';
     overlayEl.setAttribute('aria-hidden', 'true');
     overlayEl.innerHTML =
-      '<div class="perf-title">PERF · v9.4.11</div>' +
+      '<div class="perf-title">PERF · v9.4.12</div>' +
       '<div class="perf-section" id="perfGfx"></div>' +
       '<div class="perf-section" id="perfAssets"></div>' +
       '<div class="perf-section perf-feeds" id="perfFeeds"></div>';
@@ -862,6 +872,8 @@
       explosions: p.explosions,
       smoke: p.smoke,
       scorches: p.scorches,
+      debris: p.debris,
+      aftermath: p.aftermath,
       effectDurationScale: p.effectDurationScale
     };
   }
@@ -878,7 +890,7 @@
 
   // Public API
   var api = {
-    version: 'v9.4.11',
+    version: 'v9.4.12',
     MODES: MODES,
     PRESETS: PRESETS,
     FEED_STATES: FEED_STATES,

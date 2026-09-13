@@ -350,11 +350,26 @@
           mobile: mobileGfx,
           structuresApi: structuresApi,
           qualityCaps: (LUNCBattle.quality && LUNCBattle.quality.getEffectCaps) ? LUNCBattle.quality.getEffectCaps() : null,
-          onShake: (amp, power) => {
-            // Tier caps: small≈0, tank≈0.15, large≈0.35, massive≈0.55
-            const add = Math.min(0.55, (amp || 0) * Math.min(1.35, power || 1));
-            cameraShake = Math.min(0.7, cameraShake + add);
-          }
+          onShake: (amp, power, info) => {
+            // v9.4.12: only largest nearby arty/bomb (and heavy rocket) shake; distance-attenuated
+            const kind = info && info.kind;
+            const allowed = kind === 'arty' || kind === 'bomb' || kind === 'burn'
+              || (kind === 'rocket' && (power || 0) >= 1.15);
+            if (!allowed) return;
+            let distScale = 1;
+            if (info && camera) {
+              const dx = camera.position.x - (info.x || 0);
+              const dy = camera.position.y - (info.y || 0);
+              const dz = camera.position.z - (info.z || 0);
+              const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+              distScale = Math.max(0, 1 - d / 38);
+              distScale = distScale * distScale;
+            }
+            if (distScale < 0.08) return;
+            const add = Math.min(0.42, (amp || 0) * Math.min(1.2, power || 1) * distScale);
+            cameraShake = Math.min(0.48, cameraShake + add);
+          },
+          getCamera: () => camera
         })
       : null;
     if (!unitsApi || !effectsApi) {
@@ -1593,10 +1608,10 @@
         const toX=targetX + (isAir ? (Math.random()-.5)*10 : side*(Math.random()*5-2.5));
         const z=u.position.z+(Math.random()-.5)*(isAir?8:4);
         let kind, power;
-        if (type===3) { kind = Math.random() < 0.55 ? 'rocket' : 'tracer'; power = kind==='rocket' ? 0.95 : 0.6; }
-        else if (type===2) { kind='arty'; power=1.1; }
-        else if (type===1) { kind='shell'; power=0.85; }
-        else { kind='tracer'; power=0.55; }
+        if (type===3) { kind = Math.random() < 0.55 ? 'rocket' : 'tracer'; power = kind==='rocket' ? 0.9 : 0.55; }
+        else if (type===2) { kind='arty'; power=1.15; }
+        else if (type===1) { kind='shell'; power=0.9; }
+        else { kind='tracer'; power=0.5; }
         const color = side<0 ? tokens[current].color : 0xe4675f;
         const muz = muzzleWorld(u);
         if (effectsApi && effectsApi.fireWeapon) {
@@ -1606,7 +1621,9 @@
             kind: kind,
             color: color,
             power: power,
-            side: side
+            side: side,
+            visualScale: (type===3 && kind==='rocket') ? 0.52 : 1,
+            trailScale: (type===3 && kind==='rocket') ? 0.45 : 1
           });
         } else {
           launchStrike(u.position.x+side*-1.0,toX,z,color,power);
