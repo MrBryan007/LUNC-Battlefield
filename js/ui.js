@@ -730,7 +730,9 @@
         });
         document.body.setAttribute('data-hud-panel', panel);
       });
-      document.body.setAttribute('data-hud-panel', 'command');
+      const phone = window.matchMedia('(max-width: 720px)').matches ||
+        /iPhone|iPad|iPod|Android|Mobile/i.test(navigator.userAgent || '');
+      document.body.setAttribute('data-hud-panel', phone ? 'field' : 'command');
     }
 
     // Secondary drawer toggles

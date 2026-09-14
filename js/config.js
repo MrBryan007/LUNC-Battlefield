@@ -56,8 +56,8 @@
   };
 
   const config = {
-    BUILD: 'v9.4.15',
-    TITLE: 'LUNC Ecosystem Battlefield v9.4.15 — jet silhouette (WebGL r128)',
+    BUILD: 'v9.4.16',
+    TITLE: 'LUNC Ecosystem Battlefield v9.4.16 — iOS playability (WebGL r128)',
     DataTruth,
     tokens,
     apiBase: resolveApiBase(),

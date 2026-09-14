@@ -2,7 +2,28 @@
 
 Git is the source of truth. If this file disagrees with Git, Git wins and this file must be corrected.
 
-**Updated:** 2026-09-13 (v9.4.15 jet silhouette)
+**Updated:** 2026-09-13 (v9.4.16 iOS playability)
+
+## Current
+
+| Item | Value |
+| --- | --- |
+| BUILD | `v9.4.16` |
+| Branch | `feat/v9-next-gen-renderer` |
+| Parent | `91329eae080a5fc338e5962c5209e78009969601` (v9.4.15 jet silhouette) |
+| PR | [#4](https://github.com/MrBryan007/LUNC-Battlefield/pull/4) **DRAFT / OPEN** |
+| Production / `main` | **v8.8** |
+| Three.js | **r128** WebGL default |
+| Cache bust | `?v=20260913v9416` |
+| Primary play target | **iPhone / iOS WebKit** (Apple GPU). Mac M1 soak remains OPEN / optional. |
+
+## This pass (v9.4.16)
+
+iOS playability: no MSAA on phone, `powerPreference: default`, closer RTS camera, Field HUD default (already), AUTO→LOW. Combat / jets / heli / formations / market **unchanged**.
+
+## Current next task after this report
+
+Play on iPhone. Confirm 3D field, Field tab, live price. Mac soak optional.
 
 ## Current
 

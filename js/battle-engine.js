@@ -100,24 +100,27 @@
     scene.background = new THREE.Color(0x0c140e);
     scene.fog = new THREE.Fog(0x121a12, 48, 132);
 
-    const camera = new THREE.PerspectiveCamera(43, innerWidth / innerHeight, .1, 250);
-    camera.position.set(0, 38, 48);
+    const stallMod = (window.LUNCBattle && LUNCBattle.stall) ? LUNCBattle.stall : null;
+    const mobileGfx = innerWidth < 760 || /iPhone|iPad|iPod|Android|Mobile/i.test(navigator.userAgent || '');
+
+    const camera = new THREE.PerspectiveCamera(mobileGfx ? 48 : 43, innerWidth / innerHeight, .1, 250);
+    camera.position.set(0, mobileGfx ? 28 : 38, mobileGfx ? 36 : 48);
 
     // v9.1: renderer abstraction — default WebGL (r128), optional WebGPU try/fallback
     let rendererHandle = null;
     let rendererBackend = 'webgl';
     let rendererFallbackReason = null;
-    const stallMod = (window.LUNCBattle && LUNCBattle.stall) ? LUNCBattle.stall : null;
-    const wantAA = !(stallMod && stallMod.flags && stallMod.flags.aaOff);
+    const wantAA = !mobileGfx && !(stallMod && stallMod.flags && stallMod.flags.aaOff);
+    const powerPref = mobileGfx ? 'default' : 'high-performance';
     if (window.LUNCBattle && LUNCBattle.renderer && typeof LUNCBattle.renderer.create === 'function') {
       rendererHandle = LUNCBattle.renderer.create({
         THREE: THREE,
         antialias: wantAA,
-        powerPreference: 'high-performance'
+        powerPreference: powerPref
       });
     } else {
       rendererHandle = {
-        renderer: new THREE.WebGLRenderer({ antialias: wantAA, powerPreference: 'high-performance' }),
+        renderer: new THREE.WebGLRenderer({ antialias: wantAA, powerPreference: powerPref }),
         backend: 'webgl',
         webgpuAvailable: null,
         fallbackReason: 'LUNCBattle.renderer missing — direct WebGLRenderer',
@@ -277,7 +280,6 @@
     if (stallMod && typeof stallMod.applyUiOff === 'function') stallMod.applyUiOff();
 
     // v8.1 — modular terrain + environment (procedural, no GridHelper)
-    const mobileGfx = innerWidth < 760;
     const terrainApi = (sceneIncludes('terrain') && window.LUNCBattle && LUNCBattle.terrain)
       ? LUNCBattle.terrain.createTerrain({ THREE, scene, mobile: mobileGfx })
       : null;
