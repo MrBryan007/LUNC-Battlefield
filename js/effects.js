@@ -98,6 +98,44 @@
 
     const tmpV = new THREE.Vector3();
     const tmpV2 = new THREE.Vector3();
+    const tracerDummy = new THREE.Object3D();
+    const tracerMatBull = SHARED.proj.clone();
+    tracerMatBull.color.setHex(0x7dffb0);
+    const tracerMatBear = SHARED.proj.clone();
+    tracerMatBear.color.setHex(0xff8a78);
+    const tracerBatchBull = new THREE.InstancedMesh(GEO.tracer, tracerMatBull, CAPS.projectiles);
+    const tracerBatchBear = new THREE.InstancedMesh(GEO.tracer, tracerMatBear, CAPS.projectiles);
+    tracerBatchBull.count = 0;
+    tracerBatchBear.count = 0;
+    tracerBatchBull.frustumCulled = false;
+    tracerBatchBear.frustumCulled = false;
+    tracerBatchBull.castShadow = false;
+    tracerBatchBear.castShadow = false;
+    scene.add(tracerBatchBull);
+    scene.add(tracerBatchBear);
+
+    function syncTracerBatches() {
+      let nb = 0, ne = 0;
+      for (let i = 0; i < projectilePool.length; i++) {
+        const b = projectilePool[i];
+        const ud = b.userData;
+        if (!ud || ud.kind !== 'tracer' || ud.hit) continue;
+        const batch = ud.side < 0 ? tracerBatchBull : tracerBatchBear;
+        const n = ud.side < 0 ? nb : ne;
+        if (n >= CAPS.projectiles) continue;
+        tracerDummy.position.copy(b.position);
+        tracerDummy.quaternion.copy(b.quaternion);
+        const s = ud.visualScale || 1;
+        tracerDummy.scale.set(s, s, s);
+        tracerDummy.updateMatrix();
+        batch.setMatrixAt(n, tracerDummy.matrix);
+        if (ud.side < 0) nb++; else ne++;
+      }
+      tracerBatchBull.count = nb;
+      tracerBatchBear.count = ne;
+      tracerBatchBull.instanceMatrix.needsUpdate = true;
+      tracerBatchBear.instanceMatrix.needsUpdate = true;
+    }
 
     function qMul() {
       if (effectDurationScale <= 0.75) return 0.55;
@@ -159,11 +197,16 @@
         mesh = new THREE.Mesh(geo, SHARED.proj.clone());
         mesh.castShadow = false;
         mesh.receiveShadow = false;
-        mesh.userData._poolKind = kind;
+      mesh.userData._poolKind = kind;
       }
-      mesh.visible = true;
-      mesh.scale.set(1, 1, 1);
-      if (!mesh.parent) scene.add(mesh);
+      if (kind === 'tracer') {
+        mesh.visible = false;
+        if (mesh.parent) mesh.parent.remove(mesh);
+      } else {
+        mesh.visible = true;
+        mesh.scale.set(1, 1, 1);
+        if (!mesh.parent) scene.add(mesh);
+      }
       return mesh;
     }
 
@@ -1230,6 +1273,7 @@
           flashLights.splice(i, 1);
         }
       }
+      syncTracerBatches();
     }
 
     if (global.addEventListener) {
@@ -1257,7 +1301,7 @@
     }
 
     return {
-      version: 'v9.4.12.1',
+      version: 'v9.4.14',
       caps: CAPS,
       setCaps: setCaps,
       getDurationScale: function () { return effectDurationScale; },

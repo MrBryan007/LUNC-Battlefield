@@ -1432,6 +1432,189 @@
       ud.audioHooks.release = true;
     }
 
+    let heliRunSeq = 1;
+    const HELI_MODES = {
+      PATROL: 'PATROL', ALIGN: 'ALIGN', INGRESS: 'INGRESS',
+      RELEASE: 'RELEASE', BREAK: 'BREAK', COOLDOWN: 'COOLDOWN'
+    };
+
+    function clearHeliRun(ud) {
+      if (!ud) return;
+      ud.heliRunId = null;
+      ud.heliAim = null;
+      ud.heliWeapon = null;
+      ud.heliShotsLeft = 0;
+      ud.heliAcc = 0;
+      ud.heliReleaseT = 0;
+      ud.heliAlignT = 0;
+      ud.heliBreakT = 0;
+    }
+
+    function beginHeliRun(u, side) {
+      const ud = u.userData;
+      const enemies = side < 0 ? bears : bulls;
+      const aim = pickJetAim(side, enemies);
+      const runId = 'h' + (heliRunSeq++);
+      const weapon = Math.random() < 0.58 ? 'rocket' : 'gun';
+      ud.heliRunId = runId;
+      ud.heliAim = aim;
+      ud.heliWeapon = weapon;
+      ud.heliShotsLeft = weapon === 'gun' ? (6 + (Math.random() * 5 | 0)) : (1 + (Math.random() < 0.4 ? 1 : 0));
+      ud.heliAcc = 0;
+      ud.heliReleaseT = 0;
+      ud.heliAlignT = 0;
+      ud.airMode = HELI_MODES.ALIGN;
+      ud.audioHooks = ud.audioHooks || {};
+      ud.audioHooks.approach = true;
+      return runId;
+    }
+
+    function fireHeliWeapon(u, side) {
+      const ud = u.userData;
+      if (!ud || !ud.heliRunId || !ud.heliAim || !effectsApi || !effectsApi.fireWeapon) return;
+      if (cFlags.fxOff || !sceneIncludes('fx')) return;
+      const aim = ud.heliAim;
+      const muz = muzzleWorld(u);
+      const color = side < 0 ? tokens[current].color : 0xe4675f;
+      const runId = ud.heliRunId;
+      const onHit = function () {
+        try {
+          if (!u || !u.userData) return;
+          if (u.userData.heliRunId !== runId && u.userData.heliRunId != null) return;
+          u.userData.audioHooks = u.userData.audioHooks || {};
+          u.userData.audioHooks.impact = true;
+        } catch (_) {}
+      };
+      if (ud.heliWeapon === 'gun') {
+        const ox = (Math.random() - 0.5) * 2.4;
+        const oz = (Math.random() - 0.5) * 2.4;
+        const tx = aim.x + ox, tz = aim.z + oz;
+        effectsApi.fireWeapon({
+          from: { x: muz.x, y: muz.y, z: muz.z },
+          to: { x: tx, y: terrainHeight(tx, tz) + 0.3, z: tz },
+          kind: 'tracer',
+          color: color,
+          power: 0.62,
+          side: side,
+          runId: runId,
+          onHit: onHit
+        });
+      } else {
+        effectsApi.fireWeapon({
+          from: { x: muz.x, y: muz.y, z: muz.z },
+          to: { x: aim.x, y: terrainHeight(aim.x, aim.z) + 0.3, z: aim.z },
+          kind: 'rocket',
+          color: color,
+          power: 0.9,
+          side: side,
+          visualScale: 0.52,
+          trailScale: 0.45,
+          runId: runId,
+          onHit: onHit
+        });
+      }
+    }
+
+    function tickHeliCombat(u, side, dt, now) {
+      const ud = u.userData;
+      let mode = ud.airMode || HELI_MODES.PATROL;
+      if (mode === 'orbit') {
+        mode = HELI_MODES.PATROL;
+        ud.airMode = mode;
+      }
+      const prevX = u.position.x;
+      function patrolPose() {
+        ud.orbitAngle = (ud.orbitAngle || 0) + dt * (ud.orbitSpeed || 0.4);
+        const r = ud.orbitRadius || 12;
+        const cx = targetX + side * (3.5 + Math.sin(now * 0.2 + (ud.phase || 0)) * 2);
+        const homeZ = ud.homeZ != null ? ud.homeZ : 0;
+        u.position.x = cx + Math.cos(ud.orbitAngle) * r * 0.55;
+        u.position.z = homeZ + Math.sin(ud.orbitAngle) * r * 0.85;
+        u.position.y = (ud.alt || 9) + Math.sin(now * 1.4 + (ud.phase || 0)) * 0.35;
+      }
+
+      if (mode === HELI_MODES.PATROL || mode === HELI_MODES.COOLDOWN) {
+        patrolPose();
+        ud.heliCool = (ud.heliCool != null ? ud.heliCool : 0) - dt;
+        if (mode === HELI_MODES.COOLDOWN && ud.heliCool <= 0) {
+          ud.airMode = HELI_MODES.PATROL;
+          mode = HELI_MODES.PATROL;
+        }
+        if (mode === HELI_MODES.PATROL && ud.heliCool <= 0) {
+          beginHeliRun(u, side);
+        }
+      } else if (mode === HELI_MODES.ALIGN) {
+        const aim = ud.heliAim;
+        if (!aim) {
+          ud.airMode = HELI_MODES.PATROL;
+          patrolPose();
+        } else {
+          const dx = aim.x - u.position.x, dz = aim.z - u.position.z;
+          ud.facing = Math.atan2(dx, dz);
+          ud.heliAlignT = (ud.heliAlignT || 0) + dt;
+          u.position.y += (8.2 - u.position.y) * Math.min(1, dt * 2);
+          if (ud.heliAlignT > 0.55) ud.airMode = HELI_MODES.INGRESS;
+        }
+      } else if (mode === HELI_MODES.INGRESS) {
+        const aim = ud.heliAim;
+        if (!aim) { ud.airMode = HELI_MODES.PATROL; patrolPose(); }
+        else {
+          const dx = aim.x - u.position.x, dz = aim.z - u.position.z;
+          const dist = Math.sqrt(dx * dx + dz * dz);
+          const sp = mobileGfx ? 10 : 14;
+          if (dist > 1e-3) {
+            u.position.x += (dx / dist) * sp * dt;
+            u.position.z += (dz / dist) * sp * dt;
+          }
+          ud.facing = Math.atan2(dx, dz);
+          u.position.y += (7.4 - u.position.y) * Math.min(1, dt * 1.8);
+          if (dist < 11) ud.airMode = HELI_MODES.RELEASE;
+        }
+      } else if (mode === HELI_MODES.RELEASE) {
+        const aim = ud.heliAim;
+        if (!aim) { ud.airMode = HELI_MODES.BREAK; }
+        else {
+          const dx = aim.x - u.position.x, dz = aim.z - u.position.z;
+          const dist = Math.max(1e-3, Math.sqrt(dx * dx + dz * dz));
+          u.position.x += (dx / dist) * 6 * dt;
+          u.position.z += (dz / dist) * 6 * dt;
+          ud.facing = Math.atan2(dx, dz);
+          ud.heliAcc = (ud.heliAcc || 0) + dt;
+          ud.heliReleaseT = (ud.heliReleaseT || 0) + dt;
+          const interval = ud.heliWeapon === 'gun' ? 0.09 : 0.28;
+          if (ud.heliAcc >= interval && ud.heliShotsLeft > 0) {
+            ud.heliAcc = 0;
+            ud.heliShotsLeft--;
+            fireHeliWeapon(u, side);
+            ud.audioHooks = ud.audioHooks || {};
+            ud.audioHooks.release = true;
+          }
+          if (ud.heliShotsLeft <= 0 || ud.heliReleaseT > 1.6 || dist < 4.5) {
+            ud.airMode = HELI_MODES.BREAK;
+            ud.heliBreakT = 0;
+            ud.heliBreakSign = Math.random() < 0.5 ? -1 : 1;
+          }
+        }
+      } else if (mode === HELI_MODES.BREAK) {
+        ud.heliBreakT = (ud.heliBreakT || 0) + dt;
+        const s = ud.heliBreakSign || 1;
+        u.position.x += -side * 8 * dt;
+        u.position.z += s * 10 * dt;
+        u.position.y += 6 * dt;
+        ud.facing = Math.atan2(-side, s);
+        if (ud.heliBreakT > 1.1) {
+          clearHeliRun(ud);
+          ud.airMode = HELI_MODES.COOLDOWN;
+          ud.heliCool = 4.5 + Math.random() * 3.5;
+        }
+      }
+
+      const vx = u.position.x - prevX;
+      ud.speed = Math.abs(vx) / Math.max(dt, 1e-4);
+      u.rotation.y = ud.facing || 0;
+      u.rotation.z = THREE.MathUtils.clamp(-vx * 0.08, -0.35, 0.35);
+    }
+
     function tickJetCombat(u, side, dt, now) {
       const ud = u.userData;
       let mode = ud.airMode || JET_MODES.REENTER;
@@ -1594,7 +1777,7 @@
       if (cFlags.fxOff || !sceneIncludes('fx')) return false;
       const type=u.userData.type|0;
       // v9.4.11: jets fire ONLY from RELEASE phase via fireJetWeapon (runId-synced)
-      if (type === 4) return false;
+      if (type === 4 || type === 3) return false;
       u.userData.shot-=dt;
       if(u.userData.shot>0) return false;
       const isAir = type===3 || u.userData.air;
@@ -1728,24 +1911,7 @@
         const prevX = u.position.x;
         const prevZ = u.position.z;
         if (type === 3) {
-          // Helicopter: orbit / strafe near frontline, fire rockets/guns
-          ud.orbitAngle = (ud.orbitAngle || 0) + dt * (ud.orbitSpeed || 0.4);
-          const r = ud.orbitRadius || 12;
-          const cx = targetX + side * (3.5 + Math.sin(now * 0.2 + (ud.phase || 0)) * 2);
-          const homeZ = ud.homeZ != null ? ud.homeZ : 0;
-          const nx = cx + Math.cos(ud.orbitAngle) * r * 0.55;
-          const nz = homeZ + Math.sin(ud.orbitAngle) * r * 0.85;
-          u.position.x = nx;
-          u.position.z = nz;
-          const alt = ud.alt || 9;
-          u.position.y = alt + Math.sin(now * 1.4 + (ud.phase || 0)) * 0.35;
-          const vx = u.position.x - prevX;
-          const vz = u.position.z - prevZ;
-          ud.speed = Math.sqrt(vx * vx + vz * vz) / Math.max(dt, 1e-4);
-          ud.facing = Math.atan2(vx, vz);
-          // bank slightly into turn
-          u.rotation.z = THREE.MathUtils.clamp(-(vx) * 0.08, -0.35, 0.35);
-          maybeFire(u, side < 0 ? 0xe4675f : tokens[current].color, dt);
+          tickHeliCombat(u, side, dt, now);
         } else if (type === 4) {
           // v9.4.11: authoritative jet attack choreography (runId-synced impacts)
           tickJetCombat(u, side, dt, now);
@@ -1903,6 +2069,10 @@
         if (window.LUNCBattle && LUNCBattle.lod && LUNCBattle.lod.endFrame) {
           LUNCBattle.lod.endFrame();
         }
+        if (window.LUNCBattle && LUNCBattle.lod && LUNCBattle.lod.syncFarInfantry) {
+          LUNCBattle.lod.syncFarInfantry(bulls, scene, THREE);
+          LUNCBattle.lod.syncFarInfantry(bears, scene, THREE);
+        }
       }
       if (cadence && cadence.time) cadence.time('lod', runLod);
       else runLod();
@@ -1960,9 +2130,67 @@
     });
 
     updateStatusUI();
-    pushFeed('Battlefield ' + ((window.LUNCBattle && LUNCBattle.config && LUNCBattle.config.BUILD) || 'v8') + ' · LOD + asset pipeline','win');
+    pushFeed('Battlefield ' + ((window.LUNCBattle && LUNCBattle.config && LUNCBattle.config.BUILD) || 'v8') + ' · heli runId + instancing','win');
     pushFeed('Market pressure moves formations and the contested front','info');
     pushFeed('Public build uses HTTPS-safe data feeds','info');
+
+    (function startSoak() {
+      var params = new URLSearchParams(location.search);
+      if (!params.get('soak') && !params.get('perf')) return;
+      var t0 = performance.now();
+      var samples = [];
+      var gpu = '';
+      try {
+        var gl = renderer.getContext();
+        var ext = gl && gl.getExtension && gl.getExtension('WEBGL_debug_renderer_info');
+        if (ext) gpu = String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) || '');
+      } catch (_) {}
+      function snapshot() {
+        var info = renderer.info && renderer.info.render ? renderer.info.render : {};
+        var st = (window.LUNCBattle && LUNCBattle.quality && LUNCBattle.quality.getState)
+          ? LUNCBattle.quality.getState()
+          : null;
+        return {
+          t: Math.round(performance.now() - t0),
+          fps: st ? st.fps : null,
+          frameMs: st ? st.frameMs : null,
+          calls: info.calls || 0,
+          tris: info.triangles || 0,
+          units: bulls.length + bears.length
+        };
+      }
+      var iv = setInterval(function () {
+        samples.push(snapshot());
+        if (performance.now() - t0 < 30000) return;
+        clearInterval(iv);
+        var fpsVals = samples.map(function (s) { return s.fps; }).filter(function (n) { return n > 0; });
+        var avg = 0, min = 0;
+        if (fpsVals.length) {
+          avg = fpsVals.reduce(function (a, b) { return a + b; }, 0) / fpsVals.length;
+          min = Math.min.apply(null, fpsVals);
+        }
+        var last = samples[samples.length - 1] || {};
+        var report = {
+          build: (window.LUNCBattle && LUNCBattle.config && LUNCBattle.config.BUILD) || 'v9.4.14',
+          durationMs: Math.round(performance.now() - t0),
+          avgFps: Math.round(avg * 10) / 10,
+          minFps: Math.round(min * 10) / 10,
+          calls: last.calls,
+          tris: last.tris,
+          units: last.units,
+          gpu: gpu,
+          metal: /metal/i.test(gpu),
+          valid: /metal/i.test(gpu) && !/swiftshader|llvmpipe|software/i.test(gpu)
+        };
+        window.__SOAK__ = report;
+        console.info('[LUNC SOAK]', report);
+        try {
+          var tag = document.getElementById('buildTag');
+          if (tag) tag.title = 'SOAK avg ' + report.avgFps + ' min ' + report.minFps + ' · ' + (report.valid ? 'VALID Metal' : 'INVALID (not Metal)');
+        } catch (_) {}
+      }, 500);
+    })();
+
     animate();
     // Feeds after first frame so a price-helper fault cannot blank the RTS scene
     try { startPriceFeeds(); } catch (e) { console.warn('[startPriceFeeds]', e); }

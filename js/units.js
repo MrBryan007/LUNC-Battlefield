@@ -787,7 +787,9 @@
         orbitAngle: Math.random() * Math.PI * 2,
         orbitRadius: 10 + Math.random() * 6,
         orbitSpeed: 0.35 + Math.random() * 0.25,
-        airMode: 'orbit'
+        airMode: 'PATROL',
+        heliCool: 1.2 + Math.random() * 2.5,
+        heliRunId: null
       });
       return g;
     }

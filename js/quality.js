@@ -649,7 +649,7 @@
     overlayEl.className = 'perf-overlay';
     overlayEl.setAttribute('aria-hidden', 'true');
     overlayEl.innerHTML =
-      '<div class="perf-title">PERF · v9.4.13</div>' +
+      '<div class="perf-title">PERF · v9.4.14</div>' +
       '<div class="perf-section" id="perfGfx"></div>' +
       '<div class="perf-section" id="perfAssets"></div>' +
       '<div class="perf-section perf-feeds" id="perfFeeds"></div>';
@@ -896,7 +896,7 @@
 
   // Public API
   var api = {
-    version: 'v9.4.13',
+    version: 'v9.4.14',
     MODES: MODES,
     PRESETS: PRESETS,
     FEED_STATES: FEED_STATES,

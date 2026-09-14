@@ -21,6 +21,26 @@ Each pass stores on `userData`: `runId`, `runAim`, `runWeapon`, `entryVec`, `exi
 
 **Audio:** hook flags only (`audioHooks.approach|flyby|release|impact`) — no audio system in this pass.
 
-## v9.4.12 FX (no choreography change)
+## v9.4.14 helicopter choreography
 
-Jet state machine, `runId`, corridor, and weapon release are **unchanged**. v9.4.12 only polishes impact presentation (bomb T5 layered blast, rocket trails that start at launch and die on hit, thinner strafe tracers). Helicopter AI is unchanged; rocket `visualScale` 0.52 so pods do not launch jet-sized missiles. See `docs/V9-FX.md`.
+Helicopters no longer fire from opportunistic `maybeFire`. They use a run-owned machine:
+
+**PATROL → ALIGN → INGRESS → RELEASE → BREAK → COOLDOWN**
+
+- Per-run `heliRunId` (`h1`, `h2`, …)
+- Aim picked once (`pickJetAim` cluster: armor → arty → inf → frontline)
+- RELEASE fires **gun tracers** or **rockets** via `fireWeapon` with that `runId`
+- Rocket `visualScale` 0.52 / `trailScale` 0.45 (unchanged)
+- Impacts only from that run’s projectiles (`onHit` gated on `heliRunId`)
+- Jets **untouched** (still `j*` `runId` REENTER→…→COOLDOWN)
+
+`maybeFire` skips type 3 and type 4.
+
+## v9.4.14 instancing
+
+- Tracers: two `InstancedMesh` batches (bull/bear). Individual tracer meshes stay off-scene (sim only).
+- LOD3 infantry: two `InstancedMesh` cards via `lod.syncFarInfantry`. Per-unit impostor stub hidden when batched.
+
+## Soak (`?perf=1` or `?soak=1`)
+
+After ~30s writes `window.__SOAK__` `{ avgFps, minFps, calls, tris, units, gpu, metal, valid }`. **`valid` is true only when GPU string matches Metal** and is not SwiftShader. Sandbox software reports are INVALID.

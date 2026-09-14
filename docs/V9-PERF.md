@@ -1,3 +1,5 @@
+> **v9.4.14:** Helicopter runId choreography + instanced tracers / LOD3 infantry. Army density unchanged. Jets untouched. **M1 Metal not measured here** — soak recorder writes `window.__SOAK__` (`valid` only on ANGLE Metal). Do not treat SwiftShader as acceptance.
+
 > **v9.4.13:** Terrain/frontline depth + cluster formations. Extra dirt patches / small craters / broken frontline props; army density unchanged. **M1 Metal not measured here** — cite v9.4.11 baseline (~60 HIGH). Do not treat SwiftShader as acceptance.
 
 > **v9.4.12.1:** FX cleanup — hard-capped/recycled shockwave rings (LOW 2 / MED 4 / HIGH 6 / ULTRA 8); burn/liq wrapper no longer double-applies camera shake. Combat shake policy unchanged. **M1 Metal not re-measured here** — cite v9.4.11/v9.4.12 baseline (~60 HIGH). Do not treat SwiftShader as acceptance.

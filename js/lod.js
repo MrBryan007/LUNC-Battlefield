@@ -28,9 +28,63 @@
   var _displayCounts = { lod0: 0, lod1: 0, lod2: 0, lod3: 0, culled: 0, units: 0, structures: 0, props: 0 };
   var _frameId = 0;
   var _envLodFrame = 0;
+  var _infBatch = null;
+  var _infDummy = null;
   var _stubGeo = null;
   var _stubMatBull = null;
   var _stubMatBear = null;
+
+  function ensureInfBatch(scene, THREE) {
+    if (_infBatch) return _infBatch;
+    if (!scene || !THREE) return null;
+    var geo = getStubGeos(THREE).infPlane;
+    var max = 80;
+    function make(mat) {
+      var m = new THREE.InstancedMesh(geo, mat, max);
+      m.frustumCulled = false;
+      m.castShadow = false;
+      m.receiveShadow = false;
+      m.count = 0;
+      scene.add(m);
+      return m;
+    }
+    _infBatch = {
+      bull: make(getStubMat(THREE, -1)),
+      bear: make(getStubMat(THREE, 1))
+    };
+    _infDummy = new THREE.Object3D();
+    return _infBatch;
+  }
+
+  function syncFarInfantry(units, scene, THREE) {
+    if (!units || !scene || !THREE) return;
+    var batch = ensureInfBatch(scene, THREE);
+    if (!batch) return;
+    var nb = 0, ne = 0;
+    for (var i = 0; i < units.length; i++) {
+      var u = units[i];
+      if (!u || !u.userData) continue;
+      var ud = u.userData;
+      if (ud.air || (ud.type | 0) !== 0) continue;
+      if ((ud.lodBand | 0) < 3) continue;
+      if (u.visible === false) continue;
+      var n = ud.side < 0 ? nb : ne;
+      if (n >= 80) continue;
+      _infDummy.position.copy(u.position);
+      _infDummy.position.y += 0.75;
+      _infDummy.rotation.set(0, ud.facing || 0, 0);
+      _infDummy.scale.setScalar(1);
+      _infDummy.updateMatrix();
+      var inst = ud.side < 0 ? batch.bull : batch.bear;
+      inst.setMatrixAt(n, _infDummy.matrix);
+      if (ud.side < 0) nb++; else ne++;
+      if (ud.impostorStub) ud.impostorStub.visible = false;
+    }
+    batch.bull.count = nb;
+    batch.bear.count = ne;
+    batch.bull.instanceMatrix.needsUpdate = true;
+    batch.bear.instanceMatrix.needsUpdate = true;
+  }
 
   function getStubGeos(THREE) {
     if (_stubGeo) return _stubGeo;
@@ -783,7 +837,7 @@
   }
 
   LB.lod = {
-    version: 'v9.4.6',
+    version: 'v9.4.14',
     DEFAULT_ENTER: DEFAULT_ENTER,
     getEnterThresholds: getEnterThresholds,
     getHysteresis: getHysteresis,
@@ -809,6 +863,7 @@
     endFrame: endFrame,
     tally: tally,
     getCounts: getCounts,
+    syncFarInfantry: syncFarInfantry,
     resolveLodPath: resolveLodPath,
     updateEnvironmentLod: updateEnvironmentLod,
     updateStructuresLod: updateStructuresLod,
