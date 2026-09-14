@@ -44,3 +44,13 @@ Helicopters no longer fire from opportunistic `maybeFire`. They use a run-owned 
 ## Soak (`?perf=1` or `?soak=1`)
 
 After ~30s writes `window.__SOAK__` `{ avgFps, minFps, calls, tris, units, gpu, metal, valid }`. **`valid` is true only when GPU string matches Metal** and is not SwiftShader. Sandbox software reports are INVALID.
+
+## v9.4.15 jet silhouette (presentation only)
+
+Jets are easier to read at the default RTS camera. **No combat change.**
+
+- Scale **1.35 → 1.55**
+- Wider merged wings, taller fin + horizontal stabs (`jet.wings.v9415` / `jet.tail.v9415`)
+- Canopy blister + thicker fuse/nose
+- State machine, `runId`, weapons, impacts **unchanged**
+- Helicopters **unchanged**

@@ -56,8 +56,8 @@
   };
 
   const config = {
-    BUILD: 'v9.4.14',
-    TITLE: 'LUNC Ecosystem Battlefield v9.4.14 — heli choreography / instancing (WebGL r128)',
+    BUILD: 'v9.4.15',
+    TITLE: 'LUNC Ecosystem Battlefield v9.4.15 — jet silhouette (WebGL r128)',
     DataTruth,
     tokens,
     apiBase: resolveApiBase(),

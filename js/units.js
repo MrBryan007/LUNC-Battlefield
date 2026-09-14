@@ -315,10 +315,19 @@
       });
     }
     function geoJetWings() {
-      return cachedMerged('jet.wings', function () {
+      return cachedMerged('jet.wings.v9415', function () {
         return mergeGeos([
-          bakeGeo(GEO.jetWing, -0.1, 0.38, 0.55, 0, 0.35, 0, 1, 1, 1),
-          bakeGeo(GEO.jetWing, -0.1, 0.38, -0.55, 0, -0.35, 0, 1, 1, 1)
+          bakeGeo(GEO.jetWing, -0.02, 0.38, 0.82, 0, 0.28, 0, 1.2, 1.45, 1.55),
+          bakeGeo(GEO.jetWing, -0.02, 0.38, -0.82, 0, -0.28, 0, 1.2, 1.45, 1.55)
+        ]);
+      });
+    }
+    function geoJetTail() {
+      return cachedMerged('jet.tail.v9415', function () {
+        return mergeGeos([
+          bakeGeo(GEO.jetTailFin, -0.82, 0.78, 0, 0, 0, 0, 1.1, 1.7, 1.25),
+          bakeGeo(GEO.jetWing, -0.78, 0.5, 0.28, 0, 0.18, 0, 0.38, 0.85, 0.48),
+          bakeGeo(GEO.jetWing, -0.78, 0.5, -0.28, 0, -0.18, 0, 0.38, 0.85, 0.48)
         ]);
       });
     }
@@ -805,37 +814,43 @@
       const fuseG = new THREE.Group();
       const fuse = trackCaster(casters, meshFrom(GEO.jetFuse, accent, true));
       fuse.position.y = 0.4;
+      fuse.scale.set(1.12, 1.22, 1.18);
       const nose = meshFrom(GEO.jetNose, body);
       nose.rotation.z = -Math.PI / 2;
-      nose.position.set(1.15, 0.4, 0);
-      fuseG.add(fuse, nose);
+      nose.position.set(1.28, 0.4, 0);
+      nose.scale.set(1.25, 1.15, 1.25);
+      const canopy = meshFrom(GEO.jetNose, body);
+      canopy.rotation.z = -Math.PI / 2;
+      canopy.position.set(0.28, 0.62, 0);
+      canopy.scale.set(0.72, 0.55, 0.82);
+      fuseG.add(fuse, nose, canopy);
 
-      // v9.4.6: wings merged; engines merged
+      // v9.4.15: wider wings + taller tail / stabs for RTS-camera silhouette
       const wingsMerged = meshFrom(geoJetWings(), metalMat);
       fuseG.add(wingsMerged);
 
-      const fin = meshFrom(GEO.jetTailFin, accent);
-      fin.position.set(-0.75, 0.62, 0);
-      fuseG.add(fin);
+      const tailMerged = meshFrom(geoJetTail(), accent);
+      fuseG.add(tailMerged);
 
       const enginesMerged = meshFrom(geoJetEngines(), darkMat);
       fuseG.add(enginesMerged);
       parts.fuselage = fuseG;
       parts.wings = [wingsMerged];
       parts.engines = [enginesMerged];
+      parts.tail = tailMerged;
       const engL = enginesMerged;
       const engR = enginesMerged;
 
       // Nose along +X in mesh space → local +Z for facing
       fuseG.rotation.y = -Math.PI / 2;
       g.add(fuseG);
-      g.scale.setScalar(1.35); // v9.4.11 readable jet presence
+      g.scale.setScalar(1.55);
 
       const lodGroups = {
         core: [fuseG],
-        silhouette: [fuseG],
-        major: [],
-        detail: [enginesMerged, fin],
+        silhouette: [fuseG, wingsMerged, tailMerged],
+        major: [wingsMerged],
+        detail: [enginesMerged, canopy],
         limbs: []
       };
       if (global.LUNCBattle && LUNCBattle.lod && LUNCBattle.lod.registerLodGroups) {
@@ -1127,7 +1142,7 @@
       setAnimState: setAnimState,
       tickUnit: tickUnit,
       GEO: GEO,
-      version: 'v9.4.13'
+      version: 'v9.4.15'
     };
   }
 

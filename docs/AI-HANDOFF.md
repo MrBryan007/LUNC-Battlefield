@@ -2,20 +2,29 @@
 
 Git is the source of truth. If this file disagrees with Git, Git wins and this file must be corrected.
 
-**Updated:** 2026-09-13 (v9.4.14 heli choreography + instancing + soak recorder)
+**Updated:** 2026-09-13 (v9.4.15 jet silhouette)
 
 ## Current
 
 | Item | Value |
 | --- | --- |
-| BUILD | `v9.4.14` |
+| BUILD | `v9.4.15` |
 | Branch | `feat/v9-next-gen-renderer` |
-| Parent | `a92047fc9b3a01239a08167ad09be6b21195b4e0` (v9.4.13 terrain / formations) |
+| Parent | `95a46b717d11295f1cc88683e93baad4c2960816` (v9.4.14 heli / instancing / soak) |
 | PR | [#4](https://github.com/MrBryan007/LUNC-Battlefield/pull/4) **DRAFT / OPEN** |
-| Production / `main` | **v8.8** · SHA `47a61b6c2485b4b3fd17b8ad793f5a7498ade7f9` |
-| Live Pages | https://mrbryan007.github.io/LUNC-Battlefield/ (v8.8) |
+| Production / `main` | **v8.8** |
 | Three.js | **r128** WebGL default |
-| Cache bust | `?v=20260913v9414` |
+| Cache bust | `?v=20260913v9415` |
+
+## This pass (v9.4.15)
+
+Jet silhouette only. Combat / heli / instancing / soak recorder unchanged.
+
+**M1 Metal still not remeasured.**
+
+## Current next task after this report
+
+Stop. Do not start another task.
 
 ## This pass (v9.4.14)
 
