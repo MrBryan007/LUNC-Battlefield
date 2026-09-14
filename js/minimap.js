@@ -193,7 +193,7 @@
       var pack = getUnits() || {};
       var bulls = pack.bulls || [];
       var bears = pack.bears || [];
-      var cluster = (bulls.length + bears.length) > 48;
+      var cluster = (bulls.length + bears.length) > 72;
       var step = cluster ? 2 : 1;
 
       function paint(arr, baseColor) {
@@ -202,15 +202,26 @@
           if (!u || !u.position) continue;
           var p = worldToCanvas(u.position.x, u.position.z);
           var type = (u.userData && u.userData.type) || 0;
-          // type colors: inf / armor / arty
+          // type colors: inf / armor / arty / heli / jet
           var col = baseColor;
           if (type === 1) col = baseColor === '#49d39a' ? '#7dffc0' : '#ff9a92';
           if (type === 2) col = baseColor === '#49d39a' ? '#c9f5df' : '#ffd0cc';
-          var r = type === 2 ? 3.2 : type === 1 ? 2.6 : 2;
+          if (type === 3) col = baseColor === '#49d39a' ? '#b8ffe0' : '#ffc4bf';
+          if (type === 4) col = baseColor === '#49d39a' ? '#e8fff4' : '#ffe0dc';
+          var r = type === 4 ? 3.4 : type === 3 ? 3.0 : type === 2 ? 3.2 : type === 1 ? 2.6 : 2;
           if (cluster) r *= 1.15;
           ctx.fillStyle = col;
           ctx.beginPath();
-          ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+          if (type === 3 || type === 4) {
+            // diamond blip for air
+            ctx.moveTo(p.x, p.y - r);
+            ctx.lineTo(p.x + r * 0.7, p.y);
+            ctx.lineTo(p.x, p.y + r);
+            ctx.lineTo(p.x - r * 0.7, p.y);
+            ctx.closePath();
+          } else {
+            ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+          }
           ctx.fill();
         }
       }
