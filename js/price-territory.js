@@ -1,4 +1,4 @@
-/* LUNC Battlefield v8.5/v8.6 — price territory + grounded frontline */
+/* LUNC Battlefield v9.4.13 — price territory + contested no-man's-land frontline */
 (function (global) {
   'use strict';
 
@@ -468,59 +468,78 @@
       }
     }
 
+    function flHash(i, s) {
+      const x = Math.sin((i + 1.3) * 12.9898 + s * 78.233) * 43758.5453;
+      return x - Math.floor(x);
+    }
+
     function buildFrontlineVisual() {
       clearGroup(frontlineGroup);
       smokeWisps.length = 0;
       contestedFlags.length = 0;
       frontlinePieces.length = 0;
-      // Group stays at origin; pieces are placed in world space each update
       frontlineGroup.position.set(0, 0, 0);
 
-      const zMin = -26;
-      const zMax = 26;
-      const stepZ = mobile ? 5.5 : 4.2;
+      const n = mobile ? 9 : 13;
+      const zPositions = [];
+      for (let i = 0; i < n; i++) {
+        const t = (i + 0.5) / n - 0.5;
+        zPositions.push(t * 50 + (flHash(i, 4) - 0.5) * 2.4);
+      }
+      zPositions.sort(function (a, b) { return a - b; });
 
-      for (let z = zMin; z <= zMax; z += stepZ) {
-        // Trench berm (elongated) — local offsets only; Y grounded later
-        const berm = new THREE.Mesh(GEO.bermLong, MAT.earth);
-        berm.rotation.y = (z * 0.07) % 0.2;
-        berm.castShadow = !mobile;
-        berm.receiveShadow = true;
-        addFrontlinePiece(berm, (z % 8 === 0 ? -0.35 : 0.25), z, 0.2);
-
-        // Sandbags
-        const bag = new THREE.Mesh(GEO.bag, MAT.sandbag);
-        bag.rotation.y = Math.PI / 2 + (z * 0.03);
-        bag.castShadow = !mobile;
-        addFrontlinePiece(bag, (z % 9 > 4 ? 0.55 : -0.55), z + 0.4, 0.28);
-
-        // Contested flag post
-        if (!mobile || (Math.abs(z) % 11 < 6)) {
+      for (let i = 0; i < zPositions.length; i++) {
+        const z = zPositions[i];
+        const h = flHash(i, 8);
+        // Broken berms — skip some so the band is a scar, not a fence
+        if (h > 0.16) {
+          const berm = new THREE.Mesh(h > 0.62 ? GEO.berm : GEO.bermLong, MAT.earth);
+          berm.rotation.y = (flHash(i, 12) - 0.5) * 0.7;
+          berm.castShadow = !mobile;
+          berm.receiveShadow = true;
+          addFrontlinePiece(berm, (h - 0.5) * 1.8, z, 0.18);
+        }
+        // Sandbag clusters, not one bag per slot
+        if (h > 0.28 && h < 0.9) {
+          const bag = new THREE.Mesh(GEO.bag, MAT.sandbag);
+          bag.rotation.y = Math.PI / 2 + (flHash(i, 15) - 0.5) * 0.5;
+          bag.castShadow = !mobile;
+          addFrontlinePiece(bag, (h > 0.55 ? 0.7 : -0.65), z + (flHash(i, 18) - 0.5) * 0.8, 0.26);
+        }
+        // Sparse contested markers
+        if (i % 4 === 1) {
           const post = new THREE.Mesh(GEO.postThin, MAT.woodDark);
-          addFrontlinePiece(post, 0.1, z - 0.3, 0.55);
+          addFrontlinePiece(post, (h - 0.5) * 0.4, z - 0.25, 0.55);
           const fl = new THREE.Mesh(GEO.flag, MAT.contestedFlag);
           fl.rotation.y = Math.PI / 2;
-          addFrontlinePiece(fl, 0.35, z - 0.3, 1.05);
+          addFrontlinePiece(fl, 0.28, z - 0.25, 1.05);
           contestedFlags.push(fl);
         }
-
-        // Shell hole
-        if (Math.abs(z) % 7 < 3) {
+        // Shell holes / scorch
+        if (h < 0.78) {
           const hole = new THREE.Mesh(GEO.crater, MAT.scorch);
           hole.receiveShadow = true;
-          addFrontlinePiece(hole, (z % 5) * 0.15 - 0.2, z + 1.1, 0.04);
+          addFrontlinePiece(hole, (flHash(i, 22) - 0.5) * 2.2, z + (flHash(i, 24) - 0.5) * 1.4, 0.04);
         }
       }
 
-      // Few smoke wisps
-      const smokeN = mobile ? 2 : 4;
+      // Extra scatter craters filling the contested strip (shared geo/mat)
+      const extra = mobile ? 5 : 10;
+      for (let i = 0; i < extra; i++) {
+        const z = (flHash(i, 40) - 0.5) * 46;
+        const hole = new THREE.Mesh(GEO.crater, MAT.scorch);
+        hole.receiveShadow = true;
+        addFrontlinePiece(hole, (flHash(i, 44) - 0.5) * 3.4, z, 0.035);
+      }
+
+      const smokeN = mobile ? 2 : 5;
       for (let i = 0; i < smokeN; i++) {
         const sm = new THREE.Mesh(GEO.smoke, MAT.smoke.clone());
         sm.material.userData = { _owned: true };
-        const z = -18 + i * (36 / Math.max(1, smokeN - 1));
-        const localX = (i % 2 ? 0.4 : -0.3);
-        const yOff = 0.9 + i * 0.15;
-        sm.scale.setScalar(0.8 + i * 0.15);
+        const z = (flHash(i, 50) - 0.5) * 36;
+        const localX = (i % 2 ? 0.55 : -0.45);
+        const yOff = 0.85 + i * 0.12;
+        sm.scale.setScalar(0.75 + i * 0.12);
         frontlineGroup.add(sm);
         smokeWisps.push({
           mesh: sm, phase: i * 1.7,
@@ -532,13 +551,12 @@
 
     function rebuildTerritoryCues() {
       clearGroup(territoryGroup);
-      const n = mobile ? 4 : 7;
+      const n = mobile ? 4 : 6;
       for (let i = 0; i < n; i++) {
         const side = i % 2 === 0 ? -1 : 1;
-        const z = -20 + (i / Math.max(1, n - 1)) * 40;
-        const xOff = side * (6 + (i % 3) * 3.5);
+        const z = (flHash(i, 60) - 0.5) * 40;
+        const xOff = side * (7.5 + flHash(i, 63) * 4.5);
         const x = frontlineX + xOff;
-        // Only place sparse flags west(bull)/east(bear)
         const ty = terrainHeight(x, z);
         const post = new THREE.Mesh(GEO.postThin, MAT.wood);
         post.position.set(x, ty + 0.55, z);
@@ -548,19 +566,18 @@
         fl.rotation.y = Math.PI / 2;
         territoryGroup.add(fl);
       }
-      // Contested mid-band crater/wreck accents
-      const wreckN = mobile ? 3 : 5;
+      const wreckN = mobile ? 3 : 6;
       for (let i = 0; i < wreckN; i++) {
-        const z = -16 + i * (32 / Math.max(1, wreckN - 1));
-        const x = frontlineX + ((i % 3) - 1) * 1.4;
+        const z = (flHash(i, 70) - 0.5) * 34;
+        const x = frontlineX + (flHash(i, 73) - 0.5) * 3.2;
         const ty = terrainHeight(x, z);
         const w = new THREE.Mesh(GEO.wreck, MAT.metalDark);
         w.position.set(x, ty + 0.12, z);
-        w.rotation.y = i * 0.7;
+        w.rotation.y = flHash(i, 76) * Math.PI * 2;
         territoryGroup.add(w);
         if (i % 2 === 0) {
           const hole = new THREE.Mesh(GEO.crater, MAT.scorch);
-          hole.position.set(x + 0.6, ty + 0.03, z + 0.5);
+          hole.position.set(x + 0.55, ty + 0.03, z + 0.45);
           territoryGroup.add(hole);
         }
       }
