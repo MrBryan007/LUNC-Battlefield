@@ -97,8 +97,8 @@
 
     // -------------------- Scene --------------------
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0c140e);
-    scene.fog = new THREE.Fog(0x121a12, 48, 132);
+    scene.background = new THREE.Color(0x121a16);
+    scene.fog = new THREE.Fog(0x1c2620, 64, 168);
 
     const stallMod = (window.LUNCBattle && LUNCBattle.stall) ? LUNCBattle.stall : null;
     const mobileGfx = innerWidth < 760 || /iPhone|iPad|iPod|Android|Mobile/i.test(navigator.userAgent || '');
@@ -147,7 +147,7 @@
     // v9.2: ACES retained but exposure restrained for MeshStandard PBR readability
     if ('toneMapping' in renderer && THREE.ACESFilmicToneMapping != null) {
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 0.94;
+      renderer.toneMappingExposure = 0.98;
     }
     document.body.insertBefore(renderer.domElement, document.body.firstChild);
 
@@ -173,21 +173,21 @@
     });
     addEventListener('keyup', e => keys[e.code] = false);
 
-    // v9.2 lighting foundation — sun / hemi / fill / rim / faction accents (quality-scaled)
-    const hemi = new THREE.HemisphereLight(0xc8d4bc, 0x1c2018, 0.52);
+    // v9.4.17 readability — colors/direction only. Intensities stay on the quality.js ladder.
+    const hemi = new THREE.HemisphereLight(0xb7c4ae, 0x3a2e22, 0.52);
     scene.add(hemi);
-    const sun = new THREE.DirectionalLight(0xffe2b8, 1.05);
-    sun.position.set(-28, 52, 18);
+    const sun = new THREE.DirectionalLight(0xffd7a4, 1.05);
+    sun.position.set(-18, 68, 22);
     sun.castShadow = true;
     sun.shadow.mapSize.set(1024, 1024);
     // v9.4.5: tighter shadow frustum — fewer casters in map, close visuals intact
     sun.shadow.camera.left = -48; sun.shadow.camera.right = 48; sun.shadow.camera.top = 34; sun.shadow.camera.bottom = -34;
     sun.shadow.camera.near = 10; sun.shadow.camera.far = 100; sun.shadow.bias = -.0003;
     scene.add(sun);
-    const fill = new THREE.DirectionalLight(0x6a90a0, 0.18);
+    const fill = new THREE.DirectionalLight(0x8aa8b4, 0.18);
     fill.position.set(38, 16, -30);
     scene.add(fill);
-    const rim = new THREE.DirectionalLight(0xb0c4a8, 0.07);
+    const rim = new THREE.DirectionalLight(0xd0dcc8, 0.07);
     rim.position.set(12, 28, 40);
     scene.add(rim);
 
@@ -298,8 +298,10 @@
       : null;
     if (!envApi) console.error('[LUNCBattle] environment.js failed to load');
     if (envApi && envApi.fog) {
-      scene.background = new THREE.Color(envApi.fog.background != null ? envApi.fog.background : 0x0c140e);
-      scene.fog = new THREE.Fog(envApi.fog.fogColor, envApi.fog.fogNear, envApi.fog.fogFar);
+      // v9.4.17 — restrained depth. Farther near-plane than environment.js so the
+      // fighting strip, labels, and bases stay clear. Not weather.
+      scene.background = new THREE.Color(0x121a16);
+      scene.fog = new THREE.Fog(0x1c2620, 64, 168);
     }
     // v9.2: wood/prop mats come from materials registry inside environment/structures
 
@@ -2173,7 +2175,7 @@
         }
         var last = samples[samples.length - 1] || {};
         var report = {
-          build: (window.LUNCBattle && LUNCBattle.config && LUNCBattle.config.BUILD) || 'v9.4.14',
+          build: (window.LUNCBattle && LUNCBattle.config && LUNCBattle.config.BUILD) || 'v9.4.17',
           durationMs: Math.round(performance.now() - t0),
           avgFps: Math.round(avg * 10) / 10,
           minFps: Math.round(min * 10) / 10,

@@ -1,5 +1,7 @@
 # LUNC Battlefield v9.2 — PBR materials & lighting foundation
 
+> **v9.4.17 (2026-09-30):** Lighting color/direction, exposure 0.98, fog near 64 / far 168, ground material lifted so vertex colors are not double-dark. Intensities still owned by `js/quality.js`. No new lights, no post-processing. M1 Metal soak still OPEN.
+
 > **Follow-on:** **v9.3** glTF pipeline (`docs/V9-ASSETS.md`); **v9.4** true LOD (`docs/V9-LOD.md`, `docs/V9-ASSET-SPEC.md`). PBR registry / lighting / ACES from v9.2 are preserved.
 
 **Status:** v9.2.1 on feature branch `feat/v9-next-gen-renderer` only. **Not merged to main.** Live GitHub Pages remains v8.x until an explicit merge.

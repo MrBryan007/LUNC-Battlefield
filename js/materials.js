@@ -25,14 +25,14 @@
 
   var PRESET_DEFS = {
     // ---- terrain ----
-    'terrain.ground': { color: 0x3d5234, roughness: 0.97, metalness: 0, vertexColors: true },
+    'terrain.ground': { color: 0x9aa48c, roughness: 0.94, metalness: 0, vertexColors: true },
     'terrain.dirtPatch': {
       color: 0x4a3c2c, roughness: 1, metalness: 0,
-      transparent: true, opacity: 0.42, depthWrite: false
+      transparent: true, opacity: 0.5, depthWrite: false
     },
     'terrain.road': {
       color: 0x3a3226, roughness: 1, metalness: 0,
-      transparent: true, opacity: 0.38, depthWrite: false
+      transparent: true, opacity: 0.48, depthWrite: false
     },
     'terrain.mud': { color: 0x2e261c, roughness: 1, metalness: 0 },
     'terrain.rock': { color: 0x5a5c4e, roughness: 0.92, metalness: 0.04 },

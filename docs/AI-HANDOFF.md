@@ -2,74 +2,43 @@
 
 Git is the source of truth. If this file disagrees with Git, Git wins and this file must be corrected.
 
-**Updated:** 2026-09-13 (v9.4.16 iOS playability)
+**Updated:** 2026-09-30 (v9.4.17 lighting + ground read)
 
 ## Current
 
 | Item | Value |
 | --- | --- |
-| BUILD | `v9.4.16` |
+| BUILD | `v9.4.17` |
 | Branch | `feat/v9-next-gen-renderer` |
-| Parent | `91329eae080a5fc338e5962c5209e78009969601` (v9.4.15 jet silhouette) |
+| Parent | `e3c475db3c0bf83c505f73a822f220ae47e04a80` (v9.4.16 iOS playability) |
 | PR | [#4](https://github.com/MrBryan007/LUNC-Battlefield/pull/4) **DRAFT / OPEN** |
-| Production / `main` | **v8.8** |
+| Production / `main` | **v8.8** @ `47a61b6c2485` — do not merge, do not deploy |
 | Three.js | **r128** WebGL default |
-| Cache bust | `?v=20260913v9416` |
-| Primary play target | **iPhone / iOS WebKit** (Apple GPU). Mac M1 soak remains OPEN / optional. |
+| Cache bust | `?v=20260930v9417` |
+| AUTO | caps at **HIGH**. ULTRA is manual only |
+| M1 Metal HIGH soak | **OPEN** |
 
-## This pass (v9.4.16)
+## This pass (v9.4.17)
 
-iOS playability: no MSAA on phone, `powerPreference: default`, closer RTS camera, Field HUD default (already), AUTO→LOW. Combat / jets / heli / formations / market **unchanged**.
+Lighting and ground readability only. Sun/hemi/fill/rim **colors and sun direction** changed. Exposure `0.94 → 0.98`. Fog `near 48 / far 132 → near 64 / far 168`, color `0x1c2620`. Ground material color lifted to `0x9aa48c` (vertex colors were being multiplied into near-black). Dirt-patch and road opacity raised slightly. **Intensities were not changed** — `js/quality.js` still owns the LOW/MED/HIGH/ULTRA ladder.
 
-## Current next task after this report
+Not changed: market math, `getFrontlineX()`, Battle Strength, formations, jet `runId`, heli `heliRunId`, FX hierarchy, tracer instancing, LOD, iOS MSAA-off / `powerPreference: default` / closer camera.
 
-Play on iPhone. Confirm 3D field, Field tab, live price. Mac soak optional.
+## Next
 
-## Current
+Stop. Do not start v9.4.18. M1 Metal HIGH soak remains OPEN.
 
-| Item | Value |
-| --- | --- |
-| BUILD | `v9.4.15` |
-| Branch | `feat/v9-next-gen-renderer` |
-| Parent | `95a46b717d11295f1cc88683e93baad4c2960816` (v9.4.14 heli / instancing / soak) |
-| PR | [#4](https://github.com/MrBryan007/LUNC-Battlefield/pull/4) **DRAFT / OPEN** |
-| Production / `main` | **v8.8** |
-| Three.js | **r128** WebGL default |
-| Cache bust | `?v=20260913v9415` |
+## Archive (superseded — not current)
 
-## This pass (v9.4.15)
-
-Jet silhouette only. Combat / heli / instancing / soak recorder unchanged.
-
-**M1 Metal still not remeasured.**
-
-## Current next task after this report
-
-Stop. Do not start another task.
-
-## This pass (v9.4.14)
-
-Helicopter runId machine (PATROL→…→COOLDOWN). Instanced tracers + LOD3 infantry. Soak recorder (`window.__SOAK__`). Jets / armor kit / formations / market math unchanged.
-
-**M1 Metal still not measured here.** Soak on software GPUs is INVALID (`valid: false`).
-
-## Current next task after this report
-
-Stop. Do not merge. Mac soak: open `?perf=1`, Graphics HIGH, 30s, paste `window.__SOAK__`.
-
-## Last accepted milestone (v9.4.12.1)
-
-Shockwave hard-cap + recycle. Burn/liq wrappers no longer double-apply camera shake.
-
-## This pass (v9.4.13)
-
-Terrain / frontline depth + cluster formations. Fireteams / tank pairs / arty batteries. Broken no-man's-land on the **true** `getFrontlineX()`. Narrower center track. Market math unchanged.
-
-**M1 Metal not measured in this sandbox.** Prior valid baseline HIGH ~60. Software FPS is invalid. M1 soak is still required for acceptance.
-
-## Current next task after this report
-
-Stop. Do not start v9.4.14 automatically. Expected next if Bryan approves: helicopter choreography rewrite.
+- **v9.4.16** `e3c475d` — iOS: no MSAA, `powerPreference: default`, closer phone camera. Combat unchanged.
+- **v9.4.15** `91329ea` — jet silhouette at RTS camera.
+- **v9.4.14** `95a46b7` — heli `heliRunId` machine; instanced tracers + LOD3 infantry; `window.__SOAK__`. Software soak invalid.
+- **v9.4.13** `a92047f` — terrain/frontline depth + fireteams / tank pairs / artillery batteries.
+- **v9.4.12.1** — shockwave cap; burn/liq no longer double-shake.
+- **v9.4.12** — FX hierarchy polish.
+- **v9.4.11** — jet `runId` choreography.
+- **v9.4.10** — AUTO max HIGH.
+- **v9.4.9** — armor hull + turret + cannon, artillery chassis + barrel.
 
 ## DO NOT
 
@@ -78,7 +47,7 @@ Stop. Do not start v9.4.14 automatically. Expected next if Bryan approves: helic
 - Force-push / rewrite history
 - Upgrade Three.js off r128
 - Change market truth, token logic, price mapping, frontline math
-- Rewrite v9.4.11 jet state machine or v9.4.9 armor kit
+- Rewrite jet or heli state machines or the v9.4.9 armor kit
 - Restore AUTO → ULTRA
 - Begin v9.5 bones/skinned architecture
 - Store passwords, tokens, PATs, private keys, or recovery codes in docs/commits/prompts
@@ -86,7 +55,7 @@ Stop. Do not start v9.4.14 automatically. Expected next if Bryan approves: helic
 
 ## Notes for the next agent
 
-- PR #4 **description is stale** (still talks about v9.2). Trust Git + this file + `docs/V9-*.md`.
-- `main` README still says v8.7 in places; `js/config.js` on main is **v8.8**. Docs lag, not a v9 deploy.
-- Burns / whales / gov / validators stay **UNAVAILABLE** until an HTTPS `?api=` bridge exists (PR #2). Do not invent live chain events.
-- Helicopters still use older/opportunistic fire. Audio is hook-only. Jet mesh is still simple procedural. Known limits — not automatic bugs.
+- PR #4 **title and description are stale**. Suggested title (do not rename unless Bryan says so): `v9 Next-Gen Renderer — through v9.4.17 Lighting + Ground Readability`. Trust Git + this file.
+- `main` is **v8.8**. Docs lag there is not a v9 deploy.
+- Burns / whales / gov / validators stay **UNAVAILABLE** until an HTTPS `?api=` bridge exists. Do not invent live chain events.
+- Helicopters use the v9.4.14 causal machine, not opportunistic fire. Audio is hook-only.
