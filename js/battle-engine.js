@@ -2,7 +2,8 @@
     'use strict';
 
     // =====================================================
-    // LUNC ECOSYSTEM BATTLEFIELD v9.4.8 — non-JS/WebGL stall diagnostics + LOD/assets
+    // LUNC ECOSYSTEM BATTLEFIELD v10 — post-FX, atmosphere, IBL, Commander game layer, SFX
+    // (v9.4.8 stall diagnostics + LOD/assets preserved)
     // v8.1–v8.8 + v9.1–v9.3 preserved; LOD + asset diagnostics (procedural SAFE FALLBACK)
     // Original procedural art only. No third-party game assets.
     // Graphics-only: never alter market / Battle Strength / liq / burn math.
@@ -103,8 +104,8 @@
     const stallMod = (window.LUNCBattle && LUNCBattle.stall) ? LUNCBattle.stall : null;
     const mobileGfx = innerWidth < 760 || /iPhone|iPad|iPod|Android|Mobile/i.test(navigator.userAgent || '');
 
-    const camera = new THREE.PerspectiveCamera(mobileGfx ? 48 : 43, innerWidth / innerHeight, .1, 250);
-    camera.position.set(0, mobileGfx ? 28 : 38, mobileGfx ? 36 : 48);
+    const camera = new THREE.PerspectiveCamera(mobileGfx ? 48 : 43, innerWidth / innerHeight, .1, 900);
+    camera.position.set(0, mobileGfx ? 25 : 27, mobileGfx ? 40 : 55); // v10: lower cinematic 3/4 angle — horizon + sky visible
 
     // v9.1: renderer abstraction — default WebGL (r128), optional WebGPU try/fallback
     let rendererHandle = null;
@@ -147,7 +148,7 @@
     // v9.2: ACES retained but exposure restrained for MeshStandard PBR readability
     if ('toneMapping' in renderer && THREE.ACESFilmicToneMapping != null) {
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 0.94;
+      renderer.toneMappingExposure = 1.0; // v10: brighter grade (post adds contrast/vignette)
     }
     document.body.insertBefore(renderer.domElement, document.body.firstChild);
 
@@ -174,20 +175,20 @@
     addEventListener('keyup', e => keys[e.code] = false);
 
     // v9.2 lighting foundation — sun / hemi / fill / rim / faction accents (quality-scaled)
-    const hemi = new THREE.HemisphereLight(0xc8d4bc, 0x1c2018, 0.52);
+    const hemi = new THREE.HemisphereLight(0xb4cbe6, 0x3a3222, 0.52); // v10 sky-blue / earth bounce
     scene.add(hemi);
-    const sun = new THREE.DirectionalLight(0xffe2b8, 1.05);
-    sun.position.set(-28, 52, 18);
+    const sun = new THREE.DirectionalLight(0xffdcae, 2.3);
+    sun.position.set(-38, 36, 18); // v10: lower golden-hour key → longer readable shadows
     sun.castShadow = true;
     sun.shadow.mapSize.set(1024, 1024);
     // v9.4.5: tighter shadow frustum — fewer casters in map, close visuals intact
     sun.shadow.camera.left = -48; sun.shadow.camera.right = 48; sun.shadow.camera.top = 34; sun.shadow.camera.bottom = -34;
-    sun.shadow.camera.near = 10; sun.shadow.camera.far = 100; sun.shadow.bias = -.0003;
+    sun.shadow.camera.near = 5; sun.shadow.camera.far = 130; sun.shadow.bias = -.0006; sun.shadow.normalBias = 0.045; sun.shadow.radius = 3;
     scene.add(sun);
-    const fill = new THREE.DirectionalLight(0x6a90a0, 0.18);
+    const fill = new THREE.DirectionalLight(0x7aa0c8, 0.26);
     fill.position.set(38, 16, -30);
     scene.add(fill);
-    const rim = new THREE.DirectionalLight(0xb0c4a8, 0.07);
+    const rim = new THREE.DirectionalLight(0xffe6c4, 0.2);
     rim.position.set(12, 28, 40);
     scene.add(rim);
 
@@ -212,6 +213,15 @@
       });
     } else {
       renderer.setPixelRatio(Math.min(devicePixelRatio || 1, innerWidth < 760 ? 1.35 : 1.8));
+    }
+
+    // v10 post-processing (bloom / FXAA or MSAA / grade / vignette). LOW tier = off (v9 direct path).
+    const postfx = (window.LUNCBattle && LUNCBattle.postfx && !(stallMod && stallMod.flags && (stallMod.flags.norender || stallMod.flags.canvas)))
+      ? LUNCBattle.postfx.init({ THREE, renderer })
+      : null;
+    function drawFrame() {
+      if (postfx && postfx.isActive()) postfx.render(scene, camera);
+      else renderer.render(scene, camera);
     }
 
     // Shared PBR material factory → LUNCBattle.materials registry
@@ -301,6 +311,27 @@
       scene.background = new THREE.Color(envApi.fog.background != null ? envApi.fog.background : 0x0c140e);
       scene.fog = new THREE.Fog(envApi.fog.fogColor, envApi.fog.fogNear, envApi.fog.fogFar);
     }
+    // v10 — sky dome, horizon ridges, far ground skirt, haze-matched fog, image-based lighting
+    let atmosphereApi = null;
+    try {
+      if (window.LUNCBattle && LUNCBattle.atmosphere) {
+        const tierName = (LUNCBattle.quality && LUNCBattle.quality.getEffectiveName) ? LUNCBattle.quality.getEffectiveName() : 'HIGH';
+        atmosphereApi = LUNCBattle.atmosphere.create({ THREE, scene, camera, mobile: mobileGfx, tier: tierName });
+        if (tierName !== 'LOW' && THREE.PMREMGenerator) {
+          // Bake the procedural sky into a prefiltered env map → soft PBR ambient + metal reflections
+          const pm = new THREE.PMREMGenerator(renderer);
+          const eq = LUNCBattle.atmosphere.makeEquirect(THREE, atmosphereApi);
+          const envRT = pm.fromEquirectangular(eq);
+          scene.environment = envRT.texture;
+          eq.dispose();
+          pm.dispose();
+          hemi.intensity *= 0.6;
+        }
+        sun.position.copy(atmosphereApi.sunDir).multiplyScalar(62);
+      }
+    } catch (e) {
+      console.warn('[LUNCBattle] atmosphere init failed — v9 fog kept', e);
+    }
     // v9.2: wood/prop mats come from materials registry inside environment/structures
 
     // v8.3 — faction bases & structures (procedural, no GridHelper)
@@ -367,6 +398,9 @@
               distScale = Math.max(0, 1 - d / 38);
               distScale = distScale * distScale;
             }
+            try {
+              if (LUNCBattle.sfx) LUNCBattle.sfx.explosion((power || 1) * (kind === 'bomb' ? 1.5 : 1), 1 - Math.sqrt(Math.max(0, distScale)));
+            } catch (_) {}
             if (distScale < 0.08) return;
             const add = Math.min(0.42, (amp || 0) * Math.min(1.2, power || 1) * distScale);
             cameraShake = Math.min(0.48, cameraShake + add);
@@ -1799,6 +1833,10 @@
         else { kind='tracer'; power=0.5; }
         const color = side<0 ? tokens[current].color : 0xe4675f;
         const muz = muzzleWorld(u);
+        if (kind === 'tracer' && window.LUNCBattle && LUNCBattle.sfx && Math.random() < 0.35) {
+          const ddx = camera.position.x - muz.x, ddz = camera.position.z - muz.z;
+          LUNCBattle.sfx.gunfire(Math.min(1, Math.sqrt(ddx * ddx + ddz * ddz) / 90));
+        }
         if (effectsApi && effectsApi.fireWeapon) {
           effectsApi.fireWeapon({
             from: { x: muz.x, y: muz.y, z: muz.z },
@@ -1825,6 +1863,49 @@
       }
       return false;
     }
+
+    // -------------------- v10 engine bridge (Commander game layer, SFX) --------------------
+    const engineState = { paused: false };
+    const _ray = new THREE.Raycaster();
+    const _ndc = new THREE.Vector2();
+    LUNCBattle.engine = {
+      THREE: THREE, scene: scene, camera: camera, renderer: renderer, mobile: mobileGfx,
+      terrainHeight: terrainHeight,
+      getArmies: function () { return { bulls: bulls, bears: bears }; },
+      getFrontlineX: function () { return priceTerritoryApi ? priceTerritoryApi.getFrontlineX() : targetX; },
+      getPrice: function () { return price; },
+      getToken: function () { return current; },
+      isPriceLive: function () { return priceSource !== SRC.SIM && isLive && (Date.now() - lastPriceTs) < 120000; },
+      getMomentum: function () { return momentum; },
+      bullColor: function () { return tokens[current].color; },
+      bearColor: function () { return 0xe4675f; },
+      effects: effectsApi,
+      addShake: function (amt) { cameraShake = Math.min(0.6, cameraShake + (amt || 0)); },
+      flash: function (amt) { if (postfx && postfx.isActive()) postfx.pulse(amt); },
+      focusWorld: function (x, z, smooth) { if (cameraCtrl) cameraCtrl.focusWorld(x, z, smooth); },
+      focusFrontline: function (smooth) { if (cameraCtrl) cameraCtrl.focusFrontline(smooth !== false); },
+      notifyUserInput: function () { if (cameraCtrl) cameraCtrl.notifyUserInput(); },
+      setPaused: function (p) { engineState.paused = !!p; if (LUNCBattle.sfx) LUNCBattle.sfx.setPaused(!!p); },
+      isPaused: function () { return engineState.paused; },
+      /** Screen (clientX/Y) → ground point, or null */
+      pickGround: function (clientX, clientY) {
+        const rect = renderer.domElement.getBoundingClientRect();
+        _ndc.set(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
+        _ray.setFromCamera(_ndc, camera);
+        if (ground) {
+          const hit = _ray.intersectObject(ground, false)[0];
+          if (hit) return hit.point;
+        }
+        const t = -_ray.ray.origin.y / (_ray.ray.direction.y || -1e-6);
+        if (t > 0) return _ray.ray.origin.clone().addScaledVector(_ray.ray.direction, t);
+        return null;
+      },
+      worldToScreen: function (v) {
+        const p = v.clone().project(camera);
+        return { x: (p.x * 0.5 + 0.5) * innerWidth, y: (-p.y * 0.5 + 0.5) * innerHeight, behind: p.z > 1 };
+      },
+      postfxState: function () { return postfx ? postfx.getState() : null; }
+    };
 
     // -------------------- Animation --------------------
     const clock=new THREE.Clock();
@@ -1866,7 +1947,12 @@
       // Drain THREE.Clock so getDelta stays consistent if used elsewhere; do not feed it to PERF.
       clock.getDelta();
       const dt = Math.min(0.04, wallDtSec > 0 ? wallDtSec : 0.0167);
-      const freezeSim = !!(stallMod && stallMod.flags && stallMod.flags.freeze);
+      // v10: player pause freezes the sim/FX but keeps camera + render alive (orbit while paused)
+      const freezeSim = !!(stallMod && stallMod.flags && stallMod.flags.freeze) || engineState.paused;
+      if (atmosphereApi) atmosphereApi.update(dt, performance.now() * 0.001, camera);
+      if (window.LUNCBattle && LUNCBattle.commander && LUNCBattle.commander.tick) {
+        try { LUNCBattle.commander.tick(engineState.paused ? 0 : dt, wallDtSec); } catch (e) { if (!animate._cmdErr) { animate._cmdErr = 1; console.warn('[commander]', e); } }
+      }
       if (cadence && !freezeSim) cadence.markSim();
       if (window.LUNCBattle && LUNCBattle.lod && LUNCBattle.lod.beginFrame) {
         LUNCBattle.lod.beginFrame();
@@ -1886,9 +1972,9 @@
         else runQualityFreeze();
         function runRenderFreeze() {
           if (stallMod && typeof stallMod.timedRender === 'function') {
-            stallMod.timedRender(renderer, scene, camera);
+            stallMod.timedRender(renderer, scene, camera, drawFrame);
           } else if (!(stallMod && stallMod.flags && stallMod.flags.norender)) {
-            renderer.render(scene, camera);
+            drawFrame();
           }
           if (cadence) cadence.markRender();
         }
@@ -2105,9 +2191,9 @@
 
       function runRender() {
         if (stallMod && typeof stallMod.timedRender === 'function') {
-          stallMod.timedRender(renderer, scene, camera);
+          stallMod.timedRender(renderer, scene, camera, drawFrame);
         } else if (!(stallMod && stallMod.flags && stallMod.flags.norender)) {
-          renderer.render(scene, camera);
+          drawFrame();
         }
         if (cadence) cadence.markRender();
       }
@@ -2132,7 +2218,7 @@
     });
 
     updateStatusUI();
-    pushFeed('Battlefield ' + ((window.LUNCBattle && LUNCBattle.config && LUNCBattle.config.BUILD) || 'v8') + ' · heli runId + instancing','win');
+    pushFeed('Battlefield ' + ((window.LUNCBattle && LUNCBattle.config && LUNCBattle.config.BUILD) || 'v8') + ' · post-FX · atmosphere · Commander mode','win');
     pushFeed('Market pressure moves formations and the contested front','info');
     pushFeed('Public build uses HTTPS-safe data feeds','info');
 
