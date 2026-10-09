@@ -1,4 +1,4 @@
-/* LUNC Battlefield v8.1 — procedural terrain (original meshes only) */
+/* LUNC Battlefield v9.4.13 — procedural terrain (no-man's depth + cluster-friendly ground) */
 (function (global) {
   'use strict';
 
@@ -55,6 +55,18 @@
         d: 0.28 + seededRand(i + 310) * 0.55
       });
     }
+    // v9.4.13 — small no-man's-land bowls near world origin (static ground; frontline props follow price)
+    for (let i = 0; i < 10; i++) {
+      const cx = (seededRand(i + 501) - 0.5) * 16;
+      const cz = (seededRand(i + 611) - 0.5) * 48;
+      if (Math.abs(cz) < 2.2 && Math.abs(cx) < 1.4) continue;
+      CRATERS.push({
+        x: cx,
+        z: cz,
+        r: 0.85 + seededRand(i + 701) * 1.6,
+        d: 0.12 + seededRand(i + 811) * 0.22
+      });
+    }
   })();
 
   function craterDepth(x, z) {
@@ -94,7 +106,7 @@
       const berm = 0.42 * Math.exp(-Math.pow((absX - 5.4) / 0.9, 2));
       trenchBerm = trench + berm;
     }
-    h = h * (1 - 0.84 * flatten) + trenchBerm;
+    h = h * (1 - 0.55 * flatten) + trenchBerm;
 
     // Edge hills near |z| large
     const edgeT = Math.max(0, (Math.abs(z) - 26) / 16);
@@ -102,10 +114,10 @@
       h += edgeT * edgeT * (0.95 + 0.45 * Math.sin(x * 0.075 + z * 0.02));
     }
 
-    // Worn dirt road along z through center (width ~10–14), slightly lower
-    const roadHalf = 6.2;
+    // Worn track along z through center — narrow, not a bowling-alley
+    const roadHalf = 2.8;
     const road = Math.exp(-(x * x) / (2 * roadHalf * roadHalf));
-    h -= road * 0.2;
+    h -= road * 0.08;
 
     // Crater bowls
     h -= craterDepth(x, z).depth;
@@ -141,11 +153,11 @@
     const pos = terrainGeo.attributes.position;
     const colors = [];
 
-    const colGrass = new THREE.Color(0x3d5234);
-    const colOlive = new THREE.Color(0x4a5536);
-    const colDirt = new THREE.Color(0x5a4634);
+    const colGrass = new THREE.Color(0x4f6b34); // v10 richer grass
+    const colOlive = new THREE.Color(0x5e6c3a);
+    const colDirt = new THREE.Color(0x6e5636);
     const colMud = new THREE.Color(0x2e261c);
-    const colRock = new THREE.Color(0x5a5c4e);
+    const colRock = new THREE.Color(0x6d6c5c);
     const colScorch = new THREE.Color(0x1c1a16);
     const tintBull = new THREE.Color(0x1a3a28);
     const tintBear = new THREE.Color(0x3a221c);
@@ -184,8 +196,9 @@
         const slope = Math.min(1, (dhx + dhz) * 2.2);
 
         const roadDist = Math.abs(x);
-        const roadProx = Math.exp(-(roadDist * roadDist) / (2 * 6.5 * 6.5));
+        const roadProx = Math.exp(-(roadDist * roadDist) / (2 * 3.1 * 3.1));
         const crater = craterDepth(x, z).prox;
+        const noman = Math.exp(-(roadDist * roadDist) / (2 * 7.2 * 7.2));
 
         // Base blend: low = mud/dirt, mid = grass/olive, high/slope = rock
         const c = colOlive.clone();
@@ -200,12 +213,13 @@
         // Slope → rock
         c.lerp(colRock, slope * 0.55);
 
-        // Road → worn dirt / mud
-        c.lerp(colDirt, roadProx * 0.72);
-        if (roadProx > 0.35) c.lerp(colMud, (roadProx - 0.35) * 0.5);
+        // Road → worn dirt / mud (narrow track)
+        c.lerp(colDirt, roadProx * 0.55);
+        if (roadProx > 0.35) c.lerp(colMud, (roadProx - 0.35) * 0.4);
 
-        // Craters → scorched charcoal
-        c.lerp(colScorch, crater * 0.85);
+        // No-man's-land: scorch + mud, not a painted faction stripe
+        c.lerp(colMud, noman * 0.22);
+        c.lerp(colScorch, noman * 0.18 + crater * 0.85);
 
         // Subtle bull-west / bear-east tint (~3–5%)
         const sideTint = x < 0 ? tintBull : tintBear;
@@ -218,12 +232,32 @@
     terrainGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
     terrainGeo.computeVertexNormals();
 
-    const groundMat = new THREE.MeshStandardMaterial({
-      vertexColors: true,
-      roughness: 0.97,
-      metalness: 0,
-      flatShading: false
-    });
+    const Mats = (global.LUNCBattle && LUNCBattle.materials) || null;
+    if (Mats && Mats.init) Mats.init(THREE);
+    const groundMat = Mats
+      ? Mats.get('terrain.ground')
+      : new THREE.MeshStandardMaterial({
+          vertexColors: true,
+          roughness: 0.97,
+          metalness: 0,
+          flatShading: false
+        });
+    // v10: tiling procedural detail albedo + micro normal map (grass/earth texture instead of flat colour)
+    const PT = (global.LUNCBattle && LUNCBattle.proctex) || null;
+    if (PT && groundMat && !groundMat.userData.v10Detail) {
+      groundMat.userData.v10Detail = true;
+      groundMat.color.setHex(0xffffff);
+      groundMat.map = PT.groundDetail(THREE, 26, 16);
+      groundMat.normalMap = PT.groundNormal(THREE, 26, 16);
+      groundMat.normalScale = new THREE.Vector2(0.3, 0.3); // low: derivative tangent frames band on steep trench rows
+      try {
+        const aniso = (LUNCBattle.quality && LUNCBattle.quality.getEffectivePreset)
+          ? (LUNCBattle.quality.getEffectivePreset().textureLodHooks || {}).maxAnisotropy || 1 : 1;
+        groundMat.map.anisotropy = aniso;
+        groundMat.normalMap.anisotropy = aniso;
+      } catch (_) {}
+      groundMat.needsUpdate = true;
+    }
     const ground = new THREE.Mesh(terrainGeo, groundMat);
     ground.receiveShadow = true;
     ground.castShadow = false;
@@ -231,14 +265,23 @@
     group.add(ground);
 
     // Subtle secondary dirt patches (thin offset planes) — few draw calls
-    const patchMat = new THREE.MeshStandardMaterial({
-      color: 0x4a3c2c,
-      roughness: 1,
-      metalness: 0,
-      transparent: true,
-      opacity: 0.42,
-      depthWrite: false
-    });
+    const patchMat = Mats
+      ? Mats.get('terrain.dirtPatch')
+      : new THREE.MeshStandardMaterial({
+          color: 0x4a3c2c,
+          roughness: 1,
+          metalness: 0,
+          transparent: true,
+          opacity: 0.42,
+          depthWrite: false
+        });
+    if (PT && patchMat && !patchMat.userData.v10Mask) {
+      patchMat.userData.v10Mask = true;
+      patchMat.alphaMap = PT.blobMask(THREE);
+      patchMat.opacity = 0.62;
+      patchMat.polygonOffset = true; patchMat.polygonOffsetFactor = -3; patchMat.polygonOffsetUnits = -3;
+      patchMat.needsUpdate = true;
+    }
     let patchCount = mobile ? 5 : 9;
     try {
       if (global.LUNCBattle && LUNCBattle.quality && LUNCBattle.quality.getDensityScale) {
@@ -249,7 +292,6 @@
     for (let i = 0; i < patchCount; i++) {
       const px = (seededRand(i + 701) - 0.5) * 100;
       const pz = (seededRand(i + 811) - 0.5) * 58;
-      if (Math.abs(px) < 8) continue;
       if (Math.abs(px) > 42 && Math.abs(pz) < 14) continue;
       const pw = 3.5 + seededRand(i + 901) * 5;
       const pd = 2.2 + seededRand(i + 951) * 3.5;
@@ -258,23 +300,55 @@
       patch.rotation.z = seededRand(i + 980) * Math.PI;
       const py = terrainHeight(px, pz) + 0.04;
       patch.position.set(px, py, pz);
-      patch.receiveShadow = true;
+      patch.receiveShadow = !PT; // v10: decals skip shadow sampling (acne bands on thin offset planes)
       group.add(patch);
     }
 
-    // Soft road tint overlay (not a neon strip)
-    const roadMat = new THREE.MeshStandardMaterial({
-      color: 0x3a3226,
-      roughness: 1,
-      metalness: 0,
-      transparent: true,
-      opacity: 0.38,
-      depthWrite: false
-    });
-    const road = new THREE.Mesh(new THREE.PlaneGeometry(12.5, 74), roadMat);
-    road.rotation.x = -Math.PI / 2;
-    road.position.set(0, 0.03, 0);
-    road.receiveShadow = true;
+    // v9.4.13 — broken no-man's dirt patches (shared mat, few planes) instead of a 12m bowling-alley
+    const nomanN = mobile ? 4 : 7;
+    for (let i = 0; i < nomanN; i++) {
+      const px = (seededRand(i + 1201) - 0.5) * 10;
+      const pz = (seededRand(i + 1311) - 0.5) * 52;
+      const pw = 2.4 + seededRand(i + 1401) * 3.2;
+      const pd = 1.8 + seededRand(i + 1451) * 2.6;
+      const patch = new THREE.Mesh(new THREE.PlaneGeometry(pw, pd), patchMat);
+      patch.rotation.x = -Math.PI / 2;
+      patch.rotation.z = seededRand(i + 1480) * Math.PI;
+      patch.position.set(px, terrainHeight(px, pz) + 0.045, pz);
+      patch.receiveShadow = !PT; // v10: decals skip shadow sampling (acne bands on thin offset planes)
+      group.add(patch);
+    }
+
+    // Soft worn track overlay (narrow, not a neon strip)
+    const roadMat = Mats
+      ? Mats.get('terrain.road')
+      : new THREE.MeshStandardMaterial({
+          color: 0x3a3226,
+          roughness: 1,
+          metalness: 0,
+          transparent: true,
+          opacity: 0.22,
+          depthWrite: false
+        });
+    if (PT && roadMat && !roadMat.userData.v10Mask) {
+      roadMat.userData.v10Mask = true;
+      roadMat.alphaMap = PT.stripMask(THREE);
+      roadMat.opacity = 0.55;
+      // flat 0.03 plane z-fought the terrain trench → horizontal banding; bias it toward camera
+      roadMat.polygonOffset = true; roadMat.polygonOffsetFactor = -4; roadMat.polygonOffsetUnits = -4;
+      roadMat.needsUpdate = true;
+    }
+    // v10: road conforms to the terrain (was a flat plane that z-fought / clipped the trench)
+    const roadGeo = new THREE.PlaneGeometry(5.2, 74, 4, 96);
+    roadGeo.rotateX(-Math.PI / 2);
+    {
+      const rp = roadGeo.attributes.position;
+      for (let i = 0; i < rp.count; i++) rp.setY(i, terrainHeight(rp.getX(i), rp.getZ(i)) + 0.035);
+      roadGeo.computeVertexNormals();
+    }
+    const road = new THREE.Mesh(roadGeo, roadMat);
+    road.position.set(0, 0, 0);
+    road.receiveShadow = !PT;
     group.add(road);
 
     scene.add(group);
@@ -283,8 +357,12 @@
       group.traverse(function (obj) {
         if (obj.geometry) obj.geometry.dispose();
         if (obj.material) {
-          if (Array.isArray(obj.material)) obj.material.forEach(function (m) { m.dispose(); });
-          else obj.material.dispose();
+          var mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+          mats.forEach(function (m) {
+            if (!m) return;
+            if (Mats && Mats.isShared && Mats.isShared(m)) return;
+            if (m.dispose) m.dispose();
+          });
         }
       });
       scene.remove(group);

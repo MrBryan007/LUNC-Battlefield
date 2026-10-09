@@ -5,7 +5,7 @@
   var DEFAULT_BOUNDS = { minX: -70, maxX: 70, minZ: -45, maxZ: 45 };
   var BULL_BASE_X = -48;
   var BEAR_BASE_X = 48;
-  var DEFAULT_CAM = { x: 0, y: 38, z: 48 };
+  var DEFAULT_CAM = { x: 0, y: 27, z: 55 }; // v10 lower 3/4 angle (unused default)
   var DEFAULT_TARGET_Y = 1.2;
 
   function createApi(opts) {
@@ -211,15 +211,17 @@
       clampCameraToTarget();
       if (controls && controls.update) controls.update();
 
-      // Apply shake AFTER OrbitControls so damping does not bake it into the orbit
+      // Apply shake AFTER OrbitControls so damping does not bake it into the orbit.
+      // v9.4.12: trauma² + dt decay (subtle, short). Do not shake the target.
       if (shake > 0.01) {
+        var mag = shake * shake;
         shakeOffset.set(
-          (Math.random() - 0.5) * shake * 0.14,
-          (Math.random() - 0.5) * shake * 0.08,
-          (Math.random() - 0.5) * shake * 0.06
+          (Math.random() - 0.5) * mag * 0.22,
+          (Math.random() - 0.5) * mag * 0.12,
+          (Math.random() - 0.5) * mag * 0.10
         );
         camera.position.add(shakeOffset);
-        shake *= 0.9;
+        shake = Math.max(0, shake - (dt || 0.016) * 3.8);
       } else {
         shake = 0;
       }
