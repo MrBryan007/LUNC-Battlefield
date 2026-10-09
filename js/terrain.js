@@ -153,11 +153,11 @@
     const pos = terrainGeo.attributes.position;
     const colors = [];
 
-    const colGrass = new THREE.Color(0x3d5234);
-    const colOlive = new THREE.Color(0x4a5536);
-    const colDirt = new THREE.Color(0x5a4634);
+    const colGrass = new THREE.Color(0x4f6b34); // v10 richer grass
+    const colOlive = new THREE.Color(0x5e6c3a);
+    const colDirt = new THREE.Color(0x6e5636);
     const colMud = new THREE.Color(0x2e261c);
-    const colRock = new THREE.Color(0x5a5c4e);
+    const colRock = new THREE.Color(0x6d6c5c);
     const colScorch = new THREE.Color(0x1c1a16);
     const tintBull = new THREE.Color(0x1a3a28);
     const tintBear = new THREE.Color(0x3a221c);
@@ -242,6 +242,22 @@
           metalness: 0,
           flatShading: false
         });
+    // v10: tiling procedural detail albedo + micro normal map (grass/earth texture instead of flat colour)
+    const PT = (global.LUNCBattle && LUNCBattle.proctex) || null;
+    if (PT && groundMat && !groundMat.userData.v10Detail) {
+      groundMat.userData.v10Detail = true;
+      groundMat.color.setHex(0xffffff);
+      groundMat.map = PT.groundDetail(THREE, 26, 16);
+      groundMat.normalMap = PT.groundNormal(THREE, 26, 16);
+      groundMat.normalScale = new THREE.Vector2(0.3, 0.3); // low: derivative tangent frames band on steep trench rows
+      try {
+        const aniso = (LUNCBattle.quality && LUNCBattle.quality.getEffectivePreset)
+          ? (LUNCBattle.quality.getEffectivePreset().textureLodHooks || {}).maxAnisotropy || 1 : 1;
+        groundMat.map.anisotropy = aniso;
+        groundMat.normalMap.anisotropy = aniso;
+      } catch (_) {}
+      groundMat.needsUpdate = true;
+    }
     const ground = new THREE.Mesh(terrainGeo, groundMat);
     ground.receiveShadow = true;
     ground.castShadow = false;
@@ -259,6 +275,13 @@
           opacity: 0.42,
           depthWrite: false
         });
+    if (PT && patchMat && !patchMat.userData.v10Mask) {
+      patchMat.userData.v10Mask = true;
+      patchMat.alphaMap = PT.blobMask(THREE);
+      patchMat.opacity = 0.62;
+      patchMat.polygonOffset = true; patchMat.polygonOffsetFactor = -3; patchMat.polygonOffsetUnits = -3;
+      patchMat.needsUpdate = true;
+    }
     let patchCount = mobile ? 5 : 9;
     try {
       if (global.LUNCBattle && LUNCBattle.quality && LUNCBattle.quality.getDensityScale) {
@@ -277,7 +300,7 @@
       patch.rotation.z = seededRand(i + 980) * Math.PI;
       const py = terrainHeight(px, pz) + 0.04;
       patch.position.set(px, py, pz);
-      patch.receiveShadow = true;
+      patch.receiveShadow = !PT; // v10: decals skip shadow sampling (acne bands on thin offset planes)
       group.add(patch);
     }
 
@@ -292,7 +315,7 @@
       patch.rotation.x = -Math.PI / 2;
       patch.rotation.z = seededRand(i + 1480) * Math.PI;
       patch.position.set(px, terrainHeight(px, pz) + 0.045, pz);
-      patch.receiveShadow = true;
+      patch.receiveShadow = !PT; // v10: decals skip shadow sampling (acne bands on thin offset planes)
       group.add(patch);
     }
 
@@ -307,10 +330,25 @@
           opacity: 0.22,
           depthWrite: false
         });
-    const road = new THREE.Mesh(new THREE.PlaneGeometry(5.2, 74), roadMat);
-    road.rotation.x = -Math.PI / 2;
-    road.position.set(0, 0.03, 0);
-    road.receiveShadow = true;
+    if (PT && roadMat && !roadMat.userData.v10Mask) {
+      roadMat.userData.v10Mask = true;
+      roadMat.alphaMap = PT.stripMask(THREE);
+      roadMat.opacity = 0.55;
+      // flat 0.03 plane z-fought the terrain trench → horizontal banding; bias it toward camera
+      roadMat.polygonOffset = true; roadMat.polygonOffsetFactor = -4; roadMat.polygonOffsetUnits = -4;
+      roadMat.needsUpdate = true;
+    }
+    // v10: road conforms to the terrain (was a flat plane that z-fought / clipped the trench)
+    const roadGeo = new THREE.PlaneGeometry(5.2, 74, 4, 96);
+    roadGeo.rotateX(-Math.PI / 2);
+    {
+      const rp = roadGeo.attributes.position;
+      for (let i = 0; i < rp.count; i++) rp.setY(i, terrainHeight(rp.getX(i), rp.getZ(i)) + 0.035);
+      roadGeo.computeVertexNormals();
+    }
+    const road = new THREE.Mesh(roadGeo, roadMat);
+    road.position.set(0, 0, 0);
+    road.receiveShadow = !PT;
     group.add(road);
 
     scene.add(group);

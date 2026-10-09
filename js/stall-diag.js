@@ -171,7 +171,7 @@
    * Wrap renderer.render with optional GPU timer + CPU submit timing.
    * Non-blocking: result of previous query is polled; new query started if none pending.
    */
-  function timedRender(renderer, scene, camera) {
+  function timedRender(renderer, scene, camera, renderFn) {
     var t0 = performance.now();
     var gl = getGL(renderer);
     var began = false;
@@ -200,7 +200,8 @@
     var out;
     try {
       if (!norender) {
-        out = renderer.render(scene, camera);
+        // v10: optional render callback (post-FX pipeline) keeps GPU/CPU timing around the whole frame
+        out = typeof renderFn === 'function' ? renderFn() : renderer.render(scene, camera);
       }
     } finally {
       if (began && gl) {

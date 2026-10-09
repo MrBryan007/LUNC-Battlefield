@@ -5,7 +5,7 @@
   var DEFAULT_BOUNDS = { minX: -70, maxX: 70, minZ: -45, maxZ: 45 };
   var BULL_BASE_X = -48;
   var BEAR_BASE_X = 48;
-  var DEFAULT_CAM = { x: 0, y: 38, z: 48 };
+  var DEFAULT_CAM = { x: 0, y: 27, z: 55 }; // v10 lower 3/4 angle (unused default)
   var DEFAULT_TARGET_Y = 1.2;
 
   function createApi(opts) {

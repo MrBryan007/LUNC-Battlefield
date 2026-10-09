@@ -1,4 +1,4 @@
-/* LUNC Battlefield v9.4.13 — graphics quality + stall-aware PERF (throttled UI) */
+/* LUNC Battlefield v10 — graphics quality (v10: postFx tiers + brighter key light) + stall-aware PERF (throttled UI) */
 (function (global) {
   'use strict';
 
@@ -71,8 +71,9 @@
 
   var PRESETS = Object.freeze({
     LOW: Object.freeze(clonePreset({
-      pixelRatioCap: 1.0,
-      renderScale: 0.72,
+      // v10: was 1.0 × 0.72 (≈0.72 DPR on a 3× iPhone — very blurry). Dyn-res still drops to 0.55 if FPS sags.
+      pixelRatioCap: 1.5,
+      renderScale: 0.82,
       shadows: 'off',
       shadowMapSize: 512,
       unitDetail: 'low',
@@ -94,7 +95,7 @@
       unitUpdateDivisor: 2,
       shadowCast: 'major',
       lod: { LOD0: 16, LOD1: 32, LOD2: 55, LOD3: 999, hysteresis: 3 },
-      postFxHooks: { bloom: false, ao: false, sharpen: false },
+      postFxHooks: { bloom: false, ao: false, sharpen: false, aa: 'none' },
       textureLodHooks: { maxAnisotropy: 1, preferCompressed: true }
     })),
     MEDIUM: Object.freeze(clonePreset({
@@ -121,7 +122,7 @@
       unitUpdateDivisor: 1,
       shadowCast: 'bases',
       lod: { LOD0: 20, LOD1: 40, LOD2: 65, LOD3: 999, hysteresis: 4 },
-      postFxHooks: { bloom: false, ao: false, sharpen: false },
+      postFxHooks: { bloom: true, ao: false, sharpen: false, aa: 'fxaa', levels: 3, strength: 0.55, threshold: 0.86 },
       textureLodHooks: { maxAnisotropy: 2, preferCompressed: false }
     })),
     HIGH: Object.freeze(clonePreset({
@@ -148,7 +149,7 @@
       unitUpdateDivisor: 1,
       shadowCast: 'rich',
       lod: { LOD0: 24, LOD1: 44, LOD2: 70, LOD3: 999, hysteresis: 4 },
-      postFxHooks: { bloom: false, ao: false, sharpen: false },
+      postFxHooks: { bloom: true, ao: false, sharpen: false, aa: 'msaa', msaa: 4, levels: 5, strength: 0.62, threshold: 0.84 },
       textureLodHooks: { maxAnisotropy: 4, preferCompressed: false }
     })),
     ULTRA: Object.freeze(clonePreset({
@@ -175,7 +176,7 @@
       unitUpdateDivisor: 1,
       shadowCast: 'rich',
       lod: { LOD0: 30, LOD1: 52, LOD2: 82, LOD3: 999, hysteresis: 5 },
-      postFxHooks: { bloom: false, ao: false, sharpen: false },
+      postFxHooks: { bloom: true, ao: false, sharpen: false, aa: 'msaa', msaa: 4, levels: 5, strength: 0.72, threshold: 0.8 },
       textureLodHooks: { maxAnisotropy: 8, preferCompressed: false }
     }))
   });
@@ -448,28 +449,28 @@
 
     // Lighting complexity: scale fill / hemi / rim / accents for PBR (v9.2)
     if (fillRef) {
-      if (p.lightingComplexity === 'low') fillRef.intensity = 0.06;
-      else if (p.lightingComplexity === 'medium') fillRef.intensity = 0.12;
-      else if (p.lightingComplexity === 'ultra') fillRef.intensity = 0.22;
-      else fillRef.intensity = 0.18;
+      if (p.lightingComplexity === 'low') fillRef.intensity = 0.14;
+      else if (p.lightingComplexity === 'medium') fillRef.intensity = 0.2;
+      else if (p.lightingComplexity === 'ultra') fillRef.intensity = 0.3;
+      else fillRef.intensity = 0.26;
     }
     if (hemiRef) {
-      if (p.lightingComplexity === 'low') hemiRef.intensity = 0.38;
-      else if (p.lightingComplexity === 'medium') hemiRef.intensity = 0.46;
-      else if (p.lightingComplexity === 'ultra') hemiRef.intensity = 0.58;
-      else hemiRef.intensity = 0.52;
+      if (p.lightingComplexity === 'low') hemiRef.intensity = 0.62;
+      else if (p.lightingComplexity === 'medium') hemiRef.intensity = 0.5;
+      else if (p.lightingComplexity === 'ultra') hemiRef.intensity = 0.48;
+      else hemiRef.intensity = 0.48;
     }
     if (rimRef) {
-      if (p.lightingComplexity === 'low') rimRef.intensity = 0;
-      else if (p.lightingComplexity === 'medium') rimRef.intensity = 0.04;
-      else if (p.lightingComplexity === 'ultra') rimRef.intensity = 0.1;
-      else rimRef.intensity = 0.07;
+      if (p.lightingComplexity === 'low') rimRef.intensity = 0.08;
+      else if (p.lightingComplexity === 'medium') rimRef.intensity = 0.16;
+      else if (p.lightingComplexity === 'ultra') rimRef.intensity = 0.22;
+      else rimRef.intensity = 0.2;
     }
     if (sunRef && sunRef.isDirectionalLight) {
-      if (p.lightingComplexity === 'low') sunRef.intensity = 0.88;
-      else if (p.lightingComplexity === 'medium') sunRef.intensity = 0.98;
-      else if (p.lightingComplexity === 'ultra') sunRef.intensity = 1.12;
-      else sunRef.intensity = 1.05;
+      if (p.lightingComplexity === 'low') sunRef.intensity = 1.75;
+      else if (p.lightingComplexity === 'medium') sunRef.intensity = 1.8;
+      else if (p.lightingComplexity === 'ultra') sunRef.intensity = 2.0;
+      else sunRef.intensity = 1.9;
     }
     if (accentLightsRef && accentLightsRef.length) {
       var accentScale = 1;
@@ -896,7 +897,8 @@
 
   // Public API
   var api = {
-    version: 'v9.4.16',
+    version: 'v10.0',
+    getEffectiveName: getEffectiveName,
     MODES: MODES,
     PRESETS: PRESETS,
     FEED_STATES: FEED_STATES,

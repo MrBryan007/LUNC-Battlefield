@@ -79,15 +79,36 @@
     GEO.shell.rotateX(Math.PI / 2);
     GEO.rocket.rotateX(Math.PI / 2);
 
+    // v10: camera-facing soft billboards replace low-poly spheres for hot FX + smoke.
+    // Sized ~2.4× the old sphere diameter so soft falloff reads at the same visual scale.
+    const PT = (global.LUNCBattle && LUNCBattle.proctex) ? LUNCBattle.proctex : null;
+    const BILLBOARD = Object.create(null);
+    if (PT) {
+      GEO.smoke = new THREE.PlaneGeometry(1.5, 1.5);
+      GEO.spark = new THREE.PlaneGeometry(0.42, 0.42);
+      GEO.ember = new THREE.PlaneGeometry(0.3, 0.3);
+      GEO.flash = new THREE.PlaneGeometry(1.0, 1.0);
+      GEO.fire = new THREE.PlaneGeometry(1.15, 1.4);
+      BILLBOARD.smoke = BILLBOARD.spark = BILLBOARD.ember = BILLBOARD.flash = BILLBOARD.fire = true;
+    }
+    function hotMat(color, opacity) {
+      return new THREE.MeshBasicMaterial({
+        color: color, transparent: true, opacity: opacity, depthWrite: false,
+        map: PT ? PT.softDot(THREE) : null,
+        blending: PT ? THREE.AdditiveBlending : THREE.NormalBlending,
+        toneMapped: false, fog: true
+      });
+    }
+
     const SHARED = {
       scorch: new THREE.MeshBasicMaterial({ color: 0x1a1612, transparent: true, opacity: 0.55, depthWrite: false }),
       ring: new THREE.MeshBasicMaterial({ color: 0xffe6a8, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false }),
-      spark: new THREE.MeshBasicMaterial({ color: 0xffcc66, transparent: true, opacity: 0.85, depthWrite: false }),
-      smoke: new THREE.MeshBasicMaterial({ color: 0x3b4039, transparent: true, opacity: 0.85, depthWrite: false }),
+      spark: hotMat(0xffcc66, 0.85),
+      smoke: new THREE.MeshBasicMaterial({ color: 0x3b4039, transparent: true, opacity: 0.85, depthWrite: false, map: PT ? PT.smokePuff(THREE) : null }),
       debris: new THREE.MeshBasicMaterial({ color: 0x6a5740, transparent: true, opacity: 0.95, depthWrite: false }),
-      ember: new THREE.MeshBasicMaterial({ color: 0xff6a2a, transparent: true, opacity: 0.9, depthWrite: false }),
-      flash: new THREE.MeshBasicMaterial({ color: 0xfff1c2, transparent: true, opacity: 0.95, depthWrite: false }),
-      fire: new THREE.MeshBasicMaterial({ color: 0xff7a28, transparent: true, opacity: 0.7, depthWrite: false }),
+      ember: hotMat(0xff6a2a, 0.9),
+      flash: hotMat(0xfff1c2, 0.95),
+      fire: hotMat(0xff7a28, 0.7),
       proj: new THREE.MeshBasicMaterial({ color: 0xffffff })
     };
     const inactiveScorches = [];
@@ -1212,6 +1233,11 @@
           else if (ud._poolKind === 'flash') mat.opacity = Math.max(0, ud.life * 8);
           else mat.opacity = Math.max(0, ud.life * 1.45);
         }
+        if (BILLBOARD[ud._poolKind] && cam) {
+          q.quaternion.copy(cam.quaternion);
+          if (ud.roll == null) ud.roll = Math.random() * Math.PI * 2;
+          if (ud.roll) q.rotateZ(ud.roll);
+        }
         if (ud.life <= 0) releaseParticle(q);
       }
 
@@ -1256,6 +1282,7 @@
         f.scale.z += dt * f.userData.grow;
         f.scale.y += dt * f.userData.grow * 0.6;
         if (f.material) f.material.opacity = Math.max(0, 0.7 * t);
+        if (BILLBOARD.fire && cam) f.quaternion.copy(cam.quaternion);
         if (f.userData.life <= 0) {
           f.visible = false;
           if (f.parent) scene.remove(f);
