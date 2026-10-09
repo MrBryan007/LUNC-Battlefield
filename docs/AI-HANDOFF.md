@@ -2,9 +2,22 @@
 
 Git is the source of truth. If this file disagrees with Git, Git wins and this file must be corrected.
 
-**Updated:** 2026-09-13 (v9.4.16 iOS playability)
+**Updated:** 2026-10-08 (v10.0 graphics + Commander gameplay — LOCAL ONLY)
 
-## Current
+## Current (v10.0 — local branch, not pushed)
+
+| Item | Value |
+| --- | --- |
+| BUILD | `v10.0` |
+| Branch | `feat/v10-graphics-gameplay` (local) on `a51614f` (v9.4.17 phone-freeze hotfix, also local) |
+| Pushed / PR | **No.** Waiting for Bryan's approval. |
+| Three.js | **r128** (unchanged) |
+| Cache bust | `?v=20261008v10` |
+| Details | `docs/V10-CHANGES.md` |
+
+v10 adds post-FX (`js/postfx.js`), atmosphere/IBL (`js/atmosphere.js`), procedural textures (`js/proctex.js`), WebAudio SFX (`js/sfx.js`) and the Commander game layer (`js/commander.js`). Game layer is cosmetic — never touches market truth / frontline math.
+
+## Previous (v9.4.16)
 
 | Item | Value |
 | --- | --- |

@@ -156,6 +156,15 @@ body[data-cmd-side="bear"] .cmd-progress i { background: linear-gradient(90deg, 
 
 body.cmd-armed canvas { cursor: crosshair; }
 
+/* Spectator mode: re-enter command */
+.cmd-enter-btn {
+  display: none; position: fixed; z-index: 33; left: 50%; transform: translateX(-50%); bottom: max(14px, env(safe-area-inset-bottom));
+  padding: 10px 18px; border-radius: 999px; cursor: pointer; font: 700 14px Rajdhani, sans-serif; letter-spacing: 1px;
+  color: #10170f; background: linear-gradient(180deg, #ffe39a, #d7b56d); border: 0; box-shadow: 0 8px 24px rgba(215,181,109,.35);
+}
+body.cmd-watch .cmd-enter-btn { display: block; }
+@media (max-width: 720px) { .cmd-enter-btn { left: max(8px, env(safe-area-inset-left)); transform: none; } }
+
 /* Intro / pause overlay */
 .cmd-overlay {
   position: fixed; inset: 0; z-index: 60; display: none; place-items: center; padding: 16px;
@@ -231,3 +240,4 @@ body.cmd-armed canvas { cursor: crosshair; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+body.cmd-watch #hint { bottom: 64px; }

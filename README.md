@@ -6,6 +6,8 @@ Classic-RTS-inspired Terra Classic intelligence battlefield.
 
 **v9 (feature branch only):** `feat/v9-next-gen-renderer` — **v9.4.13 terrain / cluster formations** on **v9.4.12.1** FX cleanup + **v9.4.12** impact polish + **v9.4.11** jet choreography + **v9.4.10** AUTO≤HIGH + **v9.4.9** armor kit. Default WebGL (Three **r128**) with procedural SAFE FALLBACK. Impostors / SkeletonUtils / KTX2 deferred to v9.5. Also `docs/V9-TERRAIN.md` + `docs/V9-FX.md`. Not merged to main; live Pages stays on v8 until an explicit merge.
 
+**v10 (local branch only):** `feat/v10-graphics-gameplay` — post-FX bloom/AA/grade, sky + horizon, textured terrain, soft FX, and **Commander mode** (strikes, missions, ranks, Call the Front, SFX, pause). See `docs/V10-CHANGES.md`. Run locally: `python3 -m http.server 8765` then open `http://localhost:8765/`.
+
 **Live site:** https://mrbryan007.github.io/LUNC-Battlefield/
 
 ## Architecture (Phase 1)

@@ -322,7 +322,7 @@
   }
 
   /** Brief full-screen warm flash (big detonations / player strikes). */
-  function pulse(amount) { flashAmt = Math.min(0.35, flashAmt + (amount || 0.12)); }
+  function pulse(amount) { flashAmt = Math.min(0.18, flashAmt + (amount || 0.08)); }
 
   function getState() {
     return {

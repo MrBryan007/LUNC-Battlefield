@@ -261,7 +261,7 @@
     var dist = Math.min(1, Math.sqrt(dx * dx + dz * dz) / 110);
     if (sfx()) sfx().explosion(power * 1.2, dist);
     eng.addShake(Math.min(0.3, 0.1 * power));
-    eng.flash(0.035 * power);
+    eng.flash(0.012 * power);
   }
 
   function strikeArty(x, z) {
@@ -307,7 +307,7 @@
     var eng = E();
     session.charge = 0;
     toast('MOON SHOT', 'Game FX only — not a chain burn', 'gold');
-    eng.flash(0.3);
+    eng.flash(0.12);
     eng.addShake(0.5);
     boom(x, z, 2.6, true);
     resolveHits(x, z, ABILITIES.moon.radius, 1.6, true);
@@ -509,6 +509,10 @@
         '<div class="cmd-card-stats" id="cmdCardStats"></div>' +
       '</div>';
     doc.body.appendChild(overlay);
+    var cmdBtn = h('button', 'cmd-enter-btn', '⚔ Take Command');
+    cmdBtn.id = 'cmdEnter';
+    cmdBtn.addEventListener('click', function () { showOverlay('intro'); });
+    doc.body.appendChild(cmdBtn);
 
     el.root = root; el.overlay = overlay;
     ['cmdScore', 'cmdCombo', 'cmdRank', 'cmdXpBar', 'cmdLevel', 'cmdTimer', 'cmdMissionText', 'cmdMissionBar', 'cmdCall',
@@ -653,7 +657,7 @@
     doc.body.classList.add('cmd-on');
     doc.body.classList.remove('cmd-watch');
     if (E().isPaused()) E().setPaused(false);
-    profile.seenIntro = true; save();
+    profile.seenIntro = true; profile.watch = false; save();
     renderAll();
     if (sfx()) sfx().ui();
   }
@@ -664,7 +668,7 @@
     doc.body.classList.remove('cmd-on');
     doc.body.classList.add('cmd-watch');
     if (E().isPaused()) E().setPaused(false);
-    profile.seenIntro = true; save();
+    profile.seenIntro = true; profile.watch = true; save();
   }
   function togglePause() {
     var eng = E();
@@ -727,8 +731,8 @@
     return true;
   }
   function watchModeOrResume() {
-    // Returning players drop straight into command with their saved side
-    deploy();
+    // Returning players resume how they left: command (default) or spectator
+    if (profile.watch) watchMode(); else deploy();
   }
 
   LB.commander = {

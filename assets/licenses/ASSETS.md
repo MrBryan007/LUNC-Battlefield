@@ -31,3 +31,16 @@ When adding future assets, record: filename, author, license URL, and whether co
 ## Runtime policy
 
 Missing or failed loads → procedural fallback. Never black-screen. Never remove armies because an asset failed.
+
+## v10 additions (all original, generated at runtime — no downloads)
+
+| Item | Source | License |
+| --- | --- | --- |
+| Terrain detail albedo + normal map, smoke puff, soft glow, blob / strip masks (`js/proctex.js`) | Procedural canvas value-noise, authored for LUNC Battlefield | Project original |
+| Sky dome shader, horizon ridges, ground skirt, sky env map (`js/atmosphere.js`) | Procedural | Project original |
+| Post-processing shaders — bloom, FXAA-lite, grade (`js/postfx.js`) | Written for this project (standard published techniques: dual-Kawase blur, FXAA-style edge blend) | Project original |
+| All sound effects (`js/sfx.js`) | Synthesized live with WebAudio (noise + oscillators) | Project original |
+| Fonts | Inter + Rajdhani via Google Fonts (already used since v8) | SIL Open Font License 1.1 |
+| Three.js r128 + OrbitControls/GLTFLoader (CDN, unchanged) | three.js authors | MIT |
+
+No textures, models, or audio files were added to the repo.
