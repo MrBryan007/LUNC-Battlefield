@@ -294,12 +294,19 @@
       // Cap marker count
       const maxN = mobile ? 6 : 11;
       const minN = mobile ? 4 : 7;
-      while ((displayedHigh - displayedLow) / levelStep + 1 > maxN) {
-        levelStep = niceStep(levelStep * 2.01);
+      // v10: iteration guards — niceStep(x/2.1) can round back UP to x (e.g. 5e-6 → 2.38e-6 → 5e-6),
+      // which froze the main thread forever on phones (minN 4 / maxN 6). Require strict progress.
+      let guard = 0;
+      while ((displayedHigh - displayedLow) / levelStep + 1 > maxN && guard++ < 40) {
+        const bigger = niceStep(levelStep * 2.01);
+        if (!(bigger > levelStep) || !isFinite(bigger)) break;
+        levelStep = bigger;
       }
-      while ((displayedHigh - displayedLow) / levelStep + 1 < minN && levelStep > step) {
-        const smaller = niceStep(levelStep / 2.1);
-        if (smaller >= step && (displayedHigh - displayedLow) / smaller + 1 <= maxN) {
+      guard = 0;
+      while ((displayedHigh - displayedLow) / levelStep + 1 < minN && levelStep > step && guard++ < 40) {
+        let smaller = niceStep(levelStep / 2.1);
+        if (!(smaller < levelStep * 0.999)) smaller = niceStep(levelStep / 4.2);
+        if (smaller < levelStep * 0.999 && smaller >= step && (displayedHigh - displayedLow) / smaller + 1 <= maxN) {
           levelStep = smaller;
         } else break;
       }
