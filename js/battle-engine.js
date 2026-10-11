@@ -220,6 +220,10 @@
       ? LUNCBattle.postfx.init({ THREE, renderer })
       : null;
     function drawFrame() {
+      // v11: realistic unit skin layer (visual only) — sync instanced models to unit transforms
+      if (window.LUNCBattle && LUNCBattle.v11 && LUNCBattle.v11.update) {
+        try { LUNCBattle.v11.update(); } catch (e) { if (!drawFrame._v11Err) { drawFrame._v11Err = 1; console.warn('[v11]', e); } }
+      }
       if (postfx && postfx.isActive()) postfx.render(scene, camera);
       else renderer.render(scene, camera);
     }
@@ -1906,6 +1910,9 @@
       },
       postfxState: function () { return postfx ? postfx.getState() : null; }
     };
+    if (LUNCBattle.v11 && LUNCBattle.v11.init) {
+      try { LUNCBattle.v11.init(LUNCBattle.engine); } catch (e) { console.warn('[v11] init', e); }
+    }
 
     // -------------------- Animation --------------------
     const clock=new THREE.Clock();

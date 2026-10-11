@@ -936,6 +936,7 @@
       shadow.position.y = isAir ? -0.15 : 0.02;
       shadow.receiveShadow = false;
       shadow.castShadow = false;
+      shadow.userData.groundBlob = true; // v11: stays visible under realistic models
       if (isAir) {
         shadow.scale.setScalar(0.65);
         shadow.material = shadowMatAir;

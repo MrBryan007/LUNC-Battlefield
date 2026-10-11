@@ -8,6 +8,8 @@ Classic-RTS-inspired Terra Classic intelligence battlefield.
 
 **v10 (local branch only):** `feat/v10-graphics-gameplay` — post-FX bloom/AA/grade, sky + horizon, textured terrain, soft FX, and **Commander mode** (strikes, missions, ranks, Call the Front, SFX, pause). See `docs/V10-CHANGES.md`. Run locally: `python3 -m http.server 8765` then open `http://localhost:8765/`.
 
+**v11 (draft branch):** `feat/v11-realistic-units` — CC0 rigged soldiers, MBTs, IFVs, MG technicals, mortar teams, ~2–3x infantry density via baked-pose instancing (`js/v11-units.js`). See `docs/V11-CHANGES.md` + `docs/ASSET-LICENSES.md`. `?v11=0` = V10 look.
+
 **Live site:** https://mrbryan007.github.io/LUNC-Battlefield/
 
 ## Architecture (Phase 1)
