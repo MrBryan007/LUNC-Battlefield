@@ -217,10 +217,10 @@
     if (parts.tracks) {
       const tr = parts.tracks;
       if (Array.isArray(tr)) {
-        tr.forEach(function (t, i) {
-          if (t.material && t.material.map) { /* no maps */ }
+        for (let i = 0; i < tr.length; i++) { // v11.2: loop instead of per-frame closure
+          const t = tr[i];
           t.position.y = (t.userData.baseY || 0.22) + Math.sin(ud.trackPhase + i) * 0.008 * (speed > 0.2 ? 1 : 0);
-        });
+        }
       }
     }
 
@@ -292,9 +292,7 @@
     }
 
     if (parts.wheels) {
-      parts.wheels.forEach(function (w, i) {
-        w.rotation.x = Math.sin(now * 0.4 + i) * 0.02;
-      });
+      for (let i = 0; i < parts.wheels.length; i++) parts.wheels[i].rotation.x = Math.sin(now * 0.4 + i) * 0.02; // v11.2
     }
 
     ud.rootBob = 0;

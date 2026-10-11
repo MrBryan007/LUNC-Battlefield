@@ -56,7 +56,7 @@
   };
 
   const config = {
-    BUILD: 'v11.1',
+    BUILD: 'v11.2',
     TITLE: 'LUNC Ecosystem Battlefield v9.4.16 — iOS playability (WebGL r128)',
     DataTruth,
     tokens,

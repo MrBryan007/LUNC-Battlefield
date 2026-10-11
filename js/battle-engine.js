@@ -224,9 +224,45 @@
       if (window.LUNCBattle && LUNCBattle.v11 && LUNCBattle.v11.update) {
         try { LUNCBattle.v11.update(); } catch (e) { if (!drawFrame._v11Err) { drawFrame._v11Err = 1; console.warn('[v11]', e); } }
       }
+      shadowCacheTick();
       if (postfx && postfx.isActive()) postfx.render(scene, camera);
       else renderer.render(scene, camera);
     }
+    /* v11.2 shadow cache: the sun never moves and most casters (terrain, props, bases, walls) are static,
+       so the shadow map is no longer re-rendered on every frame (r128 also re-rendered it for every
+       scene render call). It refreshes on a tier cadence for moving units (ULTRA every frame, HIGH every
+       2nd, MEDIUM every 3rd), immediately on any quality/size/sun change or LUNCBattle.shadowCache.invalidate(),
+       and not at all while paused. Shadow quality tiers (off/basic/soft, map size) are unchanged.
+       ?shadowcache=0 restores per-frame shadows. */
+    const shadowCache = { on: !/[?&]shadowcache=0/.test(location.search), frame: 0, dirty: 3, updates: 0, frames: 0, lastSun: new THREE.Vector3(), lastSize: 0 };
+    const SHADOW_EVERY = { LOW: 3, MEDIUM: 3, HIGH: 2, ULTRA: 1 };
+    function shadowCacheTick() {
+      const sm = renderer.shadowMap;
+      if (!sm) return;
+      if (!shadowCache.on) { sm.autoUpdate = true; return; }
+      sm.autoUpdate = false;
+      shadowCache.frames++;
+      const sz = sun.shadow && sun.shadow.mapSize ? sun.shadow.mapSize.x : 0;
+      if (sz !== shadowCache.lastSize || !sun.shadow.map) { shadowCache.lastSize = sz; shadowCache.dirty = Math.max(shadowCache.dirty, 2); }
+      if (shadowCache.lastSun.distanceToSquared(sun.position) > 1e-6) { shadowCache.lastSun.copy(sun.position); shadowCache.dirty = Math.max(shadowCache.dirty, 2); }
+      let due = false;
+      if (shadowCache.dirty > 0) { shadowCache.dirty--; due = true; }
+      else {
+        let paused = false; try { paused = engineState.paused; } catch (_) {}
+        const tn = (window.LUNCBattle && LUNCBattle.quality && LUNCBattle.quality.getEffectiveName) ? LUNCBattle.quality.getEffectiveName() : 'HIGH';
+        const every = paused ? 30 : (SHADOW_EVERY[tn] || 2);
+        due = (++shadowCache.frame % every) === 0;
+      }
+      if (due) { sm.needsUpdate = true; shadowCache.updates++; }
+    }
+    addEventListener('lunc-quality-change', () => { shadowCache.dirty = 3; });
+    addEventListener('resize', () => { shadowCache.dirty = 2; });
+    window.LUNCBattle = window.LUNCBattle || {};
+    LUNCBattle.shadowCache = {
+      invalidate: function () { shadowCache.dirty = Math.max(shadowCache.dirty, 2); },
+      getStats: function () { return { on: shadowCache.on, updates: shadowCache.updates, frames: shadowCache.frames }; },
+      setEnabled: function (on) { shadowCache.on = !!on; shadowCache.dirty = 2; }
+    };
 
     // Shared PBR material factory → LUNCBattle.materials registry
     if (window.LUNCBattle && LUNCBattle.materials && LUNCBattle.materials.init) {
