@@ -444,20 +444,31 @@
       );
     }
 
-    function rebuildUnits() {
-      disposeArmy(bulls); disposeArmy(bears);
+    // v11.1: counts() is the unchanged market-driven army-size math, hoisted so the
+    // diffed path and the full (token-switch) path share it byte-for-byte.
+    function armyCounts(wall) {
       const mobile=innerWidth<760;
       // v9.4.4 denser armies (LOD keeps perf sane)
       const maxInf=mobile?28:52, maxArmor=mobile?9:18, maxArt=mobile?5:9;
       const maxHeli=mobile?2:4, maxJet=mobile?1:3;
-      const counts = wall => ({
+      return {
         inf: Math.min(maxInf, Math.max(14,Math.round(14+wall*5.2))),
         armor: Math.min(maxArmor,Math.max(4,Math.round(3+wall*1.85))),
         art: Math.min(maxArt,Math.max(2,Math.round(2+wall*.95))),
         heli: Math.min(maxHeli, Math.max(mobile?1:2, Math.round((mobile?1:2)+wall*0.35))),
         jet: Math.min(maxJet, Math.max(mobile?1:1, Math.round((mobile?1:1)+wall*0.28)))
-      });
-      const bc=counts(buyWall), rc=counts(sellWall);
+      };
+    }
+    let lastArmyKey = '';
+    const armyStats = { full: 0, diffs: 0, skips: 0, changed: 0 };
+    function armyKey(bc, rc) {
+      return [bc.inf,bc.armor,bc.art,bc.heli,bc.jet,rc.inf,rc.armor,rc.art,rc.heli,rc.jet,
+        sceneIncludes('ground')&&!cFlags.groundOff?1:0, sceneIncludes('air')&&!cFlags.airOff?1:0].join(',');
+    }
+    // Full rebuild: startup, token switch (colors change), forced GLTF swap.
+    function rebuildUnits() {
+      disposeArmy(bulls); disposeArmy(bears);
+      const bc=armyCounts(buyWall), rc=armyCounts(sellWall);
       if (unitsApi && sceneIncludes('ground') && !cFlags.groundOff) {
         unitsApi.spawnFormation(-1, tokens[current].color, bc, bulls);
         unitsApi.spawnFormation(1, 0xe4675f, rc, bears);
@@ -466,7 +477,24 @@
         unitsApi.spawnAirWing(-1, tokens[current].color, bc, bulls);
         unitsApi.spawnAirWing(1, 0xe4675f, rc, bears);
       }
+      lastArmyKey = armyKey(bc, rc);
+      armyStats.full++;
       lastRebuild=Date.now();
+    }
+    // v11.1: periodic path. No teardown; only the delta is added/removed, and
+    // nothing at all happens unless the market-driven counts actually changed.
+    function syncArmyCounts() {
+      const bc=armyCounts(buyWall), rc=armyCounts(sellWall);
+      const key = armyKey(bc, rc);
+      lastRebuild=Date.now();
+      if (key === lastArmyKey) { armyStats.skips++; return 0; }
+      if (!unitsApi || !unitsApi.updateArmy) { rebuildUnits(); return -1; }
+      const opts = { ground: sceneIncludes('ground') && !cFlags.groundOff, air: !!unitsApi.spawnAirWing && sceneIncludes('air') && !cFlags.airOff };
+      let n = unitsApi.updateArmy(-1, tokens[current].color, bc, bulls, opts);
+      n += unitsApi.updateArmy(1, 0xe4675f, rc, bears, opts);
+      lastArmyKey = key;
+      armyStats.diffs++; armyStats.changed += n;
+      return n;
     }
     rebuildUnits();
 
@@ -690,7 +718,10 @@
       fetchLlama(); fetchGecko(); fetchMarketContext(); updateStatusUI();
     }
     document.querySelectorAll('.token-btn').forEach(btn=>btn.addEventListener('click',()=>setToken(btn.dataset.token)));
-    setInterval(()=>$('utc').textContent='UTC '+new Date().toISOString().slice(11,19),1000);
+    // v11.1: clock text updated from the frame loop (see animate) instead of its own timer
+    let utcLastSec = -1;
+    function tickUtcClock() { const sec = Math.floor(Date.now() / 1000); if (sec !== utcLastSec) { utcLastSec = sec; $('utc').textContent='UTC '+new Date().toISOString().slice(11,19); } }
+    setInterval(function () { if (document.hidden) tickUtcClock(); }, 1000);
 
     // -------------------- Data layer --------------------
     let spotWs=null, futWs=null, reconnectTimer=null, reconnectAttempts=0, geckoTimer=null;
@@ -890,6 +921,32 @@
     }
 
     /** Merge depth20 snapshot into a deeper local book without wiping far levels. */
+    // ---- v11.1 book-apply throttle (application rate only; values unchanged) ----
+    const BOOK_APPLY_MS = 125; // 8 Hz
+    let bookPendingMid = 0, bookPending = false, bookLastApply = 0, bookTimer = 0, statusPending = false;
+    const bookStats = { msgs: 0, applies: 0 };
+    function bookMid() {
+      let hb = -Infinity, la = Infinity, nb = 0, na = 0;
+      for (const k in localBids) { const v = +k; if (v > hb) hb = v; nb++; }
+      for (const k in localAsks) { const v = +k; if (v < la) la = v; na++; }
+      return (nb && na) ? (hb + la) / 2 : 0;
+    }
+    function flushBook() {
+      bookTimer = 0;
+      if (bookPending) {
+        bookPending = false; bookLastApply = performance.now(); bookStats.applies++;
+        applyLiveBook(bookPendingMid, 'binance', 'Binance');
+      }
+      if (statusPending) { statusPending = false; updateStatusUI(); }
+    }
+    function scheduleBookFlush() {
+      if (bookTimer) return;
+      const wait = Math.max(0, BOOK_APPLY_MS - (performance.now() - bookLastApply));
+      bookTimer = setTimeout(flushBook, wait);
+    }
+    function queueBookApply(mid) { bookStats.msgs++; bookPendingMid = mid; bookPending = true; scheduleBookFlush(); }
+    function queueStatusUI() { statusPending = true; scheduleBookFlush(); }
+
     function mergeDepth20IntoLocal(bids, asks) {
       if (!bids.length || !asks.length) return;
       const bidPrices = bids.map(l => +l[0]).filter(p => p > 0);
@@ -954,11 +1011,15 @@
               } else {
                 mergeDepth20IntoLocal(msg.bids, msg.asks);
               }
-              const midPx = price > 0 ? price : ((Object.keys(localBids).length && Object.keys(localAsks).length) ? (Math.max(...Object.keys(localBids).map(Number))+Math.min(...Object.keys(localAsks).map(Number)))/2 : 0);
-              applyLiveBook(midPx || price, 'binance', 'Binance');
+              // v11.1: book state is still merged on EVERY message (identical book). Only the
+              // pure, stateless applyLiveBook() + DOM status refresh are coalesced to <=8 Hz;
+              // the flush uses the exact mid captured from the newest message, so the final
+              // LIVE values equal what the unthrottled code would have shown.
+              const midPx = price > 0 ? price : bookMid();
+              queueBookApply(midPx || price);
               lastDepthTs=Date.now(); depthSource=SRC.BINANCE; depthVendorLabel='Binance';
             }
-            updateStatusUI();
+            queueStatusUI();
           } catch(_) {}
         };
         spotWs.onclose=()=>{
@@ -1221,7 +1282,7 @@
         });
       }
 
-      if(Date.now()-lastRebuild>7000 && Math.random()<.17) rebuildUnits();
+      if(Date.now()-lastRebuild>7000) syncArmyCounts(); // v11.1: diffed, no timer teardown
       if(!isLive&&t.hasBurns&&Math.random()<.055){
         pushFeed('Simulated burn flare · not a chain event','burn');
         if (effectsApi && effectsApi.playBurnFX) {
@@ -1244,7 +1305,15 @@
         playBurn();
       }
     }
-    setInterval(updateBattleLogic,760);
+    // v11.1: logic tick is driven from the rAF loop (frame-aligned, same 760 ms cadence).
+    // A watchdog interval keeps it running when rAF is suspended (background tab).
+    let logicAcc = 0, logicLastRun = performance.now();
+    function runBattleLogic() { logicLastRun = performance.now(); updateBattleLogic(); }
+    function stepBattleLogic(wallDtSec) {
+      logicAcc += Math.min(wallDtSec, 1) * 1000;
+      if (logicAcc >= 760) { logicAcc = Math.min(logicAcc - 760, 760); runBattleLogic(); }
+    }
+    setInterval(function () { if (performance.now() - logicLastRun > 1600) { logicAcc = 0; runBattleLogic(); } }, 800);
 
     // -------------------- v9.4.11 jet attack choreography --------------------
     let jetRunSeq = 1;
@@ -1876,6 +1945,9 @@
       THREE: THREE, scene: scene, camera: camera, renderer: renderer, mobile: mobileGfx,
       terrainHeight: terrainHeight,
       getArmies: function () { return { bulls: bulls, bears: bears }; },
+      getBookStats: function () { return Object.assign({}, bookStats); },
+      getArmyStats: function () { return Object.assign({ key: lastArmyKey }, armyStats); },
+      armyCounts: armyCounts,
       getFrontlineX: function () { return priceTerritoryApi ? priceTerritoryApi.getFrontlineX() : targetX; },
       getPrice: function () { return price; },
       getToken: function () { return current; },
@@ -1951,6 +2023,7 @@
         wallDtSec = Math.max(0, (wallNowMs - animate._lastWallMs) / 1000);
       }
       animate._lastWallMs = wallNowMs;
+      try { stepBattleLogic(wallDtSec); tickUtcClock(); } catch (e) { if (!animate._logicErr) { animate._logicErr = 1; console.warn('[logic]', e); } }
       // Drain THREE.Clock so getDelta stays consistent if used elsewhere; do not feed it to PERF.
       clock.getDelta();
       const dt = Math.min(0.04, wallDtSec > 0 ? wallDtSec : 0.0167);

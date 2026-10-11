@@ -221,12 +221,21 @@
       eng.scene.add(sp);
       blasts.push(sp);
     }
-    if (!blastLight) { blastLight = new THREE.PointLight(0xffa040, 0, 26, 2); eng.scene.add(blastLight); }
+    ensureBlastLight();
+    if (!blastLight) return;
     blastLight.position.set(x, y + 2.5, z);
     blastLight.color.setHex(gold ? 0xffcc55 : 0xff9a40);
     blastLight.intensity = Math.max(blastLight.intensity, 5 * power);
     // keep total sprites bounded
     while (blasts.length > (lowFx ? 70 : 160)) recycle(blasts.shift());
+  }
+  // v11.1: create once at init (light count must never change mid-play)
+  function ensureBlastLight() {
+    if (blastLight) return;
+    var eng = E(); if (!eng || !eng.scene || !eng.THREE) return;
+    blastLight = new eng.THREE.PointLight(0xffa040, 0, 26, 2);
+    blastLight.position.set(0, -50, 0);
+    eng.scene.add(blastLight);
   }
   function recycle(sp) { sp.visible = false; if (sp.parent) sp.parent.remove(sp); if (blastPool.length < 200) blastPool.push(sp); }
   function tickBlasts(dt) {
@@ -722,6 +731,7 @@
     } catch (_) {}
     buildHud();
     buildReticle();
+    ensureBlastLight();
     bindInput();
     newSession();
     var params = new URLSearchParams(location.search);
@@ -739,7 +749,15 @@
     init: init, tick: tick, arm: arm, deploy: deploy, togglePause: togglePause,
     getState: function () { return { started: started, session: session, profile: profile, mission: mission, call: call, armed: armed, cds: cds }; },
     // test hook: fire an ability at world x/z (used by headless verification)
-    debugFire: function (ability, x, z) { fireAt(ability, { x: x, z: z }); }
+    debugFire: function (ability, x, z) { fireAt(ability, { x: x, z: z }); },
+    // v11.1 loading-screen warm-up: light exists before first compile; one fire + one smoke
+    // sprite are put in the scene so their shader programs compile behind the loader.
+    warm: function () {
+      ensureBlastLight();
+      var eng = E(), out = [];
+      ['fire', 'smoke'].forEach(function (k) { var sp = blastSprite(k); sp.position.set(0, -40, 0); sp.visible = true; eng.scene.add(sp); out.push(sp); });
+      return function () { out.forEach(recycle); };
+    }
   };
 
   function boot() {

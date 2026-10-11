@@ -19,7 +19,7 @@
 (function (global) {
   'use strict';
   var LB = global.LUNCBattle || (global.LUNCBattle = {});
-  var VERSION = 'v11.0';
+  var VERSION = 'v11.1';
   var BASE = 'assets/models/v11/';
   var HIDDEN_LAYER = 1;
 
@@ -46,7 +46,7 @@
   var vehBatches = {};        // key → [faction] → [part] batch
   var mortarBatch = null;
   var unitState = new WeakMap();
-  var stats = { soldiers: 0, tanks: 0, ifv: 0, technicals: 0, mortars: 0, hiddenProcedural: 0, tier: '', loaded: false };
+  var stats = { bakeProgress: 0, bakeTotal: 28, soldiers: 0, tanks: 0, ifv: 0, technicals: 0, mortars: 0, hiddenProcedural: 0, tier: '', loaded: false };
   var dust = null;
   var tmpM = new (global.THREE ? global.THREE.Matrix4 : function () {})();
 
@@ -90,15 +90,17 @@
   }
 
   // Approximate skinned normal: weighted bone rotation (good enough for lit low-poly).
-  var _bm = null, _acc = null;
+  var _bm = null, _acc = null, _snT = null, _snW = [0, 0, 0, 0], _snB = [0, 0, 0, 0];
   function skinNormal(mesh, i, nv) {
     if (!_bm) { _bm = new THREE.Matrix4(); _acc = new THREE.Vector3(); }
     var si = mesh.geometry.attributes.skinIndex, sw = mesh.geometry.attributes.skinWeight;
     if (!si || !sw) return;
     var bones = mesh.skeleton.bones, inv = mesh.skeleton.boneInverses;
     _acc.set(0, 0, 0);
-    var t = new THREE.Vector3();
-    var W = [sw.getX(i), sw.getY(i), sw.getZ(i), sw.getW(i)], B = [si.getX(i), si.getY(i), si.getZ(i), si.getW(i)];
+    var t = _snT || (_snT = new THREE.Vector3());
+    var W = _snW, B = _snB;
+    W[0] = sw.getX(i); W[1] = sw.getY(i); W[2] = sw.getZ(i); W[3] = sw.getW(i);
+    B[0] = si.getX(i); B[1] = si.getY(i); B[2] = si.getZ(i); B[3] = si.getW(i);
     for (var j = 0; j < 4; j++) {
       var w = W[j]; if (!w) continue;
       var b = B[j];
@@ -244,7 +246,10 @@
         var action = mixer.clipAction(clip);
         action.play();
         soldierBatches[0][ci] = []; soldierBatches[1][ci] = [];
-        for (var p = 0; p < nPose; p++) {
+        var pChain = Promise.resolve();
+        for (var p0 = 0; p0 < nPose; p0++) (function (p) { pChain = pChain.then(function () {
+          return new Promise(function (r) { setTimeout(r, 0); }); // v11.1: yield per pose (short tasks)
+        }).then(function () {
           mixer.setTime((p / nPose) * clip.duration);
           root.updateMatrixWorld(true);
           var geos = meshes.map(function (m) { return bakeMesh(m, colorFor(m, 0)); });
@@ -279,8 +284,9 @@
           g1.boundingSphere = g0.boundingSphere;
           soldierBatches[0][ci][p] = { im: null, geo: g0, mat: mats[0] };
           soldierBatches[1][ci][p] = { im: null, geo: g1, mat: mats[1] };
-        }
-        action.stop();
+          stats.bakeProgress = (stats.bakeProgress || 0) + 1;
+        }); })(p0);
+        return pChain.then(function () { action.stop(); });
       });
     });
     return chain;
@@ -420,15 +426,16 @@
   }
   function tickDust(dt) {
     if (!dust) return;
-    dust.pool.forEach(function (s) {
-      if (!s.visible) return;
+    for (var di = 0; di < dust.pool.length; di++) {
+      var s = dust.pool[di];
+      if (!s.visible) continue;
       s.userData.life -= dt;
-      if (s.userData.life <= 0) { s.visible = false; return; }
+      if (s.userData.life <= 0) { s.visible = false; continue; }
       var k = 1 - s.userData.life / s.userData.max;
       s.scale.setScalar(s.userData.size * (0.6 + k * 1.8));
       s.position.y += dt * 0.35;
       s.material.opacity = 0.42 * (1 - k) * Math.min(1, k * 6);
-    });
+    }
   }
 
   // ---------------------------------------------------------------- per-frame
@@ -450,7 +457,8 @@
     u.userData.v11Hidden = false;
   }
 
-  var _m = null, _off = null, _q = null, _s = null, _p = null, _e = null;
+  var _m = null, _off = null, _q = null, _q2 = null, _s = null, _p = null, _e = null;
+  function pushAll(arr, mat) { for (var i = 0; i < arr.length; i++) push(arr[i], mat); }
   function push(im, mat) {
     if (!im || im.count >= im.instanceMatrix.count) return;
     im.setMatrixAt(im.count++, mat);
@@ -483,7 +491,7 @@
     var tn = q();
     if (tn !== tierName) applyTier(tn);
     var now = performance.now() * 0.001;
-    batches.forEach(function (b) { b.count = 0; });
+    for (var bi = 0; bi < batches.length; bi++) batches[bi].count = 0;
     stats.soldiers = stats.tanks = stats.ifv = stats.technicals = stats.mortars = 0;
 
     var armies = E.getArmies();
@@ -527,7 +535,7 @@
         } else {
           var key = (armIdx % 3 === 2) ? 'ifv' : (f === 0 ? 'tankA' : 'tankB');
           if (!vehBatches[key]) key = 'tankA';
-          vehBatches[key][f].forEach(function (b) { push(b, u.matrixWorld); });
+          pushAll(vehBatches[key][f], u.matrixWorld);
           if (key === 'ifv') { stats.ifv++; mgFire(u, f, front, fx, 0.9); } else stats.tanks++;
           if (st.sp > 0.4 && Math.random() < simDt * 5) puff(u.position.x, u.position.y, u.position.z, 0.9);
           if (det(armIdx, 13 + f) < tier.armorEscort * 0.5 && vehBatches.tech) technical(u, f, armIdx, front, fx, simDt);
@@ -535,7 +543,7 @@
         }
       }
     }
-    batches.forEach(function (b) { b.visible = b.count > 0; if (b.count) b.instanceMatrix.needsUpdate = true; });
+    for (var bj = 0; bj < batches.length; bj++) { var bb = batches[bj]; bb.visible = bb.count > 0; if (bb.count) bb.instanceMatrix.needsUpdate = true; }
     tickDust(simDt);
     stats.tier = tierName;
   }
@@ -555,7 +563,7 @@
     localOffset(u, lx, lz, _tmpPos);
     _q.copy(u.quaternion);
     _e.set(0, (det(idx, 41 + e) - 0.5) * 0.4, 0);
-    _q.multiply(new THREE.Quaternion().setFromEuler(_e));
+    _q.multiply(_q2.setFromEuler(_e));
     _m.compose(_off.set(_tmpPos.x, _tmpPos.y, _tmpPos.z), _q, _s.set(1, 1, 1).multiplyScalar(0.94 + det(idx, 51 + e) * 0.1));
     var eci = ci === 0 && det(idx, 61 + e) < 0.35 ? 3 : ci; // some escorts fire while the leader idles
     soldierAt(f, eci, (st.pose || 0) + 2.3 * (e + 1), _m);
@@ -564,7 +572,7 @@
   function technical(u, f, idx, front, fx, simDt) {
     localOffset(u, 1.9 * (idx % 2 ? 1 : -1), -2.6, _tmpPos);
     _m.compose(_off.set(_tmpPos.x, _tmpPos.y, _tmpPos.z), u.quaternion, _s.set(1, 1, 1));
-    vehBatches.tech[f].forEach(function (b) { push(b, _m); });
+    pushAll(vehBatches.tech[f], _m);
     stats.technicals++;
   }
 
@@ -638,13 +646,13 @@
   function init(engine) {
     if (ready || failed || !engine || !engine.THREE) return;
     E = engine; THREE = engine.THREE; scene = engine.scene;
-    _m = new THREE.Matrix4(); _off = new THREE.Vector3(); _q = new THREE.Quaternion(); _s = new THREE.Vector3(); _p = new THREE.Vector3(); _e = new THREE.Euler();
+    _m = new THREE.Matrix4(); _off = new THREE.Vector3(); _q = new THREE.Quaternion(); _q2 = new THREE.Quaternion(); _s = new THREE.Vector3(); _p = new THREE.Vector3(); _e = new THREE.Euler();
     if (disabled) return;
     applyTier(q());
     var t0 = performance.now();
     function opt(p) { return p.catch(function (e) { console.warn('[v11] model failed, keeping procedural:', e && e.message); return null; }); }
     Promise.all(['soldier', 'tank_a', 'tank_b', 'truck_armored', 'pickup_armored'].map(function (n) {
-      return opt(load(BASE + n + '.glb?v=20261010v11'));
+      return opt(load(BASE + n + '.glb?v=20261010v111'));
     })).then(function (g) {
       return bake(g[0], g[1], g[2], g[3], g[4]);
     }).then(function () {
@@ -665,6 +673,7 @@
     update: update,
     setEnabled: setEnabled,
     isReady: function () { return ready; },
+    isSettled: function () { return ready || failed || disabled || !E; },
     getStats: function () { var s = Object.assign({}, stats); s.batches = batches.length; s.drawn = batches.filter(function (b) { return b.visible; }).length; return s; },
     TIER: TIER
   };

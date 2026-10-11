@@ -116,6 +116,16 @@
     const inactiveLights = [];
     const inactiveAftermath = [];
     const MAX_FLASH_LIGHTS = mobile ? 1 : 3;
+    /* v11.1: fixed light pool created once at init. Lights are never added/removed
+       after startup (light count is baked into every lit shader; changing it recompiles
+       all materials = freeze). "Off" = intensity 0. */
+    for (let li = 0; li < MAX_FLASH_LIGHTS; li++) {
+      const pl = new THREE.PointLight(0xffffff, 0, 10);
+      pl.castShadow = false;
+      pl.position.set(0, -50, 0);
+      scene.add(pl);
+      inactiveLights.push(pl);
+    }
 
     const tmpV = new THREE.Vector3();
     const tmpV2 = new THREE.Vector3();
@@ -346,8 +356,7 @@
       if (!entry || !entry.light) return;
       const light = entry.light;
       light.intensity = 0;
-      if (light.parent) scene.remove(light);
-      if (inactiveLights.length < MAX_FLASH_LIGHTS * 2) inactiveLights.push(light);
+      if (inactiveLights.indexOf(light) < 0) inactiveLights.push(light);
     }
 
     function acquireFlashLight(color, intensity, distance, x, y, z, life) {
@@ -355,16 +364,12 @@
         const oldest = flashLights.shift();
         releaseFlashLight(oldest);
       }
-      let light = inactiveLights.pop() || null;
-      if (!light) {
-        light = new THREE.PointLight(0xffffff, 1, 10);
-        light.castShadow = false;
-      }
+      const light = inactiveLights.pop() || null;
+      if (!light) return;
       light.color.setHex(color);
       light.intensity = intensity;
       light.distance = distance;
       light.position.set(x, y, z);
-      if (!light.parent) scene.add(light);
       flashLights.push({ light: light, life: life });
     }
 
