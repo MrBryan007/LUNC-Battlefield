@@ -19,7 +19,7 @@
 (function (global) {
   'use strict';
   var LB = global.LUNCBattle || (global.LUNCBattle = {});
-  var VERSION = 'v11.1';
+  var VERSION = 'v11.2';
   var BASE = 'assets/models/v11/';
   var HIDDEN_LAYER = 1;
 
@@ -28,10 +28,10 @@
 
   // Per-tier density + features. Escorts are cosmetic squadmates/vehicles around market-driven units.
   var TIER = {
-    LOW:    { infEscort: 0.5, armorEscort: 0,   mortar: 0.5, shadows: false, dust: false, mg: 0.5, poseFps: 10 },
-    MEDIUM: { infEscort: 1,   armorEscort: 0.5, mortar: 1,   shadows: true,  dust: true,  mg: 1,   poseFps: 12 },
-    HIGH:   { infEscort: 2,   armorEscort: 1,   mortar: 1,   shadows: true,  dust: true,  mg: 1,   poseFps: 14 },
-    ULTRA:  { infEscort: 2,   armorEscort: 1,   mortar: 1,   shadows: true,  dust: true,  mg: 1.3, poseFps: 16 }
+    LOW:    { infEscort: 0.5, armorEscort: 0,   mortar: 0.5, shadows: false, dust: false, mg: 0.5, poseFps: 10, lodDist: 30 },
+    MEDIUM: { infEscort: 1,   armorEscort: 0.5, mortar: 1,   shadows: true,  dust: true,  mg: 1,   poseFps: 12, lodDist: 38 },
+    HIGH:   { infEscort: 2,   armorEscort: 1,   mortar: 1,   shadows: true,  dust: true,  mg: 1,   poseFps: 14, lodDist: 48 },
+    ULTRA:  { infEscort: 2,   armorEscort: 1,   mortar: 1,   shadows: true,  dust: true,  mg: 1.3, poseFps: 16, lodDist: 60 }
   };
 
   // Clip → pose count. Names are matched by suffix (armature prefix varies).
@@ -46,8 +46,11 @@
   var vehBatches = {};        // key → [faction] → [part] batch
   var mortarBatch = null;
   var unitState = new WeakMap();
-  var stats = { bakeProgress: 0, bakeTotal: 28, soldiers: 0, tanks: 0, ifv: 0, technicals: 0, mortars: 0, hiddenProcedural: 0, tier: '', loaded: false };
+  var stats = { lodSoldiers: 0, poseSource: 'none', bakeProgress: 0, bakeTotal: 28, soldiers: 0, tanks: 0, ifv: 0, technicals: 0, mortars: 0, hiddenProcedural: 0, tier: '', loaded: false };
   var dust = null;
+  var soldierMeta = null;     // v11.2: mesh names/colours/vertex ranges (for the pre-baked pose pack)
+  var soldierLod = null;      // v11.2: [faction][clip][lodPose] → low-poly stand-in batch
+  var poseSource = 'none';
   var tmpM = new (global.THREE ? global.THREE.Matrix4 : function () {})();
 
   function q() { return LB.quality && LB.quality.getEffectiveName ? LB.quality.getEffectiveName() : 'HIGH'; }
@@ -233,6 +236,10 @@
       return m;
     }
     var rifleBase = null;
+    soldierMeta = { meshes: meshes.map(function (m) {
+      var c = (m.material && m.material.color) ? m.material.color : { r: 1, g: 1, b: 1 };
+      return { name: (m.material && m.material.name) || '', color: [c.r, c.g, c.b], count: m.geometry.attributes.position.count };
+    }), clips: Object.keys(CLIPS).map(function (k) { return [k, CLIPS[k][1]]; }) };
     var mats = factions.map(function () { return stdMat({ vertexColors: true, roughness: 0.72, metalness: 0.06, env: 0.7 }); });
     soldierBatches = [[], []];
     var keys = Object.keys(CLIPS);
@@ -291,6 +298,172 @@
     });
     return chain;
   }
+
+
+  // ---------------------------------------------------------------- v11.2 pre-baked pose pack
+  /* soldier-poses.bin: every soldier pose baked offline (tools/v11.2/bake-poses.js) from the exact
+     runtime bake. Layout (little-endian): 'LBP1' u32 headerLen, JSON header, then (4-byte aligned)
+     index u16/u32, meshId u8 per vertex (255 = carbine), then per pose positions int16×3 (bbox-quantised)
+     and normals int8×3. Faction colours are re-derived at load with the same colorFor() rules, so token
+     colours still apply. If the file is missing/corrupt we fall back to the v11.1 runtime bake. */
+  function soldierColorFor(meta, mi, f, factions) {
+    if (mi === 255) return null;
+    var m = meta.meshes[mi], name = m.name;
+    if (name === 'Swat') return factionTint(C(0x4f5644), factions[f], 0.14);
+    if (name === 'Swat_Black') return C(0x23262a);
+    if (name === 'Visor') return C(f === 0 ? 0x2a9a90 : 0xa8452a).lerp(C(factions[f]), 0.4);
+    return new THREE.Color(m.color[0], m.color[1], m.color[2]);
+  }
+  function a4(n) { return (n + 3) & ~3; }
+  function buildSoldierFromPack(buf, bullCol, bearCol) {
+    var dv = new DataView(buf);
+    if (dv.getUint32(0, true) !== 0x3150424c) throw new Error('bad pose pack magic'); // 'LBP1'
+    var hl = dv.getUint32(4, true);
+    var hdr = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, 8, hl)));
+    var o = a4(8 + hl), nV = hdr.nVert, nI = hdr.nIdx;
+    var idx = hdr.idx32 ? new Uint32Array(buf.slice(o, o + nI * 4)) : new Uint16Array(buf.slice(o, o + nI * 2));
+    o = a4(o + nI * (hdr.idx32 ? 4 : 2));
+    var mid = new Uint8Array(buf, o, nV); o = a4(o + nV);
+    var factions = [bullCol, bearCol];
+    var cols = [0, 1].map(function (f) {
+      var pal = hdr.meshes.map(function (_, mi) { return soldierColorFor(hdr, mi, f, factions); });
+      var c = new Float32Array(nV * 3);
+      for (var k = 0; k < nV; k++) {
+        var pc = mid[k] === 255 ? null : pal[mid[k]];
+        if (pc) { c[k * 3] = pc.r; c[k * 3 + 1] = pc.g; c[k * 3 + 2] = pc.b; }
+        else c[k * 3] = c[k * 3 + 1] = c[k * 3 + 2] = 0.018;
+      }
+      return c;
+    });
+    var mn = hdr.bbMin, sc = [(hdr.bbMax[0] - mn[0]) / 65535, (hdr.bbMax[1] - mn[1]) / 65535, (hdr.bbMax[2] - mn[2]) / 65535];
+    var mats = factions.map(function () { return stdMat({ vertexColors: true, roughness: 0.72, metalness: 0.06, env: 0.7 }); });
+    var index = new THREE.BufferAttribute(idx, 1);
+    soldierBatches = [[], []];
+    soldierMeta = { meshes: hdr.meshes, clips: hdr.clips, mid: mid };
+    for (var ci = 0; ci < hdr.clips.length; ci++) {
+      soldierBatches[0][ci] = []; soldierBatches[1][ci] = [];
+      for (var p = 0; p < hdr.clips[ci][1]; p++) {
+        var qp = new Uint16Array(buf, o, nV * 3); o = a4(o + nV * 6);
+        var qn = new Int8Array(buf, o, nV * 3); o = a4(o + nV * 3);
+        var P = new Float32Array(nV * 3), N = new Float32Array(nV * 3);
+        for (var v = 0; v < nV; v++) {
+          for (var ax = 0; ax < 3; ax++) P[v * 3 + ax] = mn[ax] + qp[v * 3 + ax] * sc[ax];
+          var nx = qn[v * 3] / 127, ny = qn[v * 3 + 1] / 127, nz = qn[v * 3 + 2] / 127, l = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
+          N[v * 3] = nx / l; N[v * 3 + 1] = ny / l; N[v * 3 + 2] = nz / l;
+        }
+        var pa = new THREE.BufferAttribute(P, 3), na = new THREE.BufferAttribute(N, 3);
+        var g0 = new THREE.BufferGeometry(), g1 = new THREE.BufferGeometry();
+        g0.setAttribute('position', pa); g0.setAttribute('normal', na); g0.setAttribute('color', new THREE.BufferAttribute(cols[0], 3)); g0.setIndex(index);
+        g1.setAttribute('position', pa); g1.setAttribute('normal', na); g1.setAttribute('color', new THREE.BufferAttribute(cols[1], 3)); g1.setIndex(index);
+        g0.computeBoundingSphere(); g1.boundingSphere = g0.boundingSphere;
+        soldierBatches[0][ci][p] = { im: null, geo: g0, mat: mats[0] };
+        soldierBatches[1][ci][p] = { im: null, geo: g1, mat: mats[1] };
+        stats.bakeProgress = (stats.bakeProgress || 0) + 1;
+      }
+    }
+    stats.bakeTotal = stats.bakeProgress;
+  }
+  /** Serialise the runtime-baked poses into the pack format (used offline by tools/v11.2/bake-poses.js). */
+  function exportPoses() {
+    if (!soldierBatches || !soldierMeta) return null;
+    var g = soldierBatches[0][0][0].geo, nV = g.attributes.position.count, idxArr = g.index.array, nI = idxArr.length;
+    var idx32 = nV > 65535;
+    var mid = new Uint8Array(nV), off = 0;
+    soldierMeta.meshes.forEach(function (m, mi) { for (var k = 0; k < m.count; k++) mid[off + k] = mi; off += m.count; });
+    for (var r = off; r < nV; r++) mid[r] = 255;
+    var mn = [Infinity, Infinity, Infinity], mx = [-Infinity, -Infinity, -Infinity], all = [];
+    soldierBatches[0].forEach(function (poses) { poses.forEach(function (b) { all.push(b.geo); var a = b.geo.attributes.position.array; for (var i = 0; i < a.length; i++) { var ax = i % 3; if (a[i] < mn[ax]) mn[ax] = a[i]; if (a[i] > mx[ax]) mx[ax] = a[i]; } }); });
+    var hdr = JSON.stringify({ v: 1, nVert: nV, nIdx: nI, idx32: idx32, bbMin: mn, bbMax: mx, meshes: soldierMeta.meshes, clips: soldierMeta.clips, poses: all.length, source: 'v11.1 runtime bake' });
+    var hb = new TextEncoder().encode(hdr);
+    var size = a4(8 + hb.length) + a4(nI * (idx32 ? 4 : 2)) + a4(nV) + all.length * (a4(nV * 6) + a4(nV * 3));
+    var buf = new ArrayBuffer(size), dv = new DataView(buf);
+    dv.setUint32(0, 0x3150424c, true); dv.setUint32(4, hb.length, true); new Uint8Array(buf, 8, hb.length).set(hb);
+    var o = a4(8 + hb.length);
+    (idx32 ? new Uint32Array(buf, o, nI) : new Uint16Array(buf, o, nI)).set(idxArr); o = a4(o + nI * (idx32 ? 4 : 2));
+    new Uint8Array(buf, o, nV).set(mid); o = a4(o + nV);
+    all.forEach(function (geo) {
+      var P = geo.attributes.position.array, N = geo.attributes.normal.array;
+      var qp = new Uint16Array(buf, o, nV * 3); o = a4(o + nV * 6);
+      var qn = new Int8Array(buf, o, nV * 3); o = a4(o + nV * 3);
+      for (var i = 0; i < nV * 3; i++) {
+        var ax = i % 3, span = (mx[ax] - mn[ax]) || 1;
+        qp[i] = Math.round((P[i] - mn[ax]) / span * 65535);
+        qn[i] = Math.max(-127, Math.min(127, Math.round(N[i] * 127)));
+      }
+    });
+    var bytes = new Uint8Array(buf), bin = '';
+    for (var j = 0; j < bytes.length; j += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(j, j + 0x8000));
+    return btoa(bin);
+  }
+
+  // ---------------------------------------------------------------- v11.2 distant soldier stand-ins
+  /* Low-poly LOD per pose by vertex clustering (cells of ~4.5 cm on a 1.32 m soldier, never merging
+     across materials so colours stay clean). Built once at load (~1 ms per pose). Soldiers further than
+     the tier's distance use it; LOD uses every 2nd pose so distant animation adds few draw calls. */
+  var LOD_CELL = 0.045;
+  function makeLodGeo(g) {
+    var P = g.attributes.position.array, N = g.attributes.normal.array, Cc = g.attributes.color.array, I = g.index.array;
+    var nV = P.length / 3, map = new Int32Array(nV), keys = new Map(), cnt = [], sp = [], sn = [], scol = [], first = [];
+    var mid = soldierMeta && soldierMeta.mid;
+    for (var v = 0; v < nV; v++) {
+      var kx = Math.floor(P[v * 3] / LOD_CELL), ky = Math.floor(P[v * 3 + 1] / LOD_CELL), kz = Math.floor(P[v * 3 + 2] / LOD_CELL);
+      var key = ((kx + 512) * 1024 + (ky + 512)) * 1024 + (kz + 512) + (mid ? mid[v] : Math.round(Cc[v * 3] * 997 + Cc[v * 3 + 1] * 89)) * 1073741824;
+      var id = keys.get(key);
+      if (id == null) { id = cnt.length; keys.set(key, id); first.push(v); cnt.push(0); sp.push(0, 0, 0); sn.push(0, 0, 0); scol.push(Cc[v * 3], Cc[v * 3 + 1], Cc[v * 3 + 2]); }
+      map[v] = id; cnt[id]++;
+      sp[id * 3] += P[v * 3]; sp[id * 3 + 1] += P[v * 3 + 1]; sp[id * 3 + 2] += P[v * 3 + 2];
+      sn[id * 3] += N[v * 3]; sn[id * 3 + 1] += N[v * 3 + 1]; sn[id * 3 + 2] += N[v * 3 + 2];
+    }
+    var nc = cnt.length, OP = new Float32Array(nc * 3), ON = new Float32Array(nc * 3), OC = new Float32Array(scol);
+    for (var c = 0; c < nc; c++) {
+      OP[c * 3] = sp[c * 3] / cnt[c]; OP[c * 3 + 1] = sp[c * 3 + 1] / cnt[c]; OP[c * 3 + 2] = sp[c * 3 + 2] / cnt[c];
+      var l = Math.sqrt(sn[c * 3] * sn[c * 3] + sn[c * 3 + 1] * sn[c * 3 + 1] + sn[c * 3 + 2] * sn[c * 3 + 2]) || 1;
+      ON[c * 3] = sn[c * 3] / l; ON[c * 3 + 1] = sn[c * 3 + 1] / l; ON[c * 3 + 2] = sn[c * 3 + 2] / l;
+    }
+    var out = [], seen = new Set();
+    for (var t = 0; t < I.length; t += 3) {
+      var a = map[I[t]], b = map[I[t + 1]], d = map[I[t + 2]];
+      if (a === b || b === d || a === d) continue;
+      var tk = a < b ? (a < d ? [a, b < d ? b : d, b < d ? d : b] : [d, a, b]) : (b < d ? [b, a < d ? a : d, a < d ? d : a] : [d, b, a]);
+      var sk = tk[0] + ',' + tk[1] + ',' + tk[2];
+      if (seen.has(sk)) continue; seen.add(sk);
+      out.push(a, b, d);
+    }
+    var lg = new THREE.BufferGeometry();
+    lg.setAttribute('position', new THREE.BufferAttribute(OP, 3));
+    lg.setAttribute('normal', new THREE.BufferAttribute(ON, 3));
+    lg.setAttribute('color', new THREE.BufferAttribute(OC, 3));
+    lg.setIndex(new THREE.BufferAttribute(nc > 65535 ? new Uint32Array(out) : new Uint16Array(out), 1));
+    lg.computeBoundingSphere();
+    lg.userData.first = first;
+    return lg;
+  }
+  function buildSoldierLod(cap) {
+    soldierLod = [[], []];
+    stats.lodTris = 0; stats.fullTris = soldierBatches[0][0][0].geo.index.count / 3;
+    for (var ci = 0; ci < soldierBatches[0].length; ci++) {
+      soldierLod[0][ci] = []; soldierLod[1][ci] = [];
+      var n = soldierBatches[0][ci].length;
+      for (var lp = 0; lp < Math.ceil(n / 2); lp++) {
+        var src0 = soldierBatches[0][ci][lp * 2];
+        var l0 = makeLodGeo(src0.geo);
+        var l1 = new THREE.BufferGeometry();
+        // faction 1: same LOD topology, colours sampled from faction 1's full geo via a cluster remap
+        var c1 = recolourLod(l0, src0.geo, soldierBatches[1][ci][lp * 2].geo);
+        l1.setAttribute('position', l0.attributes.position); l1.setAttribute('normal', l0.attributes.normal);
+        l1.setAttribute('color', new THREE.BufferAttribute(c1, 3)); l1.setIndex(l0.index); l1.boundingSphere = l0.boundingSphere;
+        soldierLod[0][ci][lp] = makeBatch(l0, src0.mat, Math.ceil(cap / 3));
+        soldierLod[1][ci][lp] = makeBatch(l1, soldierBatches[1][ci][lp * 2].mat, Math.ceil(cap / 3));
+        if (!stats.lodTris) stats.lodTris = l0.index.count / 3;
+      }
+    }
+  }
+  function recolourLod(lod, full0, full1) {
+    var first = lod.userData.first, C1 = full1.attributes.color.array, out = new Float32Array(first.length * 3);
+    for (var c = 0; c < first.length; c++) { var v = first[c]; out[c * 3] = C1[v * 3]; out[c * 3 + 1] = C1[v * 3 + 1]; out[c * 3 + 2] = C1[v * 3 + 2]; }
+    return out;
+  }
+
 
   /** Re-grade a colourful source atlas into muted military paint (desaturate + olive multiply). Cached per texture. */
   var _milCache = new Map();
@@ -378,15 +551,37 @@
     return mergeGeos(geos);
   }
 
-  function bake(soldierG, tankA, tankB, truck, pickup) {
+  function bake(soldierG, tankA, tankB, truck, pickup, posePack) {
     var bullCol = E.bullColor(), bearCol = E.bearColor();
     var caps = { soldier: 900, veh: 64 };
-    var soldierDone = !soldierG ? Promise.resolve() : buildSoldier(soldierG, bullCol, bearCol).then(function () {
+    function runtime(g) {
+      if (!g) return Promise.resolve();
+      stats.poseSource = stats.poseSource === 'pack-error' ? 'runtime-fallback' : 'runtime';
+      return buildSoldier(g, bullCol, bearCol);
+    }
+    var soldierBuilt;
+    if (posePack) {
+      soldierBuilt = new Promise(function (r) { setTimeout(r, 0); }).then(function () {
+        try { buildSoldierFromPack(posePack, bullCol, bearCol); stats.poseSource = 'pack'; }
+        catch (e) {
+          console.warn('[v11] pose pack failed, runtime bake fallback:', e && e.message);
+          stats.poseSource = 'pack-error'; soldierBatches = null; stats.bakeProgress = 0; stats.bakeTotal = 28;
+          return (soldierG ? Promise.resolve(soldierG) : load(BASE + 'soldier.glb?v=20261011v112').catch(function () { return null; })).then(runtime);
+        }
+      });
+    } else soldierBuilt = runtime(soldierG);
+    var soldierDone = soldierBuilt.then(function () {
+      if (!soldierBatches) return;
       soldierBatches.forEach(function (byClip) {
         byClip.forEach(function (poses) {
           poses.forEach(function (b) { b.im = makeBatch(b.geo, b.mat, Math.ceil(caps.soldier / 3)); });
         });
       });
+      if (qs.get('v11lod') !== '0') {
+        var tl = performance.now();
+        try { buildSoldierLod(caps.soldier); } catch (e) { soldierLod = null; console.warn('[v11] LOD build failed', e); }
+        stats.lodBuildMs = Math.round(performance.now() - tl);
+      }
     });
     function veh(key, gltf, opts) {
       if (!gltf) return;
@@ -445,7 +640,11 @@
     u.traverse(function (o) {
       if (o === u) return;
       if (o.userData && o.userData.groundBlob) return;
-      if (o.isMesh || o.isSprite || o.isLine) o.layers.set(HIDDEN_LAYER);
+      if (o.isMesh || o.isSprite || o.isLine) {
+        o.layers.set(HIDDEN_LAYER);
+        // v11.2: hidden procedural leaves never render and nothing reads their local matrix → skip compose
+        if (!o.children.length && o.matrixAutoUpdate) { o.matrixAutoUpdate = false; o.userData.v11NoAuto = true; }
+      }
     });
     ud.v11Hidden = true;
     ud.v11Stub = ud.impostorStub;
@@ -453,7 +652,7 @@
   }
   function showProcedural(u) {
     if (!u.userData.v11Hidden) return;
-    u.traverse(function (o) { if (o.layers) o.layers.set(0); });
+    u.traverse(function (o) { if (o.layers) o.layers.set(0); if (o.userData && o.userData.v11NoAuto) { o.matrixAutoUpdate = true; o.userData.v11NoAuto = false; } });
     u.userData.v11Hidden = false;
   }
 
@@ -471,11 +670,22 @@
     return 0;
   }
 
-  function soldierAt(f, clipIdx, poseT, mat) {
+  function soldierAt(f, clipIdx, poseT, mat, far) {
     var poses = soldierBatches[f][clipIdx];
     var p = Math.floor(poseT) % poses.length;
-    push(poses[p].im, mat);
+    if (far && soldierLod) { push(soldierLod[f][clipIdx][p >> 1], mat); stats.lodSoldiers++; }
+    else push(poses[p].im, mat);
     stats.soldiers++;
+  }
+  // v11.2: distance test for the low-poly stand-in, with ±2 m hysteresis per unit
+  var _cam = null;
+  function isFar(x, z, st) {
+    if (!_cam || !soldierLod) return false;
+    var dx = x - _cam.position.x, dz = z - _cam.position.z, dy = _cam.position.y;
+    var d2 = dx * dx + dz * dz + dy * dy * 0.25, lim = tier.lodDist + (st && st.far ? -2 : 2);
+    var far = d2 > lim * lim;
+    if (st) st.far = far;
+    return far;
   }
 
   var mgTimer = 0, mortarClock = new WeakMap();
@@ -492,7 +702,8 @@
     if (tn !== tierName) applyTier(tn);
     var now = performance.now() * 0.001;
     for (var bi = 0; bi < batches.length; bi++) batches[bi].count = 0;
-    stats.soldiers = stats.tanks = stats.ifv = stats.technicals = stats.mortars = 0;
+    stats.soldiers = stats.tanks = stats.ifv = stats.technicals = stats.mortars = stats.lodSoldiers = 0;
+    _cam = E.camera || null;
 
     var armies = E.getArmies();
     var lists = [armies.bulls, armies.bears];
@@ -528,9 +739,10 @@
         if (t === 0) {
           var ci = clipFor(ud.animState, st.sp);
           st.pose = (st.pose || st.ph) + simDt * tier.poseFps * (ci === 2 ? 1.25 : 1);
-          soldierAt(f, ci, st.pose, u.matrixWorld);
+          var far = isFar(u.position.x, u.position.z, st);
+          soldierAt(f, ci, st.pose, u.matrixWorld, far);
           var nEsc = tier.infEscort >= 1 ? Math.floor(tier.infEscort) : (det(infIdx, 9) < tier.infEscort ? 1 : 0);
-          for (var e = 0; e < nEsc; e++) escort(u, f, infIdx, e, ci, st);
+          for (var e = 0; e < nEsc; e++) escort(u, f, infIdx, e, ci, st, far);
           infIdx++;
         } else {
           var key = (armIdx % 3 === 2) ? 'ifv' : (f === 0 ? 'tankA' : 'tankB');
@@ -557,7 +769,7 @@
   }
 
   var _tmpPos = { x: 0, y: 0, z: 0 };
-  function escort(u, f, idx, e, ci, st) {
+  function escort(u, f, idx, e, ci, st, far) {
     var lx = (e === 0 ? 1 : -1) * (0.75 + det(idx, 21 + e) * 0.5);
     var lz = -0.5 - det(idx, 31 + e) * 0.9;
     localOffset(u, lx, lz, _tmpPos);
@@ -566,7 +778,7 @@
     _q.multiply(_q2.setFromEuler(_e));
     _m.compose(_off.set(_tmpPos.x, _tmpPos.y, _tmpPos.z), _q, _s.set(1, 1, 1).multiplyScalar(0.94 + det(idx, 51 + e) * 0.1));
     var eci = ci === 0 && det(idx, 61 + e) < 0.35 ? 3 : ci; // some escorts fire while the leader idles
-    soldierAt(f, eci, (st.pose || 0) + 2.3 * (e + 1), _m);
+    soldierAt(f, eci, (st.pose || 0) + 2.3 * (e + 1), _m, far);
   }
 
   function technical(u, f, idx, front, fx, simDt) {
@@ -605,12 +817,13 @@
     if (!st) { st = { t: 2 + Math.random() * 6, pose: Math.random() * 6 }; mortarClock.set(u, st); }
     st.t -= simDt; st.pose += simDt * tier.poseFps;
     var firing = st.t < 0.6;
+    var mfar = isFar(u.position.x, u.position.z, st);
     localOffset(u, 2.55, -0.85, _tmpPos);
     _m.compose(_off.set(_tmpPos.x, _tmpPos.y, _tmpPos.z), u.quaternion, _s.set(1, 1, 1));
-    soldierAt(f, firing ? 3 : 0, st.pose, _m);
+    soldierAt(f, firing ? 3 : 0, st.pose, _m, mfar);
     localOffset(u, 1.75, -0.95, _tmpPos);
     _m.compose(_off.set(_tmpPos.x, _tmpPos.y, _tmpPos.z), u.quaternion, _s.set(0.97, 0.97, 0.97));
-    soldierAt(f, 0, st.pose + 3, _m);
+    soldierAt(f, 0, st.pose + 3, _m, mfar);
     stats.mortars++;
     if (st.t <= 0 && fx && fx.fireWeapon && simDt > 0) {
       st.t = 6 + Math.random() * 6;
@@ -651,10 +864,17 @@
     applyTier(q());
     var t0 = performance.now();
     function opt(p) { return p.catch(function (e) { console.warn('[v11] model failed, keeping procedural:', e && e.message); return null; }); }
-    Promise.all(['soldier', 'tank_a', 'tank_b', 'truck_armored', 'pickup_armored'].map(function (n) {
-      return opt(load(BASE + n + '.glb?v=20261010v111'));
-    })).then(function (g) {
-      return bake(g[0], g[1], g[2], g[3], g[4]);
+    var packP = qs.get('v11poses') === 'runtime' ? Promise.resolve(null)
+      : fetch(BASE + 'soldier-poses.bin?v=20261011v112').then(function (r) { return r.ok ? r.arrayBuffer() : null; }).catch(function () { return null; });
+    var posePack = null;
+    packP.then(function (pk) {
+      posePack = pk;
+      return Promise.all(['soldier', 'tank_a', 'tank_b', 'truck_armored', 'pickup_armored'].map(function (n) {
+        if (n === 'soldier' && pk) return Promise.resolve(null); // v11.2: poses come pre-baked; skip the 1 MB rig + bake
+        return opt(load(BASE + n + '.glb?v=20261011v112'));
+      }));
+    }).then(function (g) {
+      return bake(g[0], g[1], g[2], g[3], g[4], posePack);
     }).then(function () {
       initDust();
       ready = true;
@@ -675,6 +895,7 @@
     isReady: function () { return ready; },
     isSettled: function () { return ready || failed || disabled || !E; },
     getStats: function () { var s = Object.assign({}, stats); s.batches = batches.length; s.drawn = batches.filter(function (b) { return b.visible; }).length; return s; },
-    TIER: TIER
+    TIER: TIER,
+    exportPoses: exportPoses
   };
 })(window);

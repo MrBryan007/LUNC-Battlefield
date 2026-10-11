@@ -127,6 +127,16 @@
       inactiveLights.push(pl);
     }
 
+    /* v11.2: seed one hidden mesh per lazily-created FX type so the loader's shader warm-up sees every
+       material variant (v11.1 still compiled one MeshBasic program on the first big blast mid-play). */
+    function seedHidden(mesh, pool) { mesh.visible = false; mesh.castShadow = false; mesh.receiveShadow = false; mesh.position.set(0, -60, 0); scene.add(mesh); pool.push(mesh); return mesh; }
+    seedHidden(new THREE.Mesh(GEO.scorch, SHARED.scorch.clone()), inactiveScorches).rotation.x = -Math.PI / 2;
+    seedHidden(new THREE.Mesh(GEO.ring, SHARED.ring.clone()), inactiveRings).rotation.x = -Math.PI / 2;
+    seedHidden(new THREE.Mesh(GEO.fire, SHARED.fire.clone()), inactiveAftermath);
+    ['shell', 'arty', 'rocket', 'bomb'].forEach(function (k) {
+      const g = k === 'shell' ? GEO.shell : k === 'arty' ? GEO.arty : k === 'rocket' ? GEO.rocket : GEO.bomb;
+      seedHidden(new THREE.Mesh(g, SHARED.proj.clone()), inactiveProjectiles).userData._poolKind = k;
+    });
     const tmpV = new THREE.Vector3();
     const tmpV2 = new THREE.Vector3();
     const tracerDummy = new THREE.Object3D();
@@ -250,6 +260,82 @@
       if (inactiveProjectiles.length < CAPS.projectiles * 2) inactiveProjectiles.push(mesh);
     }
 
+    /* v11.2: particles are batched. Each pooled particle is a lightweight Object3D proxy (never added
+       to the scene) carrying position/quaternion/scale + a {color, opacity} "material". tick() packs all
+       live proxies of one kind into ONE InstancedMesh (per-instance colour+opacity attribute), so a burst
+       of 60 particles costs 6 draw calls instead of 60. Spawn/update code is unchanged. */
+    const FX_KINDS = ['spark', 'smoke', 'debris', 'ember', 'flash', 'fire'];
+    const FX_CAP = 160; // > max CAPS.particles (ULTRA 120)
+    const fxBatch = Object.create(null);
+    const fxBucket = Object.create(null);
+    function fxPatch(mat) {
+      mat.onBeforeCompile = function (sh) {
+        sh.vertexShader = sh.vertexShader
+          .replace('#include <common>', '#include <common>\nattribute vec4 fxColor;\nvarying vec4 vFxColor;')
+          .replace('#include <begin_vertex>', 'vFxColor = fxColor;\n#include <begin_vertex>');
+        sh.fragmentShader = sh.fragmentShader
+          .replace('#include <common>', '#include <common>\nvarying vec4 vFxColor;')
+          .replace('vec4 diffuseColor = vec4( diffuse, opacity );', 'vec4 diffuseColor = vec4( diffuse * vFxColor.rgb, opacity * vFxColor.a );');
+      };
+      mat.customProgramCacheKey = function () { return 'v112fxbatch'; };
+      return mat;
+    }
+    for (let ki = 0; ki < FX_KINDS.length; ki++) {
+      const k = FX_KINDS[ki];
+      const m = fxPatch(matForParticle(k).clone());
+      m.color.setRGB(1, 1, 1); m.opacity = 1; m.transparent = true;
+      const im = new THREE.InstancedMesh(geoForParticle(k), m, FX_CAP);
+      im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+      const col = new THREE.InstancedBufferAttribute(new Float32Array(FX_CAP * 4), 4);
+      col.setUsage(THREE.DynamicDrawUsage);
+      im.geometry = im.geometry.clone(); // own attribute set (shared GEO stays untouched)
+      im.geometry.setAttribute('fxColor', col);
+      im.count = 0; im.visible = false; im.frustumCulled = false;
+      im.castShadow = false; im.receiveShadow = false;
+      im.renderOrder = k === 'smoke' ? 1 : 2;
+      im.userData.fxBatch = k;
+      scene.add(im);
+      fxBatch[k] = im; fxBucket[k] = [];
+    }
+    function newProxy(kind) {
+      const o = new THREE.Object3D();
+      const base = matForParticle(kind);
+      o.material = { color: base.color.clone(), opacity: base.opacity };
+      o.isFxProxy = true; o._fxd = 0;
+      o.userData._poolKind = kind;
+      return o;
+    }
+    function fxDepthSort(a, b) { return b._fxd - a._fxd; }
+    function flushParticleBatches(cam) {
+      for (let ki = 0; ki < FX_KINDS.length; ki++) fxBucket[FX_KINDS[ki]].length = 0;
+      for (let i = 0; i < particlePool.length; i++) {
+        const q = particlePool[i];
+        if (!q.isFxProxy || !q.visible) continue;
+        const k = (q.userData && q.userData._poolKind) || 'spark';
+        const bk = fxBucket[k] || fxBucket.spark;
+        if (bk.length < FX_CAP) bk.push(q);
+      }
+      const cp = cam && cam.position;
+      for (let ki = 0; ki < FX_KINDS.length; ki++) {
+        const k = FX_KINDS[ki], bk = fxBucket[k], im = fxBatch[k];
+        if (k === 'smoke' && cp && bk.length > 1) {
+          for (let i = 0; i < bk.length; i++) bk[i]._fxd = bk[i].position.distanceToSquared(cp);
+          bk.sort(fxDepthSort); // back-to-front like the old per-mesh transparent sort
+        }
+        const arr = im.geometry.attributes.fxColor.array;
+        for (let i = 0; i < bk.length; i++) {
+          const q = bk[i];
+          q.updateMatrix();
+          im.setMatrixAt(i, q.matrix);
+          const c = q.material.color, o = i * 4;
+          arr[o] = c.r; arr[o + 1] = c.g; arr[o + 2] = c.b; arr[o + 3] = q.material.opacity;
+        }
+        im.count = bk.length;
+        im.visible = bk.length > 0;
+        if (bk.length) { im.instanceMatrix.needsUpdate = true; im.geometry.attributes.fxColor.needsUpdate = true; }
+      }
+    }
+
     function acquireParticle(flag) {
       const want = particleKind(flag);
       let mesh = null;
@@ -259,15 +345,10 @@
           break;
         }
       }
-      if (!mesh) {
-        mesh = new THREE.Mesh(geoForParticle(want), matForParticle(want).clone());
-        mesh.castShadow = false;
-        mesh.receiveShadow = false;
-        mesh.userData._poolKind = want;
-      }
+      if (!mesh) mesh = newProxy(want);
       mesh.visible = true;
       mesh.scale.set(1, 1, 1);
-      if (!mesh.parent) scene.add(mesh);
+      mesh.rotation.set(0, 0, 0);
       return mesh;
     }
 
@@ -278,7 +359,6 @@
         activeDebris = Math.max(0, activeDebris - 1);
       }
       mesh.visible = false;
-      if (mesh.parent) scene.remove(mesh);
       const idx = particlePool.indexOf(mesh);
       if (idx >= 0) particlePool.splice(idx, 1);
       if (inactiveParticles.length < CAPS.particles * 2) inactiveParticles.push(mesh);
@@ -1306,6 +1386,7 @@
         }
       }
       syncTracerBatches();
+      flushParticleBatches(cam);
     }
 
     if (global.addEventListener) {

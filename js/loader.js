@@ -1,4 +1,4 @@
-/* LUNC Battlefield v11.1 — loading screen + shader warm-up.
+/* LUNC Battlefield v11.2 — loading screen + shader warm-up.
  * Purely presentational. Waits for the engine and the V11 model bake, then compiles every
  * shader program (renderer.compile with all hidden objects temporarily visible, plus one
  * explosion / strike / tracer / muzzle flash / Commander blast spawned behind the overlay)
@@ -60,6 +60,15 @@
       eng.scene.traverse(function (o) { if (!o.visible) { o.visible = true; shown.push(o); } });
       var tc = performance.now();
       eng.renderer.compile(eng.scene, eng.camera);
+      // v11.2: post-FX renders the scene pass without renderer tone mapping; compile that variant too,
+      // otherwise off-screen sprites (Commander blasts) compiled one program on the first Moon Shot.
+      try {
+        var R = eng.renderer, prevTM = R.toneMapping, prevRT = R.getRenderTarget(), tmpRT = new THREE.WebGLRenderTarget(1, 1);
+        R.setRenderTarget(tmpRT);
+        R.compile(eng.scene, eng.camera);
+        if (prevTM !== THREE.NoToneMapping) { R.toneMapping = THREE.NoToneMapping; R.compile(eng.scene, eng.camera); R.toneMapping = prevTM; }
+        R.setRenderTarget(prevRT); tmpRT.dispose();
+      } catch (_) {}
       state.compileMs = Math.round(performance.now() - tc);
       for (var i = 0; i < shown.length; i++) shown[i].visible = false;
       state.hiddenWarmed = shown.length;
