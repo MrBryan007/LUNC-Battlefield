@@ -9,10 +9,11 @@
   <title>LUNC Ecosystem Battlefield v10 — Commander</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Ccircle cx=%2716%27 cy=%2716%27 r=%2714%27 fill=%27%23d7b56d%27/%3E%3Ctext x=%2716%27 y=%2722%27 font-size=%2716%27 text-anchor=%27middle%27 fill=%27%23101710%27 font-family=%27Arial%27 font-weight=%27bold%27%3EL%3C/text%3E%3C/svg%3E" />
   <link rel="stylesheet" href="css/battlefield.css?v=20261012v113" />
-  <link rel="stylesheet" href="css/commander.css?v=20261012v113" />
+  <link rel="stylesheet" href="css/commander.css?v=20261012v114" />
+  <link rel="stylesheet" href="css/hud-dock.css?v=20261012v114" />
   <link rel="stylesheet" href="css/ai.css?v=20261012ai1" />
   <!-- v11.2-ai: self-booting (wait for LUNCBattle.engine), so head placement is safe -->
-  <script defer src="js/ai/ai-core.js?v=20261012ai1"></script>
+  <script defer src="js/ai/ai-core.js?v=20261012v114"></script>
   <script defer src="js/fx/ragdoll.js?v=20261012v113"></script>
   <script defer src="js/ai/medics.js?v=20261012v113"></script>
   <style>
@@ -36,7 +37,7 @@
       <div class="ls-text" id="loadText">Loading…</div>
     </div>
   </div>
-  <div id="buildTag">BATTLEFIELD v11.3</div>
+  <div id="buildTag">BATTLEFIELD v11.4</div>
   <div id="vignette"></div>
   <div id="victoryFlash"></div>
   <div id="battleBadge">Contested Market Front</div>
@@ -168,7 +169,7 @@
       <div class="legend"><span style="color:var(--gold);font-weight:700">Burn flashes</span> are labeled simulated unless a trusted live event source is connected. Liquidations are shown only when the exchange stream provides them.</div>
     </div>
 
-    <div class="section micro" style="line-height:1.45" id="priceSourceFooter">Prices: <span id="priceSourcesLabel">DefiLlama → CoinGecko → Binance Vision</span> · Depth: Binance if open<br>Walls without Binance = estimated, not live book · Build <strong id="buildLabel">v11.3</strong> · stall/cadence diag · Assets AUTO · PBR · WebGL r128 · Graphics AUTO/LOW/MED/HIGH/ULTRA</div>
+    <div class="section micro" style="line-height:1.45" id="priceSourceFooter">Prices: <span id="priceSourcesLabel">DefiLlama → CoinGecko → Binance Vision</span> · Depth: Binance if open<br>Walls without Binance = estimated, not live book · Build <strong id="buildLabel">v11.4</strong> · stall/cadence diag · Assets AUTO · PBR · WebGL r128 · Graphics AUTO/LOW/MED/HIGH/ULTRA</div>
   </aside>
 
   <aside id="rightPanel" data-hud="warroom" aria-label="War Room">
@@ -233,7 +234,8 @@
   <script src="js/commander.js?v=20261012v113"></script>
   <script src="js/learn/humor.js?v=20261012v12b"></script>
   <script src="js/learn/learn.js?v=20261012v12b"></script>
-  <script src="js/cinematic.js?v=20261010v111"></script>
+  <script src="js/cinematic.js?v=20261012v114"></script>
+  <script src="js/ui/hud-dock.js?v=20261012v114"></script>
   <script src="js/loader.js?v=20261010v111"></script>
 </body>
 </html>

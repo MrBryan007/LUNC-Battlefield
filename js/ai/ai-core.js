@@ -219,7 +219,7 @@
       m = new THREE.SpriteMaterial({ map: tex, depthWrite: false, transparent: true });
       labelMats.set(key, m);
     }
-    var s = new THREE.Sprite(m); s.scale.set(2.2, 1.1, 1); s.position.set(0, 3.1, 0); s.renderOrder = 5;
+    var s = new THREE.Sprite(m.clone()); s.scale.set(2.2, 1.1, 1); s.position.set(0, 3.1, 0); s.renderOrder = 5; s.userData.rank = rank;   // v11.4: own material → per-label fade
     s.userData.aiLabel = true; return s;
   }
   function setRank(u, r, b) {
@@ -344,16 +344,42 @@
     var c = document.createElement('canvas'); c.width = 256; c.height = 64; var g = c.getContext('2d');
     g.fillStyle = 'rgba(0,0,0,.55)'; g.fillRect(0, 0, 256, 64);
     g.fillStyle = q.side < 0 ? '#7cf0a8' : '#ff8a80'; g.font = 'bold 20px sans-serif'; g.textAlign = 'center';
-    g.fillText('◎ ' + q.name.toUpperCase(), 128, 28); g.fillStyle = '#ccc'; g.font = '14px sans-serif'; g.fillText('AI objective · SIMULATED', 128, 52);
+    // v11.4: short in-world text; the SIMULATED truth label lives in the AI Ops panel
+    g.font = 'bold 22px sans-serif'; g.fillText('◎ ' + shortQuest(q.name), 128, 40);
     var s = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false }));
     s.scale.set(5.5, 1.4, 1); s.renderOrder = 6; s.userData.q = q; e.scene.add(s); markers.push(s);
   }
+  function shortQuest(n) {
+    var w = String(n || '').toUpperCase().replace(/^(DESTROY|CAPTURE|ESCORT|DEFEND|RECON) (THE )?/, function (m, a) { return a + ' '; });
+    return w.length > 18 ? w.slice(0, 17) + '…' : w;
+  }
+  var phoneUI = /iPhone|iPad|iPod|Android|Mobile/i.test(navigator.userAgent || '') || innerWidth < 760;
+  // v11.4 declutter: only the 1 (phone) / 2 (desktop) objectives nearest the camera focus show in-world;
+  // officer tags: Captain+ only on phones, fading with camera distance.
   function tickMarkers(t) {
-    var e = E(), fx = e.getFrontlineX();
+    var e = E(), fx = e.getFrontlineX(), cam = e.camera.position;
+    var tgt = e.getCameraTarget ? e.getCameraTarget() : { x: fx, z: 0 };
+    var vis = [];
     for (var i = markers.length - 1; i >= 0; i--) {
       var s = markers[i], q = s.userData.q;
       if (!q.active) { e.scene.remove(s); s.material.map.dispose(); s.material.dispose(); markers.splice(i, 1); continue; }
       var x = fx + q.side * 3; s.position.set(x, e.terrainHeight(x, q.z) + 4.5 + Math.sin(t * 2) * 0.2, q.z);
+      s.userData.d = Math.hypot(x - tgt.x, q.z - tgt.z) - (q.progress || 0) * 4;
+      vis.push(s);
+    }
+    vis.sort(function (a, b) { return a.userData.d - b.userData.d; });
+    var maxM = phoneUI ? 1 : 2;
+    for (var k = 0; k < vis.length; k++) vis[k].visible = k < maxM || vis[k].userData.tapped > t;
+    if (!(t > (tickMarkers._n || 0))) return;
+    tickMarkers._n = t + 0.25;
+    var A = e.getArmies(), all = A.bulls.concat(A.bears);
+    for (var j = 0; j < all.length; j++) {
+      var L = all[j].userData && all[j].userData.aiLabel; if (!L) continue;
+      var r = L.userData.rank | 0, p = all[j].position;
+      var d = Math.hypot(p.x - cam.x, p.y - cam.y, p.z - cam.z);
+      var show = !phoneUI || r >= 2;
+      var op = show ? Math.max(0, Math.min(1, (75 - d) / 30)) : 0;
+      L.visible = op > 0.04; L.material.opacity = op;
     }
   }
 

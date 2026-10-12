@@ -10,7 +10,7 @@
   // Everything that is HUD chrome (selectors that exist in index.html / created by minimap.js, quality.js, commander.js).
   var HUD_SEL = '#topHud,#leftPanel,#rightPanel,#hudTabs,#tokenBar,#hint,#dataTruthLegend,#statusTray,' +
     '#buildTag,#battleBadge,#minimapWrap,#cmdEnter,#qualityPicker';
-  var CMD_CHROME_SEL = '.cmd-topbar,.cmd-call';           // hidden in clean; .cmd-topbar also hidden in cmd tier except pause/mute
+  var CMD_CHROME_SEL = '#dockTop,.dock-sheet,.cmd-topbar,.cmd-call';           // hidden in clean; .cmd-topbar also hidden in cmd tier except pause/mute
   var CMD_CORE_SEL = '#cmdMission,#cmdBar';                 // strike buttons + cooldowns + orders: visible in "cmd" tier
   var mode = 'full';
   var btnHide, btnRestore;
