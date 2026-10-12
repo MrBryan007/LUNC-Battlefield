@@ -131,12 +131,22 @@
         var mv = r.mode === 'verlet' ? stepVerlet(r, h) : stepTumble(r, h);
         r.sleep = mv < 0.02 ? r.sleep + h : 0;
       }
+      if (r.carried) continue;            // v11.3: medics are moving this body
+      if (r.t > r.life && LB.persist && !r.claimed && r.sleep >= 0.6) { bake(r); active.splice(i, 1); continue; }
+      if (r.t > r.life && LB.persist) continue;   // still moving or a medic team is on its way
       if (r.t > r.life) {   // sink + fade, then back to pool
         var k = (r.t - r.life) / SINK; r.g.position.y -= dt * 0.25; r.g.userData.segs[0].material.opacity = Math.max(0, 1 - k);
         if (k >= 1) { finish(r); active.splice(i, 1); }
       }
     }
     stats.active = active.filter(function (r) { return r.sleep < 0.6; }).length; stats.corpses = active.length;
+  }
+  // v11.3: freeze a settled body into the persistent batch and reinforce the soldier
+  function bake(r) {
+    var col = r.u && r.u.userData && r.u.userData.side < 0 ? E().bullColor() : E().bearColor();
+    if (r.mode === 'tumble') r.g.updateMatrixWorld(true);
+    LB.persist.addBody(r.g, col);
+    finish(r);
   }
   function finish(r) {
     release(r); r.g.userData.segs[0].material.opacity = 1;
@@ -162,7 +172,7 @@
       if (Math.random() > killP) continue;
       var awake = active.filter(function (r) { return r.sleep < 0.6; }).length;
       if (awake >= cap) { stats.skipped++; break; }
-      if (active.length >= CORPSE_MAX) { finish(active[0]); active.shift(); }   // hard corpse cap: recycle oldest
+      if (active.length >= CORPSE_MAX) { var old = active.shift(); if (LB.persist && !old.carried) bake(old); else finish(old); }   // hard cap: oldest → persistent batch
       spawn(u, x, z, power, mode);
     }
   }
@@ -182,7 +192,26 @@
   LB.ragdoll = {
     version: 'v11.2-ai-p1', CAPS: CAPS,
     setEnabled: function (v) { enabled = !!v; if (!enabled) { active.forEach(finish); active.length = 0; } },
-    clear: function () { active.forEach(finish); active.length = 0; },
+    clear: function () { active.forEach(finish); active.length = 0; if (LB.persist) LB.persist.reset(); },
+    // v11.3 medic API: settled, unclaimed bodies; carry (translate) and lay down (bake) a body
+    getBodies: function () { return active.filter(function (r) { return r.sleep >= 0.6 && !r.claimed && !r.carried; }); },
+    claim: function (r, on) { r.claimed = !!on; },
+    carry: function (r, x, y, z) {
+      r.carried = true;
+      var p = r.g.userData.p, c = p[2], dx = x - c.x, dy = y - c.y, dz = z - c.z;
+      if (r.mode === 'verlet') {
+        for (var i = 0; i < p.length; i++) { p[i].x += dx; p[i].y += dy; p[i].z += dz; r.g.userData.o[i].copy(p[i]); }
+        for (var s = 0; s < BONES.length; s++) orientSeg(r.g.userData.segs[s], p[BONES[s][0]], p[BONES[s][1]]);
+        r.g.userData.head.position.copy(p[0]);
+      } else { r.g.position.set(x, y - 0.1, z); c.set(x, y, z); }
+    },
+    layDown: function (r) {
+      var i = active.indexOf(r); if (i >= 0) active.splice(i, 1);
+      r.carried = false; r.claimed = false;
+      if (r.mode === 'verlet') { var p = r.g.userData.p, e = E(); for (var k = 0; k < p.length; k++) p[k].y = e.terrainHeight(p[k].x, p[k].z) + (k === 0 ? 0.13 : 0.07); for (var s = 0; s < BONES.length; s++) orientSeg(r.g.userData.segs[s], p[BONES[s][0]], p[BONES[s][1]]); r.g.userData.head.position.copy(p[0]); }
+      else r.g.position.y = E().terrainHeight(r.g.position.x, r.g.position.z);
+      if (LB.persist) bake(r); else finish(r);
+    },
     // direct casualty (sniper hit etc.); respects tier caps
     kill: function (u, fromX, fromZ, power) {
       var tn = tierName(), cap = CAPS[tn] || 0; if (!enabled || !cap || !u || !u.userData || u.userData.rdDown) return false;

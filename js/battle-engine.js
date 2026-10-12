@@ -220,6 +220,8 @@
       ? LUNCBattle.postfx.init({ THREE, renderer })
       : null;
     function drawFrame() {
+      // v11.3: medics run after the sim step so their position overrides win this frame
+      if (window.LUNCBattle && LUNCBattle.medics) { try { LUNCBattle.medics.update(); } catch (e) { if (!drawFrame._mdErr) { drawFrame._mdErr = 1; console.warn('[medics]', e); } } }
       // v11: realistic unit skin layer (visual only) — sync instanced models to unit transforms
       if (window.LUNCBattle && LUNCBattle.v11 && LUNCBattle.v11.update) {
         try { LUNCBattle.v11.update(); } catch (e) { if (!drawFrame._v11Err) { drawFrame._v11Err = 1; console.warn('[v11]', e); } }
@@ -230,6 +232,10 @@
       // v12 (starter): GLB skins for structures + aircraft (visual only, procedural fallback)
       if (window.LUNCBattle && LUNCBattle.v12 && LUNCBattle.v12.update) {
         try { LUNCBattle.v12.update(); } catch (e) { if (!drawFrame._v12Err) { drawFrame._v12Err = 1; console.warn('[v12]', e); } }
+      }
+      // v11.3: Mini Nuke cinematic owns the camera while active (runs even while paused)
+      if (window.LUNCBattle && LUNCBattle.cutscene && LUNCBattle.cutscene.isActive()) {
+        try { LUNCBattle.cutscene.update(); } catch (e) { console.warn('[cutscene]', e); LUNCBattle.cutscene.skip(); }
       }
       if (postfx && postfx.isActive()) postfx.render(scene, camera);
       else renderer.render(scene, camera);
@@ -453,15 +459,25 @@
 
     // v11.1: counts() is the unchanged market-driven army-size math, hoisted so the
     // diffed path and the full (token-switch) path share it byte-for-byte.
+    // v11.3: ground budget by tier (ULTRA/HIGH 500 · MEDIUM 250 · LOW/mobile 110; ?units=N override).
+    // The MARKET still decides the split: each side's share = its order-book wall / (buy + sell walls).
+    const unitsOverride = (function () { const v = parseInt(new URLSearchParams(location.search).get('units'), 10); return v > 0 ? Math.min(800, v) : 0; })();
+    function groundBudget() {
+      if (unitsOverride) return unitsOverride;
+      let t = 'HIGH'; try { t = LUNCBattle.quality.getEffectiveName(); } catch (_) {}
+      if (innerWidth < 760 || t === 'LOW') return 110;
+      return t === 'MEDIUM' ? 250 : 500;
+    }
     function armyCounts(wall) {
       const mobile=innerWidth<760;
-      // v9.4.4 denser armies (LOD keeps perf sane)
-      const maxInf=mobile?28:52, maxArmor=mobile?9:18, maxArt=mobile?5:9;
       const maxHeli=mobile?2:4, maxJet=mobile?1:3;
+      const tot = Math.max(1e-6, (+buyWall||0) + (+sellWall||0));
+      const share = Math.min(0.8, Math.max(0.2, (+wall||0) / tot || 0.5));
+      const n = Math.max(24, Math.round(groundBudget() * share));
       return {
-        inf: Math.min(maxInf, Math.max(14,Math.round(14+wall*5.2))),
-        armor: Math.min(maxArmor,Math.max(4,Math.round(3+wall*1.85))),
-        art: Math.min(maxArt,Math.max(2,Math.round(2+wall*.95))),
+        inf: Math.round(n*0.66),
+        armor: Math.max(4, Math.round(n*0.22)),
+        art: Math.max(2, Math.round(n*0.12)),
         heli: Math.min(maxHeli, Math.max(mobile?1:2, Math.round((mobile?1:2)+wall*0.35))),
         jet: Math.min(maxJet, Math.max(mobile?1:1, Math.round((mobile?1:1)+wall*0.28)))
       };
@@ -1987,7 +2003,10 @@
         const p = v.clone().project(camera);
         return { x: (p.x * 0.5 + 0.5) * innerWidth, y: (-p.y * 0.5 + 0.5) * innerHeight, behind: p.z > 1 };
       },
-      postfxState: function () { return postfx ? postfx.getState() : null; }
+      postfxState: function () { return postfx ? postfx.getState() : null; },
+      // v11.3: cutscene camera save/restore
+      getCameraTarget: function () { return controls.target.clone(); },
+      setCameraTarget: function (v) { controls.target.copy(v); controls.update(); }
     };
     if (LUNCBattle.v11 && LUNCBattle.v11.init) {
       try { LUNCBattle.v11.init(LUNCBattle.engine); } catch (e) { console.warn('[v11] init', e); }

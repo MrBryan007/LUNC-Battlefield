@@ -50,7 +50,16 @@
     { t: 'flat', s: 'Sideways action detected. The tanks are doing laps for cardio.' },
     { t: 'flat', s: 'Quiet front. Perfect time to practise those combo chains.' },
     { t: 'flat', s: 'Low volatility. Even the war room clock is yawning.' },
-    { t: 'flat', s: 'Nothing moving. Somebody check the oracle is still plugged in.' }
+    { t: 'flat', s: 'Nothing moving. Somebody check the oracle is still plugged in.' },
+    // v11.3 heavy weapons (game FX, not chain events)
+    { t: 'nuke', s: 'Tactical burn event complete. Actual supply change: zero. Vibes change: enormous.' },
+    { t: 'nuke', s: 'That mushroom cloud is purely decorative. The tokenomics are unbothered.' },
+    { t: 'nuke', s: 'Mini Nuke landed. The only thing burned was the bears\' weekend plans.' },
+    { t: 'moab', s: 'MOAB: Mother Of All Buy-walls. Allegedly.' },
+    { t: 'moab', s: 'Big boom, small spreadsheet impact. Game FX only.' },
+    { t: 'a10', s: 'BRRRRT is not a valid trading strategy, but it is a valid sound effect.' },
+    { t: 'gas', s: 'Gas fees just got literal. Units are fanning the air and backing off.' },
+    { t: 'medic', s: 'Medics on the field. Nobody gets left behind, not even the paper hands.' }
   ];
   // Remix templates: {a} pieces keep variety without new jokes every time.
   var REMIX = {

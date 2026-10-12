@@ -978,12 +978,18 @@
         { d: 1.35, z: 2.55 }
       ];
       const memberOff = type === 0 ? infOff : type === 1 ? armOff : artOff;
+      // v11.3: big armies (up to 500 ground units) → stack clusters into ranks instead of one crowded line
+      const perRow = type === 0 ? 9 : type === 1 ? 7 : 6;
+      const nRows = Math.max(1, Math.ceil(nClusters / perRow));
+      const rowGap = type === 0 ? 2.5 : type === 1 ? 3.3 : 3.6;
+      const zWide = Math.min(1.7, 1 + (nRows - 1) * 0.12);
 
       for (let i = 0; i < count; i++) {
         const ci = Math.floor(i / clusterSize);
         const mi = i % clusterSize;
-        const t = nClusters === 1 ? 0 : (ci + 0.5) / nClusters - 0.5;
-        let clusterZ = t * zSpan;
+        const row = Math.floor(ci / perRow), inRow = Math.min(perRow, nClusters - row * perRow), cr = ci % perRow;
+        const t = nRows === 1 ? (nClusters === 1 ? 0 : (ci + 0.5) / nClusters - 0.5) : (inRow === 1 ? 0 : (cr + 0.5 + (row % 2) * 0.35) / inRow - 0.5);
+        let clusterZ = t * zSpan * zWide;
         clusterZ += (det01(ci, 3 + type) - 0.5) * (type === 0 ? 2.15 : 1.7);
         // Pull first/last clusters slightly inward so the Z range stays occupied, including center
         if (nClusters > 2 && (ci === 0 || ci === nClusters - 1)) {
@@ -991,7 +997,8 @@
         }
         const clusterDepth = baseDepth
           + (det01(ci, 7 + type) - 0.32) * (type === 0 ? 2.4 : 2.0)
-          + (ci % 3) * (type === 0 ? 0.45 : 0.7);
+          + (ci % 3) * (type === 0 ? 0.45 : 0.7)
+          + row * rowGap;
         const mo = memberOff[mi % memberOff.length];
         const jx = (det01(i, 11) - 0.5) * 0.48;
         const jz = (det01(i, 19) - 0.5) * 0.62;
