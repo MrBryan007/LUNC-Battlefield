@@ -154,3 +154,14 @@ body.dock-on.dock-phone .dock-bar { left: calc(var(--sl) + 6px); right: calc(var
 body.dock-on.dock-phone .dock-bar button { flex: 1 1 0; min-width: 44px; padding: 0 2px; }
 body.dock-on.dock-phone .dock-bar .dl { font-size: 8px; letter-spacing: 0; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 body.dock-on .orders-pill { top: calc(var(--st) + 60px); }
+
+/* v12 — theater jump bar (Map sheet) + BREAKING ticker (Intel sheet) */
+.theater-bar { display: block; }
+.theater-bar .th-title { font: 700 11px Rajdhani, Inter, sans-serif; letter-spacing: 1px; color: #d7b56d; margin-bottom: 6px; }
+.theater-bar .th-btns { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.theater-bar button { min-height: 44px; border-radius: 10px; border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.05); color: #dfe7e1; font: 600 11px Inter, sans-serif; cursor: pointer; }
+.theater-bar button:hover, .theater-bar button.on { background: #d7b56d; color: #0b1410; }
+.theater-bar .th-note { margin-top: 6px; font-size: 10px; line-height: 1.4; color: #9aa59d; }
+.theater-bar.floating { position: fixed; left: 10px; bottom: 10px; z-index: 40; width: 300px; padding: 8px; background: rgba(7,11,9,.86); border-radius: 12px; }
+.theater-ticker { border-left: 3px solid #ff5a4a; background: rgba(120,20,14,.25); padding: 6px 8px; border-radius: 6px; font: 700 11px Inter, sans-serif; color: #ffd9d2; letter-spacing: .3px; }
+.theater-ticker div + div { opacity: .7; font-weight: 500; margin-top: 3px; }
