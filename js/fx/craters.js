@@ -231,6 +231,8 @@
   function impact(x, z, scale, opts) {
     if (!ready) return false;
     var m = (opts && opts.mode) || mode;
+    var TH = global.LUNCBattle && global.LUNCBattle.theaters;
+    if (TH && TH.isWater && TH.isWater(x, z)) { if (TH.splash) TH.splash(x, z, scale); return true; }   // v12: water = splash, no crater
     scale = Math.max(0.2, Math.min(3.5, scale || 1));
     var r = 0.8 + 1.0 * scale;
     stats.impacts++;

@@ -29,6 +29,9 @@
     var focusLerp = null; // smooth focus helper
 
     function clampTarget(tx, tz) {
+      // v12: wide world — theaters.js publishes larger bounds while enabled
+      var T = global.LUNCBattle && global.LUNCBattle.theaters;
+      if (T && T.bounds && T.isEnabled()) bounds = T.bounds;
       return {
         x: THREE.MathUtils.clamp(tx, bounds.minX, bounds.maxX),
         z: THREE.MathUtils.clamp(tz, bounds.minZ, bounds.maxZ)
@@ -44,7 +47,9 @@
       camera.position.x = THREE.MathUtils.clamp(camera.position.x, bounds.minX - 25, bounds.maxX + 25);
       camera.position.z = THREE.MathUtils.clamp(camera.position.z, bounds.minZ - 25, bounds.maxZ + 35);
       // Never drop below a classic RTS height floor
-      if (camera.position.y < 12) camera.position.y = 12;
+      var T2 = global.LUNCBattle && global.LUNCBattle.theaters;
+      var floorY = T2 && T2.isEnabled() ? 2.5 : 12;   // v12: street-level zoom allowed in the wide world
+      if (camera.position.y < floorY) camera.position.y = floorY;
     }
 
     function notifyUserInput() {
@@ -55,7 +60,8 @@
     function panWASD(dt, keys) {
       if (!keys) return false;
       var moved = false;
-      var speed = ((keys.ShiftLeft || keys.ShiftRight) ? 24 : 12) * dt;
+      var spK = Math.max(1, camera.position.distanceTo(controls.target) / 45);   // v12: pan faster when zoomed out
+      var speed = ((keys.ShiftLeft || keys.ShiftRight) ? 24 : 12) * dt * spK;
       camera.getWorldDirection(_tmpForward);
       _tmpForward.y = 0;
       if (_tmpForward.lengthSq() < 1e-6) _tmpForward.set(0, 0, -1);

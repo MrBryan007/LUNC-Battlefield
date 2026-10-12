@@ -311,6 +311,7 @@
     if (CR && CR.withMode) CR.withMode(craterMode || 'player', function () { eng.effects.createExplosion(x, z, col, power, !!isGold); });
     else eng.effects.createExplosion(x, z, col, power, !!isGold);
     try { spawnBlast(x, z, power, isGold); } catch (e) { /* FX are optional */ }
+    if (LB.theaters && LB.theaters.onStrike) try { LB.theaters.onStrike(x, z, power); } catch (_) {}   // v12: ships / airbases
     if (LB.damage && LB.damage.blast) try { LB.damage.blast(x, z, power, { debrisMul: craterMode === 'scorch' ? 1 : power >= 2 ? 6 : 3 }); } catch (_) {}
     var cam = eng.camera.position;
     var dx = cam.x - x, dz = cam.z - z;

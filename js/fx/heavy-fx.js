@@ -53,6 +53,7 @@
   }
 
   function buildPlane(kind, color) {
+    if (!ensure()) return null;
     var g = new THREE.Group();
     var body = new THREE.MeshStandardMaterial({ color: kind === 'a10' ? 0x6b6f62 : 0x50565a, roughness: 0.6, metalness: 0.35 });
     var tint = new THREE.MeshStandardMaterial({ color: color || 0x888888, roughness: 0.5, metalness: 0.2 });

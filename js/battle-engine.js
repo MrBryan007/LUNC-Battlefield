@@ -233,6 +233,11 @@
       if (window.LUNCBattle && LUNCBattle.v12 && LUNCBattle.v12.update) {
         try { LUNCBattle.v12.update(); } catch (e) { if (!drawFrame._v12Err) { drawFrame._v12Err = 1; console.warn('[v12]', e); } }
       }
+      // v12: theaters of war (wide world, naval + air theaters, fly camera); visual sim only
+      if (window.LUNCBattle && LUNCBattle.theaters && LUNCBattle.theaters.update) {
+        try { LUNCBattle.theaters.update(); } catch (e) { if (!drawFrame._thErr) { drawFrame._thErr = 1; console.warn('[theaters]', e); } }
+        if (LUNCBattle.v12extras) { try { LUNCBattle.v12extras.update(); } catch (e) { if (!drawFrame._exErr) { drawFrame._exErr = 1; console.warn('[v12-extras]', e); } } }
+      }
       // v11.3: Mini Nuke cinematic owns the camera while active (runs even while paused)
       if (window.LUNCBattle && LUNCBattle.cutscene && LUNCBattle.cutscene.isActive()) {
         try { LUNCBattle.cutscene.update(); } catch (e) { console.warn('[cutscene]', e); LUNCBattle.cutscene.skip(); }
@@ -1965,7 +1970,7 @@
     const _ray = new THREE.Raycaster();
     const _ndc = new THREE.Vector2();
     LUNCBattle.engine = {
-      THREE: THREE, scene: scene, camera: camera, renderer: renderer, mobile: mobileGfx,
+      THREE: THREE, scene: scene, camera: camera, renderer: renderer, mobile: mobileGfx, controls: controls,
       terrainHeight: terrainHeight,
       getArmies: function () { return { bulls: bulls, bears: bears }; },
       getBookStats: function () { return Object.assign({}, bookStats); },
