@@ -224,6 +224,13 @@
       if (window.LUNCBattle && LUNCBattle.v11 && LUNCBattle.v11.update) {
         try { LUNCBattle.v11.update(); } catch (e) { if (!drawFrame._v11Err) { drawFrame._v11Err = 1; console.warn('[v11]', e); } }
       }
+      if (window.LUNCBattle && LUNCBattle.craters && LUNCBattle.craters.update) {
+        try { LUNCBattle.craters.update(); } catch (e) { if (!drawFrame._crErr) { drawFrame._crErr = 1; console.warn('[craters]', e); } }
+      }
+      // v12 (starter): GLB skins for structures + aircraft (visual only, procedural fallback)
+      if (window.LUNCBattle && LUNCBattle.v12 && LUNCBattle.v12.update) {
+        try { LUNCBattle.v12.update(); } catch (e) { if (!drawFrame._v12Err) { drawFrame._v12Err = 1; console.warn('[v12]', e); } }
+      }
       if (postfx && postfx.isActive()) postfx.render(scene, camera);
       else renderer.render(scene, camera);
     }
@@ -1985,6 +1992,12 @@
     if (LUNCBattle.v11 && LUNCBattle.v11.init) {
       try { LUNCBattle.v11.init(LUNCBattle.engine); } catch (e) { console.warn('[v11] init', e); }
     }
+    if (LUNCBattle.craters && LUNCBattle.craters.init && ground) {
+      try { LUNCBattle.craters.init({ THREE, scene, ground }); } catch (e) { console.warn('[craters] init', e); }
+    }
+    if (LUNCBattle.v12 && LUNCBattle.v12.init) {
+      try { LUNCBattle.v12.init(LUNCBattle.engine); } catch (e) { console.warn('[v12] init', e); }
+    }
 
     // -------------------- Animation --------------------
     const clock=new THREE.Clock();
@@ -2115,6 +2128,12 @@
             ? u.userData.home.depth
             : (7.8 + rank * 6.2);
           let desired=targetX+side*depth;
+          // v11.2-ai: optional autonomous steering (cosmetic; applied BEFORE the frontline clamp)
+          if (window.LUNCBattle && LUNCBattle.ai && LUNCBattle.ai.steer) {
+            if (u.userData.rdDown) u.userData.shot = Math.max(u.userData.shot || 0, 1);
+            const ai = LUNCBattle.ai.steer(u, side, targetX, dt);
+            if (ai) { desired += ai.dx; u.position.z += (ai.z - u.position.z) * Math.min(1, dt * ai.rate * 0.6); }
+          }
           // Keep staging: bulls west / bears east; infantry may only slightly overrun frontline
           const maxOver = type===0 ? 2.4 : (type===1 ? 1.15 : 0.35);
           if (side < 0) desired = Math.min(desired, targetX - 0.85 + maxOver);
@@ -2162,6 +2181,12 @@
               ? u.userData.home.depth
               : (7.8 + rank * 6.2);
             let desired = targetX + side * depth;
+            // v11.2-ai: optional autonomous steering (cosmetic; applied BEFORE the frontline clamp)
+            if (window.LUNCBattle && LUNCBattle.ai && LUNCBattle.ai.steer) {
+              if (u.userData.rdDown) u.userData.shot = Math.max(u.userData.shot || 0, 1);
+              const ai = LUNCBattle.ai.steer(u, side, targetX, dt);
+              if (ai) { desired += ai.dx; u.position.z += (ai.z - u.position.z) * Math.min(1, dt * ai.rate * 0.6); }
+            }
             const maxOver = type === 0 ? 2.4 : (type === 1 ? 1.15 : 0.35);
             if (side < 0) desired = Math.min(desired, targetX - 0.85 + maxOver);
             else desired = Math.max(desired, targetX + 0.85 - maxOver);

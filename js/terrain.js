@@ -122,6 +122,10 @@
     // Crater bowls
     h -= craterDepth(x, z).depth;
 
+    // v12: persistent battle damage (0 until js/fx/craters.js is ready, and 0 below HIGH tier)
+    const C = global.LUNCBattle && global.LUNCBattle.craters;
+    if (C) h -= C.offsetAt(x, z);
+
     return h;
   }
 

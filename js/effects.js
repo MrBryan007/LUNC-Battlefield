@@ -591,6 +591,9 @@
 
     function scorchDecal(x, z, scale) {
       scale = scale == null ? 1 : scale;
+      // v12: persistent craters/scorch (deform + damage texture, or LOW decal pool) replace the fading disc
+      const CR = global.LUNCBattle && global.LUNCBattle.craters;
+      if (CR && CR.isReady() && CR.impact(x, z, scale)) return;
       while (scorches.length >= CAPS.scorches) {
         const old = scorches.shift();
         if (old) {
