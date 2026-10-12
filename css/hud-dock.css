@@ -1,0 +1,156 @@
+/* v11.4 — organized minimal HUD (js/ui/hud-dock.js). Scoped to body.dock-on so ?dock=0 = old layout. */
+body.dock-on {
+  --st: env(safe-area-inset-top, 0px); --sb: env(safe-area-inset-bottom, 0px);
+  --sl: env(safe-area-inset-left, 0px); --sr: env(safe-area-inset-right, 0px);
+  --topH: 48px; --dockH: 58px;
+}
+/* old chrome that the dock replaces */
+body.dock-on #hudTabs, body.dock-on .cmd-enter-btn ~ #hudTabs { display: none !important; }
+body.dock-on #vignette { opacity: .6; }
+
+/* ---------- top bar ---------- */
+.dock-top {
+  position: fixed; z-index: 72; left: 0; right: 0; top: 0;
+  padding: calc(var(--st) + 6px) calc(var(--sr) + 8px) 6px calc(var(--sl) + 8px);
+  display: flex; align-items: center; gap: 6px; pointer-events: none;
+  background: linear-gradient(rgba(6,9,7,.72), rgba(6,9,7,0));
+}
+.dock-top > * { pointer-events: auto; }
+.dock-top .dt-left, .dock-top .dt-right { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.dock-top .dt-right { margin-left: auto; }
+body.dock-on #buildTag { position: static !important; transform: none !important; margin: 0; font-size: 10px; padding: 4px 7px; white-space: nowrap; }
+body.dock-on #statusTray { position: static !important; display: flex; gap: 4px; align-items: center; transform: none !important; }
+body.dock-on #statusTray > #btnHideUi { position: static !important; }
+body.dock-on #agentStatus { display: none; }
+body.dock-on #dataMode { position: static !important; font-size: 10px; padding: 4px 7px; max-width: 34vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dt-chip, .dt-btn, body.dock-on .dock-top .cmd-icon-btn, body.dock-on .dock-top #btnHideUi {
+  min-height: 36px; min-width: 36px; border-radius: 10px; border: 1px solid rgba(255,255,255,.14); background: rgba(8,12,10,.78);
+  color: #dfe7e1; font: 600 11px Inter, system-ui, sans-serif; cursor: pointer; backdrop-filter: blur(8px);
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 9px;
+}
+body.dock-on .dock-top .cmd-icon-btn { position: static !important; width: 40px; height: 40px; font-size: 14px; }
+body.dock-on .dock-top #btnHideUi { height: 40px; }
+.dt-btn { width: 44px; height: 44px; font-size: 18px; padding: 0; }
+.dt-chip.market { height: 40px; max-width: 46vw; overflow: hidden; }
+.dt-chip.market .dt-adv { color: #d7b56d; white-space: nowrap; }
+.dt-chip.market[data-state^="BULL"] .dt-adv { color: #49d39a; } .dt-chip.market[data-state^="BEAR"] .dt-adv { color: #ff7b72; }
+.dt-chip.market .dt-price { color: #fff; opacity: .85; white-space: nowrap; }
+
+/* ---------- bottom dock ---------- */
+.dock-bar {
+  position: fixed; z-index: 72; left: 50%; transform: translateX(-50%); bottom: calc(var(--sb) + 6px);
+  display: flex; gap: 4px; padding: 5px; border-radius: 16px; max-width: calc(100vw - 12px - var(--sl) - var(--sr));
+  background: rgba(7,11,9,.86); border: 1px solid rgba(255,255,255,.1); backdrop-filter: blur(10px); overflow-x: auto; scrollbar-width: none;
+}
+.dock-bar button {
+  flex: 0 0 auto; min-width: 48px; height: 48px; padding: 0 6px; border-radius: 12px; border: 1px solid transparent; background: transparent;
+  color: #b9c4bc; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+}
+.dock-bar button[hidden] { display: none; }
+.dock-bar .di { font-size: 17px; line-height: 1; }
+.dock-bar .dl { font: 600 9px Inter, system-ui, sans-serif; letter-spacing: .3px; white-space: nowrap; }
+.dock-bar button:hover { color: #fff; background: rgba(255,255,255,.05); }
+.dock-bar button.active { color: #0b1410; background: #d7b56d; }
+.dock-bar button[data-dock="strike"].active { background: #ff9a5a; }
+
+/* ---------- orders pill ---------- */
+.orders-pill {
+  position: fixed; z-index: 71; left: 50%; transform: translateX(-50%); top: calc(var(--st) + var(--topH) + 6px);
+  display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 11px; max-width: min(360px, 78vw);
+  border-radius: 15px; border: 1px solid rgba(215,181,109,.3); background: rgba(8,12,10,.74); color: #e6ece8;
+  font: 600 11px Inter, system-ui, sans-serif; cursor: pointer; backdrop-filter: blur(8px);
+}
+.orders-pill[hidden] { display: none; }
+.orders-pill .op-txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.orders-pill .op-bar { flex: 0 0 46px; height: 4px; border-radius: 2px; background: rgba(255,255,255,.12); overflow: hidden; }
+.orders-pill .op-bar b { display: block; height: 100%; background: #49d39a; }
+.orders-pill .op-t { color: #d7b56d; }
+body.dock-on .orders-pill::before { content: ''; position: absolute; inset: -7px 0; }   /* 44px tap target */
+
+/* ---------- sheets ---------- */
+.dock-sheet {
+  position: fixed; z-index: 74; display: none; flex-direction: column;
+  left: calc(var(--sl) + 8px); right: calc(var(--sr) + 8px); bottom: calc(var(--sb) + var(--dockH) + 14px);
+  max-height: calc(100vh - var(--st) - var(--sb) - var(--topH) - var(--dockH) - 30px);
+  max-height: calc(100dvh - var(--st) - var(--sb) - var(--topH) - var(--dockH) - 30px);
+  border-radius: 16px; background: rgba(7,11,9,.94); border: 1px solid rgba(255,255,255,.12); box-shadow: 0 10px 40px rgba(0,0,0,.5);
+  backdrop-filter: blur(12px); overflow: hidden;
+}
+.dock-sheet.open { display: flex; animation: sheetIn .18s ease-out; }
+@keyframes sheetIn { from { transform: translateY(10px); } }
+.sheet-head { display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 14px; border-bottom: 1px solid rgba(255,255,255,.07); }
+.sheet-head b { font: 700 13px Rajdhani, Inter, sans-serif; letter-spacing: 1px; color: #d7b56d; text-transform: uppercase; }
+.sheet-head .qual { font-size: 8px; }
+.sheet-x { margin-left: auto; width: 44px; height: 44px; border: 0; border-radius: 10px; background: rgba(255,255,255,.05); color: #ccd5cf; font-size: 16px; cursor: pointer; }
+.sheet-body { overflow: auto; -webkit-overflow-scrolling: touch; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+@media (min-width: 900px) and (min-height: 500px) {
+  .dock-sheet { left: auto; right: calc(var(--sr) + 12px); width: 390px; top: calc(var(--st) + var(--topH) + 8px); bottom: calc(var(--sb) + var(--dockH) + 16px); max-height: none; }
+}
+/* adopted panels: drop their own fixed positioning inside sheets */
+body.dock-on .dock-sheet .sheet-body > * {
+  position: static !important; inset: auto !important; transform: none !important; width: auto !important; max-width: none !important;
+  max-height: none !important; margin: 0 !important; opacity: 1 !important; visibility: visible !important; display: block;
+}
+body.dock-on .dock-sheet #tokenBar, body.dock-on .dock-sheet #qualityPicker { display: flex !important; flex-wrap: wrap; gap: 8px; }
+body.dock-on .dock-sheet #tokenBar .token-btn { min-height: 44px; flex: 1 1 30%; }
+body.dock-on .dock-sheet #leftPanel, body.dock-on .dock-sheet #rightPanel { display: block !important; overflow: visible !important; background: transparent !important; border: 0 !important; box-shadow: none !important; padding: 0 !important; }
+body.dock-on .dock-sheet #topHud { display: block !important; background: transparent !important; border: 0 !important; box-shadow: none !important; }
+body.dock-on .dock-sheet #topHud .cmd-primary { display: grid !important; grid-template-columns: 1fr 1fr; gap: 8px; }
+body.dock-on .dock-sheet #battleBadge { display: block !important; text-align: center; }
+body.dock-on .dock-sheet .minimap-wrap { display: flex !important; align-items: center; }
+body.dock-on .dock-sheet #dataTruthLegend, body.dock-on .dock-sheet #hint { display: block !important; font-size: 11px; line-height: 1.5; }
+body.dock-on .dock-sheet .cmd-topbar, body.dock-on .dock-sheet .cmd-mission { display: flex !important; flex-wrap: wrap; gap: 8px; background: transparent !important; border: 0 !important; box-shadow: none !important; padding: 0 !important; }
+body.dock-on .dock-sheet .cmd-mission { display: block !important; }
+body.dock-on .dock-sheet .cmd-call { display: block !important; }
+body.dock-on .dock-sheet .cmd-call button { min-height: 44px; }
+/* sheets: hide adopted things that are not in their sheet (safety for late CSS) */
+body.dock-on #topHud:not(.dock-sheet #topHud) { display: none !important; }
+
+/* ---------- strike strip (#cmdBar) ---------- */
+body.dock-on.cmd-on .cmd-bar { display: none !important; }
+body.dock-on.cmd-on.dock-strike .cmd-bar, body.dock-on.cmd-on[data-ui="cmd"] .cmd-bar {
+  display: flex !important; position: fixed !important; z-index: 73; left: 50% !important; right: auto !important; top: auto !important;
+  transform: translateX(-50%) !important; bottom: calc(var(--sb) + var(--dockH) + 14px) !important; max-width: calc(100vw - 16px) !important; flex-wrap: wrap; justify-content: center;
+}
+body.dock-on.cmd-on[data-ui="cmd"] .cmd-bar { bottom: calc(var(--sb) + 8px) !important; }
+body.dock-on.dock-phone.cmd-on .cmd-bar { display: none !important; }
+body.dock-on.dock-phone.cmd-on.dock-strike .cmd-bar, body.dock-on.dock-phone.cmd-on[data-ui="cmd"] .cmd-bar {
+  display: grid !important; grid-template-columns: repeat(4, 56px); gap: 6px; padding: 6px; width: auto !important;
+}
+body.dock-on.dock-phone .cmd-bar .cmd-ability { width: 56px; height: 56px; }
+body.dock-on.dock-phone .cmd-bar .cmd-heavy-toggle { grid-column: span 2; min-height: 44px; flex-direction: row; }
+body.dock-on .cmd-heavy { left: 50%; transform: translateX(-50%); }
+body.dock-on.dock-phone .cmd-heavy { grid-template-columns: repeat(3, 56px); }
+@media (max-height: 500px) {   /* landscape phone: one wide row */
+  body.dock-on.dock-phone.cmd-on.dock-strike .cmd-bar, body.dock-on.dock-phone.cmd-on[data-ui="cmd"] .cmd-bar { grid-template-columns: repeat(8, 50px); }
+  body.dock-on.dock-phone .cmd-bar .cmd-ability { width: 50px; height: 50px; }
+  body.dock-on.dock-phone .cmd-bar .cmd-heavy-toggle { grid-column: span 1; }
+  body.dock-on { --dockH: 54px; }
+  .dock-bar button { height: 44px; }
+}
+/* remaining commander chrome is inside the Orders sheet; field stays clean */
+body.dock-on .cmd-mission:not(.dock-sheet .cmd-mission), body.dock-on .cmd-topbar:not(.dock-sheet .cmd-topbar) { display: none !important; }
+body.dock-on .intel-float { bottom: calc(var(--sb) + var(--dockH) + 20px) !important; top: auto !important; }
+body.dock-on.dock-strike .intel-float { display: none !important; }
+body.dock-on #btnRestoreUi { top: calc(var(--st) + 8px); }
+
+/* ---------- Hide UI integration ---------- */
+body.dock-on[data-ui] .dock-top, body.dock-on[data-ui] .dock-sheet, body.dock-on[data-ui="clean"] .dock-bar, body.dock-on[data-ui="clean"] .orders-pill,
+body.dock-on[data-ui="cmd"] .dock-bar { opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; }
+body.dock-on[data-ui="cmd"] .orders-pill { top: calc(var(--st) + 8px); }
+body.cutscene .dock-top, body.cutscene .dock-bar, body.cutscene .dock-sheet, body.cutscene .orders-pill { visibility: hidden !important; }
+
+/* phones: tighter top bar + full-width dock that fits 8 buttons without scrolling */
+body.dock-on.dock-phone #buildTag { display: none !important; }
+body.dock-on.dock-phone .dock-sheet #buildTag { display: block !important; }
+body.dock-on.dock-phone .dock-top { gap: 4px; }
+body.dock-on.dock-phone .dt-chip.market { max-width: none; flex: 1 1 auto; min-width: 0; padding: 0 7px; font-size: 10px; }
+body.dock-on.dock-phone .dt-chip.market .dt-price { display: none; }
+body.dock-on.dock-phone #dataMode { max-width: 26vw; }
+body.dock-on.dock-phone .dock-top .cmd-icon-btn, body.dock-on.dock-phone .dt-btn { width: 44px; min-width: 44px; height: 44px; }
+body.dock-on.dock-phone .dock-top #btnHideUi { width: 44px; min-width: 44px; height: 44px; padding: 0; font-size: 0; }
+body.dock-on.dock-phone .dock-top #btnHideUi::before { content: '⛶'; font-size: 17px; }
+body.dock-on.dock-phone .dock-bar { left: calc(var(--sl) + 6px); right: calc(var(--sr) + 6px); transform: none; gap: 2px; padding: 4px; justify-content: space-between; }
+body.dock-on.dock-phone .dock-bar button { flex: 1 1 0; min-width: 44px; padding: 0 2px; }
+body.dock-on.dock-phone .dock-bar .dl { font-size: 8px; letter-spacing: 0; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+body.dock-on .orders-pill { top: calc(var(--st) + 60px); }
