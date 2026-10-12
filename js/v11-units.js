@@ -380,7 +380,7 @@
 
   function bake(soldierG, tankA, tankB, truck, pickup) {
     var bullCol = E.bullColor(), bearCol = E.bearColor();
-    var caps = { soldier: 900, veh: 64 };
+    var caps = { soldier: 1500, veh: 160 };   // v11.3: room for 500-unit armies
     var soldierDone = !soldierG ? Promise.resolve() : buildSoldier(soldierG, bullCol, bearCol).then(function () {
       soldierBatches.forEach(function (byClip) {
         byClip.forEach(function (poses) {
@@ -500,6 +500,7 @@
     mgTimer -= simDt;
     var fx = E.effects;
 
+    var infTotal = (lists[0].length + lists[1].length) * 0.66;   // v11.3 escort thinning
     for (var f = 0; f < 2; f++) {
       var arr = lists[f];
       var infIdx = 0, armIdx = 0, artIdx = 0;
@@ -529,7 +530,10 @@
           var ci = clipFor(ud.animState, st.sp);
           st.pose = (st.pose || st.ph) + simDt * tier.poseFps * (ci === 2 ? 1.25 : 1);
           soldierAt(f, ci, st.pose, u.matrixWorld);
-          var nEsc = tier.infEscort >= 1 ? Math.floor(tier.infEscort) : (det(infIdx, 9) < tier.infEscort ? 1 : 0);
+          // v11.3: with big market armies the real units fill the field → thin out the visual escorts
+          var escK = tier.infEscort * (infTotal > 280 ? 0.3 : infTotal > 140 ? 0.6 : 1);
+          var nEsc = escK >= 1 ? Math.floor(escK) : (det(infIdx, 9) < escK ? 1 : 0);
+          if (ud.wounded || ud.medic) nEsc = 0;
           for (var e = 0; e < nEsc; e++) escort(u, f, infIdx, e, ci, st);
           infIdx++;
         } else {
