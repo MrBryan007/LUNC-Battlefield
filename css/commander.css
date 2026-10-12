@@ -241,3 +241,23 @@ body.cmd-watch .cmd-enter-btn { display: block; }
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
 body.cmd-watch #hint { bottom: 64px; }
+
+/* v11.1 — six-ability bar (arty/air/moon/cluster/emp/flare) */
+@media (max-width: 1180px) and (min-width: 721px) {
+  .cmd-bar { gap: 7px; padding: 7px; }
+  .cmd-ability { width: 64px; height: 64px; }
+  .cmd-ab-icon { font-size: 21px; }
+  .cmd-ab-name { font-size: 9.5px; }
+}
+.cmd-ab-name { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 3px; }
+@media (max-width: 720px) {
+  /* 3×2 grid of 52px buttons + call panel on top; keeps the bar inside the left half of a 390px screen */
+  .cmd-bar { width: auto; max-width: 62vw; display: grid; grid-template-columns: repeat(3, 52px); gap: 5px; padding: 5px; }
+  .cmd-call { grid-column: 1 / -1; }
+  .cmd-ability { width: 52px; height: 52px; border-radius: 11px; }
+  .cmd-ab-icon { font-size: 18px; }
+  .cmd-ab-name { font-size: 8px; letter-spacing: .3px; }
+  .cmd-ab-cd { top: 2px; right: 3px; font-size: 10px; }
+}
+.cmd-ability.flare.ready .cmd-ab-icon { filter: drop-shadow(0 0 8px rgba(255,240,170,.6)); }
+.cmd-ability.emp.ready .cmd-ab-icon { filter: drop-shadow(0 0 8px rgba(140,200,255,.6)); }

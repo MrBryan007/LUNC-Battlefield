@@ -16,6 +16,8 @@
   'use strict';
   var LB = global.LUNCBattle = global.LUNCBattle || {};
   var STORE = 'luncBattle.commander.v10';
+  // v12: adaptive layer hooks (js/learn/learn.js). No-ops when the layer is absent or ?learn=0.
+  function learn(type, data) { var L = LB.learn; if (L && L.emit) { try { L.emit(type, data); } catch (_) {} } }
   var doc = global.document;
 
   var RANKS = [
@@ -26,10 +28,16 @@
   ];
 
   var ABILITIES = {
-    arty: { key: '1', name: 'Artillery', icon: '✸', cd: 5, radius: 3.2, desc: 'Three-shell barrage' },
-    air: { key: '2', name: 'Airstrike', icon: '✈', cd: 16, radius: 2.6, desc: 'Bomb run across the target' },
-    moon: { key: '3', name: 'Moon Shot', icon: '☾', cd: 0, radius: 6.5, desc: 'Ultimate — charge by landing hits' }
+    arty: { key: '1', name: 'Artillery', icon: '✸', cd: 3, radius: 3.2, desc: 'Three-shell barrage' },
+    air: { key: '2', name: 'Airstrike', icon: '✈', cd: 8, radius: 2.6, desc: 'Bomb run across the target' },
+    moon: { key: '3', name: 'Moon Shot', icon: '☾', cd: 0, radius: 6.5, desc: 'Ultimate — charge by landing hits' },
+    cluster: { key: '4', name: 'Cluster Mortars', icon: '☄', cd: 4, radius: 2.8, desc: 'Scattered mortar shells' },
+    emp: { key: '5', name: 'EMP Pulse', icon: '⚡', cd: 6, radius: 3.5, desc: 'Disrupts armor (x2 armor score)' },
+    flare: { key: '6', name: 'Recon Flare', icon: '✦', cd: 3.5, radius: 5.0, desc: 'Lights the zone — bonus hits' }
   };
+  var ABILITY_ORDER = ['arty', 'air', 'moon', 'cluster', 'emp', 'flare'];
+  var FLARE_MS = 6000, FLARE_MULT = 1.5;   // flare zone: +50% score for hits inside it
+  var flareZones = [];                       // { x, z, r, until } — game-only, cosmetic
 
   var POINTS = { 0: 10, 1: 30, 2: 45 }; // infantry / armor / artillery
 
@@ -42,7 +50,7 @@
   var profile = load();
   var session = null;
   var armed = null;
-  var cds = { arty: 0, air: 0, moon: 0 };
+  var cds = { arty: 0, air: 0, moon: 0, cluster: 0, emp: 0, flare: 0 };
   var reticle = null;
   var el = {};
   var pointer = { x: 0, y: 0, has: false };
@@ -63,7 +71,9 @@
 
   function newSession() {
     session = { score: 0, combo: 0, comboT: 0, level: 1, charge: 0, hits: 0, strikes: 0, streak: 0, missionsDone: 0 };
-    cds = { arty: 0, air: 0, moon: 0 };
+    if (LB.ragdoll && LB.ragdoll.clear) LB.ragdoll.clear();   // session end/restart: drop lingering bodies
+    cds = { arty: 0, air: 0, moon: 0, cluster: 0, emp: 0, flare: 0 };
+    flareZones = [];
     call = null;
     nextMission();
     renderAll();
@@ -81,11 +91,23 @@
     ];
     if (live) pool.push({ id: 'call', text: 'Call the Front correctly', call: true, n: 1 });
     var pick = pool[(Math.random() * pool.length) | 0];
+    // v12 adaptive orders: engagement-weighted pick with novelty decay + difficulty scaling (game-only, labelled ADAPTIVE)
+    var adv = LB.learn && LB.learn.missionAdvice ? LB.learn.missionAdvice(pool.map(function (p) { return p.id; })) : null;
+    if (adv) {
+      var tw = 0; pool.forEach(function (p) { tw += adv.weights[p.id] || 0; });
+      var r = Math.random() * tw;
+      for (var pi = 0; pi < pool.length; pi++) { r -= adv.weights[pool[pi].id] || 0; if (r <= 0) { pick = pool[pi]; break; } }
+      if (!pick.call && adv.difficulty) pick.n = Math.max(1, Math.round(pick.n * adv.difficulty));
+    }
     if (mission && pick.id === mission.id && pool.length > 1) pick = pool[(pool.indexOf(pick) + 1) % pool.length];
     var time = Math.max(30, 75 - (L - 1) * 5);
+    if (adv && adv.difficulty) time = Math.round(time / Math.sqrt(adv.difficulty));
     if (pick.call) time = Math.max(time, 50);
     mission = { id: pick.id, text: pick.text.replace('{n}', pick.n), type: pick.type, n: pick.n, got: 0,
-      combo: !!pick.combo, call: !!pick.call, time: time, left: time, reward: 120 + 60 * L };
+      combo: !!pick.combo, call: !!pick.call, time: time, left: time, reward: 120 + 60 * L, adaptive: !!adv };
+    if (LB.learn && LB.learn.noteMission) LB.learn.noteMission(pick.id);
+    if (adv && el.cmdMission) el.cmdMission.title = 'ADAPTIVE orders (game-only): target and timer tuned ×' + adv.difficulty.toFixed(2) + ' from your recent mission results. Market data is never changed.';
+    learn('mission:new', { id: pick.id, n: pick.n, time: time, difficulty: adv ? adv.difficulty : 1 });
     toast('NEW ORDERS', mission.text, 'info');
     if (sfx()) sfx().radio();
   }
@@ -102,6 +124,7 @@
     var reward = mission.reward + Math.round(mission.left * 4);
     addScore(reward, null, true);
     session.missionsDone++;
+    learn('mission:done', { id: mission.id, left: mission.left, time: mission.time, got: mission.got });
     session.level++;
     toast('MISSION COMPLETE', '+' + reward + ' · Level ' + session.level, 'win');
     if (sfx()) sfx().success();
@@ -110,6 +133,7 @@
   }
 
   function failMission() {
+    learn('mission:fail', { id: mission.id, left: 0, time: mission.time, got: mission.got });
     toast('MISSION FAILED', mission.text + ' — new orders incoming', 'bad');
     if (sfx()) sfx().fail();
     session.streak = 0;
@@ -143,7 +167,8 @@
   }
   function friendlyColor() { return profile.side === 'bull' ? E().bullColor() : E().bearColor(); }
 
-  function resolveHits(x, z, radius, power, noCharge) {
+  var lastAbility = null;  // v12: attributes async volley hits to the most recent strike
+  function resolveHits(x, z, radius, power, noCharge, typeMult) {
     var army = enemyArmy();
     var now = performance.now();
     var n = 0, pts = 0;
@@ -164,7 +189,9 @@
       u.position.x += (dx / d) * push;
       u.position.z += (dz / d) * push * 0.6;
       n++;
-      pts += POINTS[t] || 10;
+      var up = (POINTS[t] || 10) * ((typeMult && typeMult[t]) || 1);
+      if (inFlare(u.position.x, u.position.z, now)) up *= FLARE_MULT;
+      pts += Math.round(up);
       missionProgress('hit', t);
     }
     if (n) {
@@ -177,6 +204,7 @@
       addScore(pts, new (E().THREE.Vector3)(x, E().terrainHeight(x, z) + 1.5, z));
       missionProgress('combo', session.combo);
       hitMarker(n);
+      learn('hits', { ability: lastAbility, n: n });
     }
     return n;
   }
@@ -221,12 +249,21 @@
       eng.scene.add(sp);
       blasts.push(sp);
     }
-    if (!blastLight) { blastLight = new THREE.PointLight(0xffa040, 0, 26, 2); eng.scene.add(blastLight); }
+    ensureBlastLight();
+    if (!blastLight) return;
     blastLight.position.set(x, y + 2.5, z);
     blastLight.color.setHex(gold ? 0xffcc55 : 0xff9a40);
     blastLight.intensity = Math.max(blastLight.intensity, 5 * power);
     // keep total sprites bounded
     while (blasts.length > (lowFx ? 70 : 160)) recycle(blasts.shift());
+  }
+  // v11.1: create once at init (light count must never change mid-play)
+  function ensureBlastLight() {
+    if (blastLight) return;
+    var eng = E(); if (!eng || !eng.scene || !eng.THREE) return;
+    blastLight = new eng.THREE.PointLight(0xffa040, 0, 26, 2);
+    blastLight.position.set(0, -50, 0);
+    eng.scene.add(blastLight);
   }
   function recycle(sp) { sp.visible = false; if (sp.parent) sp.parent.remove(sp); if (blastPool.length < 200) blastPool.push(sp); }
   function tickBlasts(dt) {
@@ -250,11 +287,14 @@
     }
   }
 
-  function boom(x, z, power, isGold) {
+  function boom(x, z, power, isGold, craterMode) {
     var eng = E();
     if (!eng || !eng.effects) return;
     var col = isGold ? 0xffc94a : friendlyColor();
-    eng.effects.createExplosion(x, z, col, power, !!isGold);
+    // v12: player strikes leave full craters (EMP / flare should wrap their boom in withMode('scorch'))
+    var CR = LB.craters;
+    if (CR && CR.withMode) CR.withMode(craterMode || 'player', function () { eng.effects.createExplosion(x, z, col, power, !!isGold); });
+    else eng.effects.createExplosion(x, z, col, power, !!isGold);
     try { spawnBlast(x, z, power, isGold); } catch (e) { /* FX are optional */ }
     var cam = eng.camera.position;
     var dx = cam.x - x, dz = cam.z - z;
@@ -323,6 +363,57 @@
     }
   }
 
+  // v11.1: pause-aware timer — strike volleys freeze while the game is paused instead of firing into a paused scene.
+  function later(fn, ms) {
+    setTimeout(function tick() {
+      if (!started) return;                       // session ended / watch mode → drop the volley
+      if (E().isPaused()) { setTimeout(tick, 120); return; }
+      fn();
+    }, ms);
+  }
+  function inFlare(x, z, now) {
+    for (var i = flareZones.length - 1; i >= 0; i--) {
+      var f = flareZones[i];
+      if (now > f.until) { flareZones.splice(i, 1); continue; }
+      var dx = x - f.x, dz = z - f.z;
+      if (dx * dx + dz * dz <= f.r * f.r) return true;
+    }
+    return false;
+  }
+
+  function strikeCluster(x, z) {
+    var r = ABILITIES.cluster.radius, any = 0, pending = 5;
+    for (var i = 0; i < 5; i++) {
+      (function (k) {
+        later(function () {
+          var tx = x + (Math.random() * 2 - 1) * r * 0.7, tz = z + (Math.random() * 2 - 1) * r * 0.7;
+          boom(tx, tz, 0.7);
+          any += resolveHits(tx, tz, r * 0.55, 0.8);
+          if (--pending === 0 && !any) breakCombo();
+        }, k * 180);
+      })(i);
+    }
+  }
+
+  // v12: EMP / flare leave a light scorch, never a crater
+  function scorchBoom(x, z, power, gold) { boom(x, z, power, gold, 'scorch'); }
+  function strikeEmp(x, z) {
+    var eng = E();
+    eng.flash(0.03);
+    scorchBoom(x, z, 1.1, false);   // light scorch only, no crater
+    // Armor disrupt (game-only): armor (type 1) units score double. Market data / armies untouched.
+    var n = resolveHits(x, z, ABILITIES.emp.radius, 1.0, false, { 1: 2 });
+    if (!n) breakCombo();
+    else floatScreen('ARMOR DISRUPTED', pointer.x, pointer.y - 26, 'info');
+  }
+
+  function strikeFlare(x, z) {
+    flareZones.push({ x: x, z: z, r: ABILITIES.flare.radius, until: performance.now() + FLARE_MS });
+    scorchBoom(x, z, 0.6, true);
+    resolveHits(x, z, ABILITIES.flare.radius, 0.5);   // light poke; no combo break on miss — it's a setup tool
+    toast('RECON FLARE', 'Zone lit ' + (FLARE_MS / 1000) + 's — hits score +50%', 'info', 1400);
+  }
+
   function breakCombo() {
     if (session.combo > 0) floatScreen('MISS', pointer.x, pointer.y, 'miss');
     session.combo = 0;
@@ -336,8 +427,14 @@
     if (ability === 'moon' ? session.charge < 100 : cds[ability] > 0) { if (sfx()) sfx().ui('deny'); return; }
     if (E().isPaused()) return;
     session.strikes++;
+    lastAbility = ability;
+    learn('strike', { ability: ability, x: p.x, z: p.z });
+    if (ability === 'moon') learn('moon', {});
     if (ability === 'arty') strikeArty(p.x, p.z);
     else if (ability === 'air') strikeAir(p.x, p.z);
+    else if (ability === 'cluster') strikeCluster(p.x, p.z);
+    else if (ability === 'emp') strikeEmp(p.x, p.z);
+    else if (ability === 'flare') strikeFlare(p.x, p.z);
     else strikeMoon(p.x, p.z);
     if (a.cd) cds[ability] = a.cd;
     if (!(global.matchMedia && matchMedia('(pointer: fine)').matches) || ability === 'moon') disarm();
@@ -380,9 +477,10 @@
     var dir = call.dir;
     var entry = call.entry;
     call = null;
-    if (!eng.isPriceLive()) { toast('CALL VOID', 'Price feed dropped — no score', 'info'); renderCall(); return; }
+    if (!eng.isPriceLive()) { learn('call:result', { void: true }); toast('CALL VOID', 'Price feed dropped — no score', 'info'); renderCall(); return; }
     if (move === 0) { toast('FLAT — PUSH', 'No move in 30s. No score.', 'info'); renderCall(); return; }
     var right = (move > 0 && dir > 0) || (move < 0 && dir < 0);
+    learn('call:result', { right: right, dir: dir });
     var pct = (move / entry) * 100;
     if (right) {
       var g = addScore(150 + Math.round(Math.min(5, Math.abs(pct) * 20) * 40), null, true);
@@ -478,7 +576,7 @@
       '<div class="cmd-mission" id="cmdMission"><div class="cmd-mission-head"><span class="tag">ORDERS · LV <b id="cmdLevel">1</b></span><span class="cmd-timer" id="cmdTimer">0s</span></div>' +
         '<div class="cmd-mission-text" id="cmdMissionText">—</div><div class="cmd-progress"><i id="cmdMissionBar"></i></div></div>' +
       '<div class="cmd-bar" id="cmdBar">' +
-        abilityBtn('arty') + abilityBtn('air') + abilityBtn('moon') +
+        ABILITY_ORDER.map(abilityBtn).join('') +
         '<div class="cmd-call" id="cmdCall">' +
           '<div class="cmd-call-label">Call the Front <span class="qual live" id="cmdCallTruth">LIVE</span></div>' +
           '<div class="cmd-call-btns"><button id="cmdLong" class="long">▲ Long</button><button id="cmdShort" class="short">▼ Short</button></div>' +
@@ -662,6 +760,8 @@
     if (sfx()) sfx().ui();
   }
   function watchMode() {
+    if (started && mission) learn('mission:abandon', { id: mission.id });
+    if (LB.ragdoll && LB.ragdoll.clear) LB.ragdoll.clear();
     hideOverlay();
     started = false;
     disarm();
@@ -698,12 +798,15 @@
     }, true);
     global.addEventListener('contextmenu', function (e) { if (armed && e.target === canvas) { e.preventDefault(); disarm(); } });
     global.addEventListener('keydown', function (e) {
-      if (e.target && /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+      if (e.target && (/INPUT|TEXTAREA|SELECT/.test(e.target.tagName) || e.target.isContentEditable)) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       var c = e.code;
       if (c === 'Digit1' || c === 'Numpad1') arm('arty');
       else if (c === 'Digit2' || c === 'Numpad2') arm('air');
       else if (c === 'Digit3' || c === 'Numpad3') arm('moon');
+      else if (c === 'Digit4' || c === 'Numpad4') arm('cluster');
+      else if (c === 'Digit5' || c === 'Numpad5') arm('emp');
+      else if (c === 'Digit6' || c === 'Numpad6') arm('flare');
       else if (c === 'KeyP' && !e.shiftKey) togglePause();
       else if (c === 'Escape') { if (armed) disarm(); else if (started || E().isPaused()) togglePause(); }
       else if (c === 'KeyM') { if (sfx()) { sfx().toggleMute(); renderMute(); } }
@@ -722,6 +825,7 @@
     } catch (_) {}
     buildHud();
     buildReticle();
+    ensureBlastLight();
     bindInput();
     newSession();
     var params = new URLSearchParams(location.search);
@@ -739,7 +843,15 @@
     init: init, tick: tick, arm: arm, deploy: deploy, togglePause: togglePause,
     getState: function () { return { started: started, session: session, profile: profile, mission: mission, call: call, armed: armed, cds: cds }; },
     // test hook: fire an ability at world x/z (used by headless verification)
-    debugFire: function (ability, x, z) { fireAt(ability, { x: x, z: z }); }
+    debugFire: function (ability, x, z) { fireAt(ability, { x: x, z: z }); },
+    // v11.1 loading-screen warm-up: light exists before first compile; one fire + one smoke
+    // sprite are put in the scene so their shader programs compile behind the loader.
+    warm: function () {
+      ensureBlastLight();
+      var eng = E(), out = [];
+      ['fire', 'smoke'].forEach(function (k) { var sp = blastSprite(k); sp.position.set(0, -40, 0); sp.visible = true; eng.scene.add(sp); out.push(sp); });
+      return function () { out.forEach(recycle); };
+    }
   };
 
   function boot() {

@@ -226,8 +226,8 @@
     mats.comp = shader(COMPOSITE, {
       tScene: { value: null }, tBloom: { value: null }, texel: { value: new THREE.Vector2() },
       bloomStrength: { value: 0.65 }, useBloom: { value: 0 }, useFxaa: { value: 1 },
-      vignette: { value: 0.9 }, saturation: { value: 1.18 }, contrast: { value: 1.12 }, time: { value: 0 },
-      lift: { value: new THREE.Vector3(0.012, 0.014, 0.022) }, gain: { value: new THREE.Vector3(1.02, 1.0, 0.97) },
+      vignette: { value: 0.9 }, saturation: { value: 1.06 }, contrast: { value: 1.17 }, time: { value: 0 },
+      lift: { value: new THREE.Vector3(0.004, 0.015, 0.026) }, gain: { value: new THREE.Vector3(1.05, 1.0, 0.93) },
       flash: { value: 0 }
     });
     global.addEventListener('lunc-quality-change', function (e) {

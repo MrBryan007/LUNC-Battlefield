@@ -936,6 +936,7 @@
       shadow.position.y = isAir ? -0.15 : 0.02;
       shadow.receiveShadow = false;
       shadow.castShadow = false;
+      shadow.userData.groundBlob = true; // v11: stays visible under realistic models
       if (isAir) {
         shadow.scale.setScalar(0.65);
         shadow.material = shadowMatAir;
@@ -1029,6 +1030,7 @@
           u.userData.homeYaw = s.yaw || 0;
           u.userData.cluster = s.cluster;
           u.userData.index = i;
+          u.userData.utype = type;
           list.push(u);
         });
       });
@@ -1049,6 +1051,7 @@
         u.userData.homeZ = z;
         u.userData.index = idx++;
         u.userData.orbitAngle = (i / Math.max(1, nHeli)) * Math.PI * 2 + (side < 0 ? 0 : 1.2);
+        u.userData.utype = 3;
         list.push(u);
       }
       for (let j = 0; j < nJet; j++) {
@@ -1062,8 +1065,80 @@
         u.userData.index = idx++;
         u.userData.airMode = 'COOLDOWN';
         u.userData.runCooldown = 0.6 + j * 2.2 + Math.random();
+        u.userData.utype = 4;
         list.push(u);
       }
+    }
+
+    /**
+     * v11.1 diffed army update. Same counts object as spawnFormation/spawnAirWing.
+     * Keeps every existing unit, re-homes survivors onto the deterministic slots for
+     * the new count, removes only the surplus and creates only the shortfall.
+     * Nothing is torn down when counts are unchanged.
+     * Returns number of units added + removed.
+     */
+    function retire(u) {
+      if (u && u.userData) { u.userData.runId = null; u.userData.onHit = null; u.userData.airMode = 'COOLDOWN'; }
+      scene.remove(u);
+    }
+    function updateArmy(side, color, counts, list, opts) {
+      opts = opts || {};
+      const want = [
+        opts.ground ? (counts.inf | 0) : 0, opts.ground ? (counts.armor | 0) : 0, opts.ground ? (counts.art | 0) : 0,
+        opts.air ? (counts.heli | 0) : 0, opts.air ? (counts.jet | 0) : 0
+      ];
+      const byType = [[], [], [], [], []];
+      for (let i = 0; i < list.length; i++) {
+        const t = list[i].userData && list[i].userData.utype;
+        if (t >= 0 && t <= 4) byType[t].push(list[i]); else byType[0].push(list[i]);
+      }
+      let changes = 0;
+      const out = [];
+      for (let type = 0; type < 3; type++) {
+        const have = byType[type], n = want[type];
+        if (have.length === n) { for (let i = 0; i < n; i++) out.push(have[i]); continue; }
+        const slots = n > 0 ? formationSlots(n, side, type) : [];
+        for (let i = n; i < have.length; i++) { retire(have[i]); changes++; }
+        for (let i = 0; i < n; i++) {
+          const s = slots[i];
+          let u = have[i];
+          if (!u) { u = createUnit(color, side, type); u.position.set(s.x, terrainHeight(s.x, s.z), s.z); changes++; }
+          u.userData.home = s; u.userData.homeYaw = s.yaw || 0; u.userData.cluster = s.cluster;
+          u.userData.index = i; u.userData.utype = type;
+          out.push(u);
+        }
+      }
+      // air: heli (3) then jet (4); re-home survivors, add/remove delta only
+      let idx = 0;
+      const nHeli = want[3], nJet = want[4];
+      const helis = byType[3], jets = byType[4];
+      for (let i = nHeli; i < helis.length; i++) { retire(helis[i]); changes++; }
+      for (let i = 0; i < nHeli; i++) {
+        const z = (i - (nHeli - 1) / 2) * 7.5 + (((i * 11) % 5) - 2) * 0.4;
+        const x = side * (18 + (i % 2) * 4);
+        let u = helis[i];
+        if (!u) {
+          u = createUnit(color, side, 3); u.position.set(x, u.userData.alt || 9, z); changes++;
+          u.userData.orbitAngle = (i / Math.max(1, nHeli)) * Math.PI * 2 + (side < 0 ? 0 : 1.2);
+        }
+        u.userData.home = { x: x, z: z }; u.userData.homeZ = z; u.userData.index = idx++; u.userData.utype = 3;
+        out.push(u);
+      }
+      for (let i = nJet; i < jets.length; i++) { retire(jets[i]); changes++; }
+      for (let j = 0; j < nJet; j++) {
+        const z = (j - (nJet - 1) / 2) * 11 + side * 2;
+        const startX = side * (55 + j * 8);
+        let u = jets[j];
+        if (!u) {
+          u = createUnit(color, side, 4); u.position.set(startX, u.userData.alt || 9.5, z); changes++;
+          u.userData.airMode = 'COOLDOWN'; u.userData.runCooldown = 0.6 + j * 2.2 + Math.random();
+        }
+        u.userData.home = { x: startX, z: z }; u.userData.homeZ = z; u.userData.index = idx++; u.userData.utype = 4;
+        out.push(u);
+      }
+      list.length = 0;
+      for (let i = 0; i < out.length; i++) list.push(out[i]);
+      return changes;
     }
 
     function setAnimState(u, state, now) {
@@ -1138,6 +1213,7 @@
       disposeArmy: disposeArmy,
       spawnFormation: spawnFormation,
       spawnAirWing: spawnAirWing,
+      updateArmy: updateArmy,
       setShadow: setShadow,
       setAnimState: setAnimState,
       tickUnit: tickUnit,
