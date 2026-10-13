@@ -169,7 +169,7 @@ body.dock-on .orders-pill { top: calc(var(--st) + 60px); }
 .v12-opts { display: flex !important; flex-direction: column; gap: 8px; font: 500 12px Inter, sans-serif; color: #dfe7e1; }
 .v12-opts label { display: flex; align-items: center; gap: 8px; min-height: 36px; }
 .v12-opts select, .v12-opts input[type=range] { flex: 1; min-height: 32px; }
-.world-inset { position: fixed; z-index: 70; right: calc(env(safe-area-inset-right, 0px) + 8px); top: calc(env(safe-area-inset-top, 0px) + 58px);
+.world-inset { position: fixed; z-index: 70; left: auto; bottom: auto; right: calc(env(safe-area-inset-right, 0px) + 8px); top: calc(env(safe-area-inset-top, 0px) + 58px);
   width: 150px; height: 100px; border-radius: 10px; border: 1px solid rgba(255,255,255,.18); background: rgba(7,11,9,.6); cursor: pointer; }
 .world-inset[hidden] { display: none; }
 body.dock-phone .world-inset { width: 108px; height: 72px; top: calc(env(safe-area-inset-top, 0px) + 100px); }
@@ -217,3 +217,9 @@ body[data-weather="fog"] #vignette, body[data-weather="rain"] #vignette { backdr
 /* v12.0.4 — defenses */
 .econ-actions button.armed { border-color: #7cf0a8; background: rgba(124,240,168,.18); box-shadow: 0 0 0 1px #7cf0a8 inset; }
 body.fort-placing canvas { cursor: crosshair; }
+/* v12.0.5 — ?dock=0: WAR SYSTEMS floating drawer (supply / economy / tech / defenses) */
+.war-float { position: fixed; z-index: 60; left: 10px; bottom: calc(env(safe-area-inset-bottom, 0px) + 70px); max-width: min(360px, calc(100vw - 20px)); }
+.war-float[hidden] { display: none; }
+.war-float > button { min-height: 40px; padding: 0 14px; border-radius: 10px; border: 1px solid rgba(215,181,109,.5); background: rgba(10,14,12,.86); color: #f1dfb4; font: 700 11px Rajdhani, Inter, sans-serif; letter-spacing: 1px; cursor: pointer; }
+.war-float .war-body { display: none; margin-bottom: 6px; max-height: 60vh; overflow: auto; padding: 4px 12px 12px; border-radius: 12px; background: rgba(10,14,12,.9); border: 1px solid rgba(255,255,255,.1); }
+.war-float.open .war-body { display: block; }
