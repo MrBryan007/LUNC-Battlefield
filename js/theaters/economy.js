@@ -38,7 +38,7 @@
   }
   function income() {
     var r = rates(); stats.ticks++;
-    [-1, 1].forEach(function (s) { var k = String(s); RES.forEach(function (x) { var v = r[k][x] * (LB.tech && LB.tech.has && LB.tech.has(s, 'logistics') ? 1.25 : 1); lastRate[k][x] = v; stock[k][x] = Math.min(CAP, stock[k][x] + v); earned[k][x] += v; }); });
+    [-1, 1].forEach(function (s) { var k = String(s); RES.forEach(function (x) { var v = r[k][x] * (LB.tech && LB.tech.has && LB.tech.has(s, 'logistics') ? 1.25 : 1) * (LB.lines && LB.lines.isCut && LB.lines.isCut(s) ? 0.5 : 1); lastRate[k][x] = v; stock[k][x] = Math.min(CAP, stock[k][x] + v); earned[k][x] += v; }); });
     // supply crates banked since last tick → +5 of their kind (power-ups go to ammo)
     if (LB.supply && LB.supply.getTally) {
       var t = LB.supply.getTally();
