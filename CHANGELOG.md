@@ -1,5 +1,14 @@
 # Changelog
 
+## v12.0.11 — Wide front (2026-10-13, AI build)
+- The bases are much farther apart: both HQ compounds moved from x ±48 to ±96, so the land front is about 2x wider and deeper. The price→front mapping and frontline math are unchanged: Bulls west, Bears east, price moves the front.
+- Formations spread out: about 2x the north–south span, 1.6x more clusters per rank, 1.3x rank gap, and more jitter. Big armies now fill back toward their HQs (rear area) instead of clumping at the line.
+- More ground units per tier: ULTRA 1400 / HIGH 1100 / MEDIUM 500 / LOW+phone 160 (was 500/500/250/110). `?units=N` now goes up to 2000. The market still decides each side's share.
+- Updated to match: camera Bull/Bear HQ jumps, minimap world bounds (±130) and HQ markers, the v12 HQ views, and the supply depots (moved to ±130/±168, off the new compounds).
+- `?wide=0` brings back the old v12.0.10 layout and budgets.
+- Tested: `node --check` on all JS, asset-lifecycle 33/33, headless HIGH / MEDIUM / LOW / phone 390×844 with 0 page errors. At 1100 units, units cover z ±45 (was ±22). Before/after screenshots are in docs/v12011-shots.
+- Build hours (real timestamps): day total so far 1.49 h, UNDER the 2–4 h target.
+
 ## v12.0.10 — Spoken radio chatter + HQ announcements (2026-10-13, AI build)
 - New `js/theaters/voice.js`: spoken radio lines with callsigns ("Green Hornet", "Red Grizzly", Overlord, Watchtower, HQ) using the browser's built-in SpeechSynthesis (no audio files).
 - Radio sound: browsers can't route SpeechSynthesis through WebAudio, so the effect is approximated: a lower, slightly faster voice, with WebAudio squelch clicks and a band-passed (300–3000 Hz), lightly distorted static burst before and after each line plus a static bed under it.

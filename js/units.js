@@ -961,7 +961,9 @@
       const slots = [];
       const clusterSize = type === 0 ? 4 : 2;
       const nClusters = Math.max(1, Math.ceil(count / clusterSize));
-      const zSpan = type === 0 ? 26 : type === 1 ? 21 : 17;
+      // v12.0.11 wide front: spread factor S (2 by default, 1 with ?wide=0)
+      const S = (global.LUNCBattle && LUNCBattle.config && LUNCBattle.config.layout && LUNCBattle.config.layout.spread) || 1;
+      const zSpan = (type === 0 ? 26 : type === 1 ? 21 : 17) * S;
       const baseDepth = type === 0 ? 6.15 : type === 1 ? 12.8 : 20.4;
       const infOff = [
         { d: 0.00, z: 0.00 },
@@ -979,10 +981,10 @@
       ];
       const memberOff = type === 0 ? infOff : type === 1 ? armOff : artOff;
       // v11.3: big armies (up to 500 ground units) → stack clusters into ranks instead of one crowded line
-      const perRow = type === 0 ? 9 : type === 1 ? 7 : 6;
+      const perRow = Math.round((type === 0 ? 9 : type === 1 ? 7 : 6) * (S > 1 ? 1.6 : 1));
       const nRows = Math.max(1, Math.ceil(nClusters / perRow));
-      const rowGap = type === 0 ? 2.5 : type === 1 ? 3.3 : 3.6;
-      const zWide = Math.min(1.7, 1 + (nRows - 1) * 0.12);
+      const rowGap = (type === 0 ? 2.5 : type === 1 ? 3.3 : 3.6) * (S > 1 ? 1.3 : 1);
+      const zWide = Math.min(S > 1 ? 2.2 : 1.7, 1 + (nRows - 1) * 0.12);
 
       for (let i = 0; i < count; i++) {
         const ci = Math.floor(i / clusterSize);
@@ -990,13 +992,13 @@
         const row = Math.floor(ci / perRow), inRow = Math.min(perRow, nClusters - row * perRow), cr = ci % perRow;
         const t = nRows === 1 ? (nClusters === 1 ? 0 : (ci + 0.5) / nClusters - 0.5) : (inRow === 1 ? 0 : (cr + 0.5 + (row % 2) * 0.35) / inRow - 0.5);
         let clusterZ = t * zSpan * zWide;
-        clusterZ += (det01(ci, 3 + type) - 0.5) * (type === 0 ? 2.15 : 1.7);
+        clusterZ += (det01(ci, 3 + type) - 0.5) * (type === 0 ? 2.15 : 1.7) * S;
         // Pull first/last clusters slightly inward so the Z range stays occupied, including center
         if (nClusters > 2 && (ci === 0 || ci === nClusters - 1)) {
           clusterZ *= 0.92;
         }
         const clusterDepth = baseDepth
-          + (det01(ci, 7 + type) - 0.32) * (type === 0 ? 2.4 : 2.0)
+          + (det01(ci, 7 + type) - 0.32) * (type === 0 ? 2.4 : 2.0) * (S > 1 ? 1.5 : 1)
           + (ci % 3) * (type === 0 ? 0.45 : 0.7)
           + row * rowGap;
         const mo = memberOff[mi % memberOff.length];

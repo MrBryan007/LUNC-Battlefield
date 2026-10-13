@@ -144,11 +144,11 @@
     }
 
     function focusBullBase(smooth) {
-      focusWorld(BULL_BASE_X, 0, smooth !== false);
+      focusWorld(-((global.LUNCBattle && LUNCBattle.config && LUNCBattle.config.layout && LUNCBattle.config.layout.hqX) || 48), 0, smooth !== false);
     }
 
     function focusBearBase(smooth) {
-      focusWorld(BEAR_BASE_X, 0, smooth !== false);
+      focusWorld(((global.LUNCBattle && LUNCBattle.config && LUNCBattle.config.layout && LUNCBattle.config.layout.hqX) || 48), 0, smooth !== false);
     }
 
     function requestCinematic(spec) {
