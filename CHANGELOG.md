@@ -8,7 +8,7 @@
 - New: daily build-hours log (`data/build-hours.json`) and page ([build-hours.html](build-hours.html)), linked from Settings and the footer.
 - `?supply=0` turns supply drops off. Tier caps: LOW/phone 1 active drop and 2 runners per side, others 2 drops and 3 runners.
 - Tested: `node --check` on 57 JS files, asset-lifecycle test (33/33), headless HIGH / MEDIUM / LOW / phone 390×844 with 0 page errors and a full drop → capture cycle on each, plus `?supply=0`, `?theaters=0`, `?dock=0`, `?commander=0`, `?ui=0`. Not measured on a real iPhone/Mac.
-- Build hours (real timestamps, through testing): 0.26 h (planning 0.02 h, building 0.15 h, testing 0.09 h); deploying is logged in data/build-hours.json once Pages confirms. Target 2–4 h.
+- Build hours (real timestamps): 0.32 h (planning 0.02 h, building 0.15 h, testing 0.09 h, deploying 0.06 h). UNDER the 2–4 h daily target.
 
 ## v12.0 — Theaters of War (2026-10-12)
 - Wide world with a free camera (pan/orbit/zoom, Q/E rotate, O overview). Theater bar and Tour in the Map sheet.
