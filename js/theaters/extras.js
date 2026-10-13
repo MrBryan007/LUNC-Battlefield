@@ -68,7 +68,7 @@
       '<label><input type="checkbox" id="v12Music"> Adaptive music</label>' +
       '<label>Volume <input type="range" id="v12Vol" min="0" max="1" step="0.05"></label>';
     host.appendChild(p);
-    var bh = doc.createElement('a'); bh.href = 'build-hours.html'; bh.className = 'build-hours-link'; bh.textContent = 'Daily build hours log ↗'; bh.target = '_blank'; bh.rel = 'noopener'; host.appendChild(bh);
+    var bh = doc.createElement('a'); bh.href = 'build-hours.html'; bh.className = 'build-hours-link settings'; bh.textContent = 'Daily build hours log ↗'; bh.target = '_blank'; bh.rel = 'noopener'; host.appendChild(bh);
     var $ = function (id) { return doc.getElementById(id); };
     $('v12Weather').value = opt.weather; $('v12Day').checked = opt.daynight; $('v12Spec').checked = opt.spectator; $('v12Inset').checked = opt.inset; $('v12Music').checked = opt.music;
     $('v12Vol').value = LB.sfx && LB.sfx.getVolume ? LB.sfx.getVolume() : 0.7;

@@ -35,14 +35,14 @@
 
   function build() {
     var e = E(); THREE = e.THREE; root = new THREE.Group(); root.name = 'v12-supply'; e.scene.add(root);
-    geo.crate = new THREE.BoxGeometry(1.6, 1.2, 1.6);
-    geo.band = new THREE.BoxGeometry(1.7, 0.18, 1.7);
+    geo.crate = new THREE.BoxGeometry(2.4, 1.8, 2.4);
+    geo.band = new THREE.BoxGeometry(2.5, 0.28, 2.5);
     geo.chute = new THREE.SphereGeometry(2.6, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2);
     geo.line = new THREE.CylinderGeometry(0.03, 0.03, 3.2, 4);
     geo.ring = new THREE.RingGeometry(3.6, 4.2, 40);
     geo.prog = new THREE.RingGeometry(4.3, 5.0, 40, 1, 0, Math.PI * 2);
-    geo.body = new THREE.CylinderGeometry(0.28, 0.32, 1.1, 6);
-    geo.head = new THREE.SphereGeometry(0.24, 8, 6);
+    geo.body = new THREE.CylinderGeometry(0.36, 0.42, 1.4, 6);
+    geo.head = new THREE.SphereGeometry(0.3, 8, 6);
     mat.crate = new THREE.MeshStandardMaterial({ color: 0x6b5a3a, roughness: 0.85 });
     mat.chute = new THREE.MeshStandardMaterial({ color: 0xe9e2cf, roughness: 0.9, side: THREE.DoubleSide });
     mat.line = new THREE.MeshBasicMaterial({ color: 0x333333 });
@@ -82,14 +82,14 @@
     var ring = new THREE.Mesh(geo.ring, mat.ring); ring.rotation.x = -Math.PI / 2; ring.position.set(d.x, 0.08, d.z); root.add(ring); d.ring = ring;
   }
   function land(d) {
-    d.st = 'landed'; d.t = 0; d.grp.position.y = 0.6;
+    d.st = 'landed'; d.t = 0; d.grp.position.y = 0.9;
     if (d.chute) { d.grp.remove(d.chute); d.chute = null; }
     d.progM = new THREE.Mesh(new THREE.RingGeometry(4.3, 5.0, 40, 1, 0, 0.01), mat.kind[d.kind]); d.progM.rotation.x = -Math.PI / 2; d.progM.position.set(d.x, 0.1, d.z); root.add(d.progM);
     var n = caps().runners, fxX = frontX();
     [-1, 1].forEach(function (side) {
       for (var i = 0; i < n; i++) {
         var r = new THREE.Group(), b = new THREE.Mesh(geo.body, mat.side[side]), h = new THREE.Mesh(geo.head, mat.skin);
-        b.position.y = 0.55; h.position.y = 1.3; r.add(b); r.add(h);
+        b.position.y = 0.7; h.position.y = 1.65; r.add(b); r.add(h);
         var sx = fxX + side * rnd(14, 34), sz = d.z + rnd(-18, 18);
         if (Math.sign(d.x - fxX) === side) sx = d.x + side * rnd(14, 26);   // crate on this side's ground: start from their rear
         r.position.set(sx, 0, sz); root.add(r);
@@ -139,7 +139,7 @@
     if (d.st === 'falling') {
       d.y -= dt * 4.2; var sway = Math.sin(d.t * 1.7) * 0.18;
       d.grp.position.set(d.x + Math.sin(d.t * 0.9) * 0.6, d.y, d.z); d.grp.rotation.z = sway;
-      if (d.y <= 0.6) land(d);
+      if (d.y <= 0.9) land(d);
     }
     if (d.st === 'landed' || d.st === 'falling') {
       d.smokeT -= dt;
@@ -174,7 +174,7 @@
       if (d.t > 90 && d.st === 'landed') { stats.lastResult = KINDS[d.kind].label + ' crate expired (nobody held it)'; cleanup(d); }
     }
     if (d.st === 'captured') {
-      if (d.grp) d.grp.position.y = 0.6 + d.t * 1.5;
+      if (d.grp) d.grp.position.y = 0.9 + d.t * 1.5;
       if (d.t > 2.5) cleanup(d);
     }
     if (d.st === 'done' && d.plane) { /* plane still exiting */ }
@@ -213,6 +213,14 @@
   }
 
   // ------------------------------------------------------------------ tick
+  function step(dt) {   // one sim step (also used by the test hook)
+    var F = fx();
+    autoT -= dt; if (autoT <= 0) { autoT = rnd(70, 110); spawnDrop(); }
+    if (callCd > 0) callCd = Math.max(0, callCd - dt);
+    for (var i = drops.length - 1; i >= 0; i--) { var d = drops[i]; tickDrop(d, dt, F); if (d.st === 'done' && !d.plane) drops.splice(i, 1); else if (d.st === 'done' && d.plane) { d.plane.position.x += d.dir * dt * 48; if (Math.abs(d.plane.position.x - d.x) > 240) { root.remove(d.plane); d.plane = null; } } }
+    for (var r = reveals.length - 1; r >= 0; r--) { reveals[r].t -= dt; if (reveals[r].t <= 0) reveals.splice(r, 1); }
+    uiT -= dt; if (uiT <= 0) { uiT = 0.5; renderUi(); }
+  }
   function update() {
     if (!enabled) return;
     var th = TH(); if (!th || !th.isEnabled()) return;
@@ -220,12 +228,7 @@
     if (!ready) { try { build(); } catch (err) { enabled = false; console.warn('[supply] disabled', err); return; } }
     var now = performance.now(), dt = Math.min(0.1, (now - (last || now)) / 1000); last = now;
     if (e.isPaused() || (LB.cutscene && LB.cutscene.isActive && LB.cutscene.isActive())) return;
-    var F = fx();
-    autoT -= dt; if (autoT <= 0) { autoT = rnd(70, 110); spawnDrop(); }
-    if (callCd > 0) callCd = Math.max(0, callCd - dt);
-    for (var i = drops.length - 1; i >= 0; i--) { var d = drops[i]; tickDrop(d, dt, F); if (d.st === 'done' && !d.plane) drops.splice(i, 1); else if (d.st === 'done' && d.plane) { d.plane.position.x += d.dir * dt * 48; if (Math.abs(d.plane.position.x - d.x) > 240) { root.remove(d.plane); d.plane = null; } } }
-    for (var r = reveals.length - 1; r >= 0; r--) { reveals[r].t -= dt; if (reveals[r].t <= 0) reveals.splice(r, 1); }
-    uiT -= dt; if (uiT <= 0) { uiT = 0.5; renderUi(); }
+    step(dt);
   }
 
   LB.supply = {
@@ -235,6 +238,7 @@
     revealed: function (x, z) { for (var i = 0; i < reveals.length; i++) if (Math.hypot(reveals[i].x - x, reveals[i].z - z) < REVEAL_R) return true; return false; },
     getTally: function () { return JSON.parse(JSON.stringify(tally)); },
     getStats: function () { return Object.assign({ active: drops.filter(function (d) { return d.st !== 'done'; }).length, callCd: callCd, reveals: reveals.length }, stats); },
-    KINDS: KINDS
+    KINDS: KINDS,
+    _step: function (sec) { if (!ready) return; for (var t = 0; t < sec; t += 0.1) step(0.1); }   // test hook: fast-forward the supply sim
   };
 })(window);
