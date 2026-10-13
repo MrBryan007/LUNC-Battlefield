@@ -1,5 +1,12 @@
 # Changelog
 
+## v12.0.3 — War Systems part 3: tech tree (2026-10-13, extended AI session, cycle 2)
+- New: tech tree (`js/theaters/tech.js`, game layer) in Map → WAR SYSTEMS · TECH TREE. Five techs, paid from the war economy, 20 s research each, with prerequisites:
+  Logistics (10 fuel: income ×1.25) → Field Radar (8 intel: recon sweep 35 s over 3 zones) and Rapid Reload (12 ammo: Commander cooldowns tick 20 % faster) → Air Bridge (14 fuel: supply-drop call cooldown halved) and Fortifications (10 fuel + 10 ammo: unlocks defenses, coming next).
+- The enemy AI researches too (radio lines, "Enemy R&D n/5" note). Never changes price, armies or the front. `?tech=0` turns it off.
+- Tested: `node --check` on all JS, asset-lifecycle 33/33, headless HIGH / MEDIUM / LOW / phone 390×844 with 0 page errors and a research chain check (Logistics → Rapid Reload → Field Radar) on each. Not measured on a real iPhone/Mac.
+- Build hours (real timestamps): day total so far 0.48 h (incl. the 0.32 h morning run), UNDER the 2–4 h target; the extended session continues.
+
 ## v12.0.2 — War Systems part 2: war economy (2026-10-13, extended AI session, cycle 1)
 - New: war economy (`js/theaters/economy.js`, game layer). Per-side fuel / ammo / intel stockpiles in Map → WAR SYSTEMS · ECONOMY.
 - Income every 4 s, weighted by market signals and labelled **ESTIMATED · SIMULATED**: fuel ← each side's share of the army (market walls), ammo ← |momentum|, intel ← whichever side momentum favours. Captured supply crates add +5 of their kind (power-ups → ammo).

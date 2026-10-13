@@ -201,3 +201,16 @@ body[data-weather="fog"] #vignette, body[data-weather="rain"] #vignette { backdr
 .econ-actions button small { font-weight: 500; font-size: 9.5px; color: #b9ad8f; }
 .econ-actions button:disabled { opacity: .45; cursor: default; }
 .qual.est { color: #ffd36a; }
+/* v12.0.3 — tech tree */
+.tech-tree { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; }
+.tech-node { position: relative; text-align: left; padding: 7px 8px 9px; border-radius: 8px; border: 1px solid rgba(90,180,255,.35); background: rgba(90,180,255,.08); color: #dfe9f3; font: 500 10.5px Inter, sans-serif; cursor: pointer; display: flex; flex-direction: column; gap: 2px; overflow: hidden; }
+.tech-node b { font: 700 12px Rajdhani, Inter, sans-serif; letter-spacing: .5px; }
+.tech-node small { color: #9fb0bf; font-size: 9.5px; line-height: 1.3; }
+.tech-node em { font-style: normal; color: #d7b56d; font-size: 9.5px; }
+.tech-node .tech-bar { position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; background: rgba(255,255,255,.06); }
+.tech-node .tech-bar span { display: block; height: 100%; width: 0; background: #5ab4ff; transition: width .4s; }
+.tech-node[data-st="done"] { border-color: #7cf0a8; background: rgba(124,240,168,.12); }
+.tech-node[data-st="done"] em::before { content: '✓ researched · '; color: #7cf0a8; }
+.tech-node[data-st="locked"] { opacity: .4; }
+.tech-node[data-st="poor"], .tech-node[data-st="wait"] { opacity: .65; }
+.tech-node:disabled { cursor: default; }
