@@ -102,6 +102,7 @@
     var F = LB.heavyFx;
     for (var i = 0; i < list.length; i++) {
       var f = list[i];
+      if (f.side !== playerSide()) f.g.visible = !(LB.fow && LB.fow.isActive && LB.fow.isActive()) || LB.fow.visible(f.x, f.z);   // v12.0.8 fog of war
       if (f.rise < 1) { f.rise = Math.min(1, f.rise + dt * 1.5); f.g.scale.y = 0.05 + 0.95 * f.rise; }
       var R = TYPES[f.type].range; if (!R) continue;
       f.cd -= dt; if (f.cd > 0) continue; f.cd = f.type === 'turret' ? 1.1 : 1.8;
