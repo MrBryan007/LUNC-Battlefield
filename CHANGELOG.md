@@ -1,5 +1,16 @@
 # Changelog
 
+## v12.0.10 — Spoken radio chatter + HQ announcements (2026-10-13, AI build)
+- New `js/theaters/voice.js`: spoken radio lines with callsigns ("Green Hornet", "Red Grizzly", Overlord, Watchtower, HQ) using the browser's built-in SpeechSynthesis (no audio files).
+- Radio sound: browsers can't route SpeechSynthesis through WebAudio, so the effect is approximated: a lower, slightly faster voice, with WebAudio squelch clicks and a band-passed (300–3000 Hz), lightly distorted static burst before and after each line plus a static bed under it.
+- Lines on: strikes called, nuke, squad orders, supply depot cut, air-raid warning, carrier hit, reinforcements (+ "E T A fifteen seconds"), tech done, supply crate won/lost, match start, weather and night changes, and a few humor lines. Enemy lines are INTERCEPTED (heavier static, lower voice).
+- HQ market lines only speak when the real data moved (price % change and front direction) and are tagged LIVE when the price feed is live, otherwise SIMULATED.
+- Priority queue: at most one spoken line every ~6 s; alerts/HQ beat chatter; stale lines drop.
+- Subtitle strip above the dock (callsign + line + INTERCEPTED/ALERT/LIVE/SIMULATED tag); tap it for the last 8 lines. Hidden in Hide UI clean mode.
+- Settings → WORLD → "Radio voice" toggle; the main mute and volume also apply. `?voice=0` turns it off. (Runs with the v12 world, so it's also off with `?theaters=0`.)
+- Tested: `node --check` on all JS, asset-lifecycle 33/33, headless HIGH / MEDIUM / LOW / phone 390×844 with 0 page errors; events → queue → subtitle + speech call, intercepted enemy line, weather announcement, toggle present, `?voice=0` leaves no strip. Can't hear speech headless — needs an ear check on the iPhone (iOS voices differ).
+- Build hours (real timestamps): day total so far 1.26 h (incl. the morning run).
+
 ## v12.0.9 — War Systems part 6: squad commands with cover and flanking (2026-10-13, extended AI session, cycle 8)
 - New `js/theaters/squads.js` (game layer): three squads of your own (Alpha, Bravo, Charlie; 5 riflemen, 3 on LOW/phone) and three enemy AI squads.
 - Orders in Map → WAR SYSTEMS · SQUADS: Move (then tap the field), Hold, Flank (swings wide along the north/south edge, then hooks into the enemy side), Cover (runs to the nearest friendly wall/bunker/depot; IN COVER takes half the incoming fire, men crouch).

@@ -64,6 +64,7 @@
     d.flag.visible = false;
     var F = LB.heavyFx; if (F) try { F.puff({ kind: 'fire', x: d.x, y: 2, z: d.z, size: 4, grow: 3, life: 1.4, color: 0xff8a30, opacity: 0.95 }); F.puff({ kind: 'smoke', x: d.x, y: 3, z: d.z, size: 5, grow: 6, life: 4, color: 0x2a2622, opacity: 0.7 }); } catch (_) {}
     var k = String(d.side); waveT[k] = Math.max(waveT[k], CUT_DELAY);
+    if (LB.voice && LB.voice.event) try { LB.voice.event('cut', d.side); } catch (_) {}
     stats.last = sideName(d.side) + ' supply line CUT (' + d.role + ' depot)';
     radio(-d.side, sideName(-d.side) + ' COMMAND: "Enemy ' + d.role + ' depot destroyed — their supply line is cut." (SIMULATED · game FX)');
     if (d.side === playerSide() && LB.sfx && LB.sfx.ui) try { LB.sfx.ui('deny'); } catch (_) {}
@@ -85,6 +86,7 @@
   function raid(targetSide) {   // AI bomber run on a depot (game FX)
     var list = depots.filter(function (d) { return d.side === targetSide && d.hp > 0; }); if (!list.length) return null;
     var d = list[(Math.random() * list.length) | 0], F = LB.heavyFx, dir = -targetSide; stats.raids++;
+    if (targetSide === playerSide()) { if (LB.voice && LB.voice.event) try { LB.voice.event('raid', -targetSide); } catch (_) {} }
     try { if (F && F.flyby) F.flyby({ kind: 'bomber', color: targetSide < 0 ? 0xd9564c : 0x3fbf7f, x0: d.x - dir * 160, z0: d.z - 20, x1: d.x + dir * 160, z1: d.z + 20, y: 24, dur: 4.6, scale: 2 }); } catch (_) {}
     for (var i = 0; i < 3; i++) (function (i) { setTimeout(function () { if (!ready) return; var x = d.x + (Math.random() - 0.5) * 8, z = d.z + (Math.random() - 0.5) * 8; if (F) try { F.puff({ kind: 'fire', x: x, y: 1, z: z, size: 2.6, grow: 2.4, life: 0.8, color: 0xffa040, opacity: 0.95 }); } catch (_) {} onImpact(x, z, 1); if (LB.craters && LB.craters.impact) try { LB.craters.impact(x, z, 0.9, { mode: 'ambient' }); } catch (_) {} }, 1600 + i * 350); })(i);
     radio(-targetSide, sideName(-targetSide) + ' AIR: "Bombing run on the enemy ' + d.role + ' depot." (SIMULATED · game FX)');
@@ -94,6 +96,7 @@
   // reinforcement waves (visual column; never changes army counts)
   function launchWave(side) {
     var n = low() ? 6 : 12, col = [], x0 = side * HQ_X; stats.waves++;
+    if (LB.voice && LB.voice.event) try { LB.voice.event('wave', side); } catch (_) {}
     for (var i = 0; i < n; i++) {
       var r = new THREE.Group(), b = new THREE.Mesh(geo.body, mat.side[String(side)]), h = new THREE.Mesh(geo.head, mat.skin);
       b.position.y = 0.6; h.position.y = 1.45; r.add(b); r.add(h); root.add(r);

@@ -39,6 +39,7 @@
     var k = String(side), id = busy[k].id; done[k][id] = true; busy[k] = null;
     if (side === playerSide()) stats.researched++; else stats.aiResearched++;
     stats.last = sideName(side) + ' · ' + TECHS[id].label;
+    if (LB.voice && LB.voice.event) try { LB.voice.event('tech', side, TECHS[id].label); } catch (_) {}
     radio(side, sideName(side) + ' R&D: "' + TECHS[id].label + ' online." ' + TECHS[id].tip + ' (SIMULATED · game FX)');
     if (side === playerSide() && LB.sfx && LB.sfx.ui) try { LB.sfx.ui('arm'); } catch (_) {}
     renderUi();

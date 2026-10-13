@@ -103,6 +103,7 @@
     d.st = 'captured'; d.winner = side; d.t = 0; stats.captured++;
     tally[String(side)][d.kind]++;
     var me = playerSide() === side, eff = '';
+    if (LB.voice && LB.voice.event) try { LB.voice.event(me ? 'dropWon' : 'dropLost', playerSide()); } catch (_) {}
     if (me) {
       if (d.kind === 'intel') { reveals.push({ x: d.x, z: d.z, t: REVEAL_S }); eff = ' Area revealed for 30 s.'; }
       else if (d.kind === 'ammo') { try { var cds = LB.commander.getState().cds; for (var k in cds) if (cds[k] > 0) cds[k] *= 0.7; eff = ' Cooldowns cut 30%.'; } catch (_) {} }
