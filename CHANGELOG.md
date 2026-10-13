@@ -1,5 +1,14 @@
 # Changelog
 
+## v12.0.5 — Fixes: world map top-right, LOW black ground patches, ?dock=0 war panel, visible torpedo ambush (2026-10-13, extended AI session, cycle 4)
+- Fix: the world-map inset now sits top-right as designed. A global `body > canvas { inset: 0 }` rule also matched it and pinned it left.
+- Fix: the solid black patches on LOW. Two causes: hard-edged near-black scorch discs (environment props) and LOW crater decals that multiplied by a texture whose transparent edge uploads as black. Both now use a soft noisy alpha mask; crater decals fade by shrinking.
+- Fix: with `?dock=0` the supply panel was created hidden with no way to open it. A WAR SYSTEMS drawer (bottom-left) now holds supply, economy, tech and defenses.
+- Fix: the sub torpedo ambush is now visible and lands. Torpedoes are real objects with a white wake that home on the target ship's live position, with a water column + fire on impact and a "Torpedo impact" radio line. Subs reposition near a target lane while submerged. (Before, a few dust puffs aimed at a stale spot from up to 200 u away.)
+- Defense placement ignores taps on the world-map inset.
+- Tested: `node --check` on all JS, asset-lifecycle 33/33, headless HIGH / MEDIUM / LOW / phone 390×844 with 0 page errors; forced ambush → torpedo fired → hit on every tier; inset 8 px from the right edge; LOW crater/scorch screenshot; `?dock=0` drawer opens with all 4 panels. Not measured on a real iPhone/Mac.
+- Build hours (real timestamps): day total so far 0.76 h (incl. the 0.32 h morning run), UNDER the 2–4 h target; the extended session continues.
+
 ## v12.0.4 — War Systems part 4: defensive structures (2026-10-13, extended AI session, cycle 3)
 - New: defenses (`js/theaters/forts.js`, game layer) in Map → WAR SYSTEMS · DEFENSES: Bunker (8 fuel + 4 ammo), Turret (6 fuel + 8 ammo), Wall (6 fuel). Unlocked by the Fortifications tech.
 - Pick a type, then tap the field. They only go on your side of the front (a tap past it snaps back). Cap 8 per side (5 on LOW/phone). They rise out of a dust cloud.

@@ -188,8 +188,10 @@
     if (decals) return;
     var g = new THREE.CircleGeometry(1, 14); g.rotateX(-Math.PI / 2);
     var m = new THREE.MeshBasicMaterial({
-      color: 0xffffff, map: LB.proctex && LB.proctex.softDot ? LB.proctex.softDot(THREE) : null,
-      blending: THREE.MultiplyBlending, premultipliedAlpha: true, transparent: true, depthWrite: false,
+      // v12.0.5: normal alpha blending. MultiplyBlending × the soft-dot map turned the dot's transparent edge (rgb 0)
+      // into solid black discs on LOW ("black ground patches"). Fade is now done by shrinking + darkening toward the ground tone.
+      color: 0x2a2117, alphaMap: LB.proctex && LB.proctex.blobMask ? LB.proctex.blobMask(THREE) : null,   // opaque grayscale mask (softDot's rgb is 1 to the edge)
+      transparent: true, opacity: 0.62, depthWrite: false,
       polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, toneMapped: false
     });
     decals = new THREE.InstancedMesh(g, m, CAPS.decals);
@@ -205,6 +207,7 @@
     var i = decalNext; decalNext = (decalNext + 1) % CAPS.decals;
     var d = decalData[i]; d.life = CAPS.decalLife; d.dark = dark;
     var y = (LB.terrain && LB.terrain.terrainHeight ? LB.terrain.terrainHeight(x, z) : 0) + 0.05;
+    d.x = x; d.y = y; d.z = z; d.r = r;
     _m4.makeScale(r * 1.4, 1, r * 1.4).setPosition(x, y, z);
     decals.setMatrixAt(i, _m4);
     decals.count = Math.max(decals.count, i + 1);
@@ -219,9 +222,10 @@
       if (d.life <= 0) continue;
       d.life -= dt;
       var k = Math.max(0, Math.min(1, d.life / (CAPS.decalLife * 0.4)));    // fade during the last 40 %
-      var v = 1 - d.dark * k;
-      _c.setRGB(v, v * 0.97, v * 0.93);
+      var v = 0.55 + 0.45 * Math.min(1, d.dark), sc = d.r * 1.4 * (0.25 + 0.75 * k);   // darker = deeper scar; shrink to fade
+      _c.setRGB(v, v, v);
       decals.setColorAt(i, _c);
+      if (d.r) { _m4.makeScale(k > 0 ? sc : 0.0001, 1, k > 0 ? sc : 0.0001).setPosition(d.x, d.y, d.z); decals.setMatrixAt(i, _m4); decals.instanceMatrix.needsUpdate = true; }
       any = true;
     }
     if (any && decals.instanceColor) decals.instanceColor.needsUpdate = true;

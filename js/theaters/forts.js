@@ -46,7 +46,7 @@
     mat.side = { '-1': new THREE.MeshStandardMaterial({ color: 0x3fbf7f, roughness: 0.7 }), '1': new THREE.MeshStandardMaterial({ color: 0xd9564c, roughness: 0.7 }) };
     buildUi();
     global.addEventListener('pointerdown', function (e) {
-      if (!armed || !e.target || e.target.tagName !== 'CANVAS') return;
+      if (!armed || !e.target || e.target.tagName !== 'CANVAS' || e.target.id === 'worldInset') return;
       e.stopPropagation(); e.preventDefault();
       var p = E().pickGround(e.clientX, e.clientY); if (p) place(armed, p.x, p.z);
     }, true);
