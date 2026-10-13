@@ -401,6 +401,7 @@
     global.addEventListener('pointerdown', function () { if (tour) startTour(false); fly = fly && fly.t > 0.2 ? null : fly; }, true);
   }
   function breaking(text) {
+    if (/carrier/i.test(text) && LB.voice && LB.voice.event) try { LB.voice.event('carrier', 0); } catch (_) {}   // v12.0.10 radio
     var line = 'BREAKING · ' + text + ' (SIMULATED)';
     ticker.unshift(line); if (ticker.length > 4) ticker.pop();
     var tk = doc().getElementById('theaterTicker'); if (tk) { tk.hidden = false; tk.innerHTML = ticker.map(function (t) { return '<div>' + t + '</div>'; }).join(''); }

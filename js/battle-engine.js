@@ -245,6 +245,7 @@
         if (LUNCBattle.squads) { try { LUNCBattle.squads.update(); } catch (e) { if (!drawFrame._sqErr) { drawFrame._sqErr = 1; console.warn('[squads]', e); } } }
         if (LUNCBattle.soundscape) { try { LUNCBattle.soundscape.update(); } catch (e) { if (!drawFrame._sndErr) { drawFrame._sndErr = 1; console.warn('[soundscape]', e); } } }
         if (LUNCBattle.fow) { try { LUNCBattle.fow.update(); } catch (e) { if (!drawFrame._fowErr) { drawFrame._fowErr = 1; console.warn('[fow]', e); } } }
+        if (LUNCBattle.voice) { try { LUNCBattle.voice.update(); } catch (e) { if (!drawFrame._vErr) { drawFrame._vErr = 1; console.warn('[voice]', e); } } }
       }
       // v11.3: Mini Nuke cinematic owns the camera while active (runs even while paused)
       if (window.LUNCBattle && LUNCBattle.cutscene && LUNCBattle.cutscene.isActive()) {

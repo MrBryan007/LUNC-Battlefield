@@ -68,6 +68,7 @@
     }
     if (me) { stats.orders++; moveArmed = false; if (LB.sfx && LB.sfx.ui) try { LB.sfx.ui('arm'); } catch (_) {} } else stats.aiOrders++;
     stats.last = sideName(S.side) + ' ' + S.name + ': ' + kind.toUpperCase();
+    if (LB.voice && LB.voice.event) try { LB.voice.event('squad_' + kind, S.side); } catch (_) {}
     radio(S.side, sideName(S.side) + ' ' + S.name.toUpperCase() + ': "' + ({ hold: 'Holding position.', move: 'Moving.', flank: 'Flanking — swinging wide.', cover: 'Moving to cover.' })[kind] + '" (SIMULATED · game FX)');
     renderUi(); return true;
   }
