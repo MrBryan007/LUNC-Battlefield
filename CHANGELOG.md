@@ -1,5 +1,13 @@
 # Changelog
 
+## v12.0.4 — War Systems part 4: defensive structures (2026-10-13, extended AI session, cycle 3)
+- New: defenses (`js/theaters/forts.js`, game layer) in Map → WAR SYSTEMS · DEFENSES: Bunker (8 fuel + 4 ammo), Turret (6 fuel + 8 ammo), Wall (6 fuel). Unlocked by the Fortifications tech.
+- Pick a type, then tap the field. They only go on your side of the front (a tap past it snaps back). Cap 8 per side (5 on LOW/phone). They rise out of a dust cloud.
+- Turrets swivel to the nearest enemy unit within 28 u and fire tracers; bunkers fire from the slit. Game FX only: never removes units, never moves the front. The enemy AI builds too.
+- `?forts=0` turns it off.
+- Tested: `node --check` on all JS, asset-lifecycle 33/33, headless HIGH / MEDIUM / LOW / phone 390×844 with 0 page errors; research → place bunker/turret/wall → tap-to-place on the canvas → turrets firing on each. Not measured on a real iPhone/Mac.
+- Build hours (real timestamps): day total so far 0.55 h (incl. the 0.32 h morning run), UNDER the 2–4 h target; the extended session continues.
+
 ## v12.0.3 — War Systems part 3: tech tree (2026-10-13, extended AI session, cycle 2)
 - New: tech tree (`js/theaters/tech.js`, game layer) in Map → WAR SYSTEMS · TECH TREE. Five techs, paid from the war economy, 20 s research each, with prerequisites:
   Logistics (10 fuel: income ×1.25) → Field Radar (8 intel: recon sweep 35 s over 3 zones) and Rapid Reload (12 ammo: Commander cooldowns tick 20 % faster) → Air Bridge (14 fuel: supply-drop call cooldown halved) and Fortifications (10 fuel + 10 ammo: unlocks defenses, coming next).
