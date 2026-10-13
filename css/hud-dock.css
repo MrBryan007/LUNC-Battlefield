@@ -238,3 +238,16 @@ body.fort-placing canvas, body.sq-moving canvas { cursor: crosshair; }
 .sq-btn .sq-sup { position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; background: rgba(255,255,255,.06); }
 .sq-btn .sq-sup span { display: block; height: 100%; width: 0; background: #ff8a80; transition: width .3s; }
 .sq-orders button { flex: 1 1 22%; min-width: 70px; }
+/* v12.0.10 — radio subtitle strip */
+.radio-strip { position: fixed; z-index: 62; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom, 0px) + 84px); max-width: min(560px, calc(100vw - 20px));
+  padding: 6px 12px; border-radius: 10px; background: rgba(8,12,10,.82); border: 1px solid rgba(124,240,168,.25); color: #dfe7e1; font: 500 12px/1.35 Inter, sans-serif;
+  opacity: 0; pointer-events: none; transition: opacity .35s; cursor: pointer; }
+.radio-strip.live, .radio-strip.open { opacity: 1; pointer-events: auto; }
+.radio-strip .rs-cur b, .radio-strip .rs-log b { font: 700 11px Rajdhani, Inter, sans-serif; letter-spacing: .6px; margin-right: 6px; text-transform: uppercase; }
+.radio-strip b.b { color: #7cf0a8; } .radio-strip b.r { color: #ff8a80; } .radio-strip b.hq { color: #ffd36a; }
+.radio-strip .rs-int, .radio-strip .rs-tag, .radio-strip .rs-log i { font-style: normal; font-size: 9px; font-weight: 700; padding: 1px 5px; margin-right: 6px; border-radius: 4px; background: rgba(255,138,128,.18); color: #ff8a80; }
+.radio-strip .rs-tag { background: rgba(255,211,106,.16); color: #ffd36a; }
+.radio-strip .rs-log { margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,.08); max-height: 34vh; overflow: auto; font-size: 11px; color: #b9c4bc; }
+.radio-strip .rs-log div { padding: 2px 0; }
+body[data-ui="clean"] .radio-strip, body.cutscene .radio-strip { display: none; }
+body.dock-phone .radio-strip { bottom: calc(env(safe-area-inset-bottom, 0px) + 78px); font-size: 11px; }
