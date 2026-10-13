@@ -1,5 +1,13 @@
 # Changelog
 
+## v12.0.7 — Sound design pass (2026-10-13, extended AI session, cycle 6)
+- New ambience beds in `js/sfx.js`: wind (with gusts, louder the higher the camera), ocean surf (when the camera is over or near the ocean) and rain (with the Rain weather).
+- New Doppler jet pass: when an airborne jet streaks past the camera you hear it rise, then drop in pitch, panned across the stereo field.
+- New `js/theaters/soundscape.js`: strikes in the wider world (ships, supply depots, torpedoes) now sound, louder the closer the camera. Radio-chatter lines get a short radio blip (Bulls and Bears pitched differently, at most one every 3.5 s). Turrets and bunkers make gunfire by distance.
+- Respects mute, the volume slider, pause and the iPhone unlock-on-first-tap. `?soundscape=0` turns it off. Audio only, no data changes.
+- Tested: `node --check` on all JS, asset-lifecycle 33/33, headless HIGH / MEDIUM / LOW / phone 390×844 with 0 page errors; audio context running after a tap, beds follow camera/weather (surf 1 and rain 1 over the ocean in rain), strike sound, radio blip and a forced jet pass. Can't listen headless — needs an ear check on a real phone.
+- Build hours (real timestamps): day total so far 0.94 h (incl. the 0.32 h morning run), UNDER the 2–4 h target; the extended session continues.
+
 ## v12.0.6 — War Systems part 5: supply lines you can cut + reinforcement waves (2026-10-13, extended AI session, cycle 5)
 - New: supply lines (`js/theaters/lines.js`, game layer). Each side's HQ→front supply road now has a forward and a rear depot (fuel tanks, shed, flag).
 - Cut them: any strike within 9 u of an enemy depot damages it; 3 hits destroy it and that side's line is CUT. Its economy income halves, its convoys stop, and its next reinforcement wave is delayed. Depots repair themselves in 25 s, or you can rebuild yours now for 5 fuel. The enemy AI sends bomber raids at your depots.
