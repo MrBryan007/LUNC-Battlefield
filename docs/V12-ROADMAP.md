@@ -24,6 +24,9 @@ Solid:
 - Toggles: Settings sheet → WORLD.
 
 ## v12.1 "War Systems"
+**Shipped so far (v12.0.1, 2026-10-13, part 1):** supply drops. Cargo planes, parachute crates with colored smoke, a ground ring and a world-map ping. Fuel / ammo / intel / power-up contents. One AI squad per side races to each crate, with a capture ring and a CONTESTED state. Per-side tally in Map → WAR SYSTEMS. The Commander can call a drop (60 s cooldown). For the Commander's side: intel lifts fog of war around the zone for 30 s, ammo cuts active cooldowns by 30 % (stand-in until reinforcement waves exist), power-up adds +25 Moon Shot charge. `?supply=0` turns it off. Fuel is banked but not spent yet (needs the resource economy / tech tree slice).
+
+Remaining in v12.1:
 - RTS base building and upgrades. Resources: fuel, ammo and intel. Tech tree.
 - Squad commands with cover and flanking. Bunkers, turrets and walls. Supply lines that can be cut. Reinforcement waves.
 - Power-ups and score multipliers. Realistic ballistics and line of sight. Terrain affects movement and combat.
