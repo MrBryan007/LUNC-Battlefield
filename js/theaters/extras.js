@@ -195,6 +195,11 @@
     ['airW', 'airE', 'naval', 'bullHq', 'bearHq'].forEach(function (k) { var v = V[k]; c.fillRect(X(v.x) - 1.5, Z(v.z) - 1.5, 3, 3); });
     var sh = TH()._ships(); for (var i = 0; i < sh.length; i++) { c.fillStyle = sh[i].st === 'sail' ? (sh[i].side < 0 ? '#7cf0a8' : '#ff8a80') : '#555'; c.fillRect(X(sh[i].x) - 1, Z(sh[i].z) - 1, 2, 2); }
     var jt = TH()._jets(); for (var j = 0; j < jt.length; j++) { if (!jt[j].g.visible) continue; c.fillStyle = jt[j].side < 0 ? '#bfffd9' : '#ffd0cb'; c.fillRect(X(jt[j].x), Z(jt[j].z), 1.5, 1.5); }
+    // v12.0.8 fog of war: dim unseen cells + last-known ghosts
+    if (LB.fow && LB.fow.isActive && LB.fow.isActive()) {
+      c.fillStyle = 'rgba(4,6,10,.55)'; for (var gy = 0; gy < H; gy += 4) for (var gx = 0; gx < W; gx += 4) { var wx = B.minX + (gx + 2) / sx, wz = B.minZ + (gy + 2) / sz; if (!LB.fow.visible(wx, wz)) c.fillRect(gx, gy, 4, 4); }
+      var gh = LB.fow.ghosts(); c.strokeStyle = 'rgba(220,220,220,.8)'; c.lineWidth = 1; for (var gi = 0; gi < gh.length; gi++) { c.strokeRect(X(gh[gi].x) - 2, Z(gh[gi].z) - 2, 4, 4); }
+    }
     // v12.1 supply drops: pulsing ping per active crate
     if (LB.supply && LB.supply.list) { var pl = LB.supply.list(), pr = 2.5 + (performance.now() % 1000) / 250; for (var q = 0; q < pl.length; q++) { c.strokeStyle = pl[q].color; c.lineWidth = 1.2; c.beginPath(); c.arc(X(pl[q].x), Z(pl[q].z), pr, 0, 6.283); c.stroke(); c.fillStyle = pl[q].color; c.fillRect(X(pl[q].x) - 1.5, Z(pl[q].z) - 1.5, 3, 3); } }
     // camera view: target dot + frustum-ish wedge
@@ -208,7 +213,7 @@
   function tickFow() {
     var fow = !opt.spectator, side = LB.commander && LB.commander.getState ? (LB.commander.getState().profile.side === 'bull' ? -1 : 1) : -1;
     var sh = TH()._ships(), jt = TH()._jets();
-    function seen(x, z) { if (!fow) return true; if (LB.supply && LB.supply.revealed && LB.supply.revealed(x, z)) return true; if (side < 0 ? x < -10 : x > 10) return true; for (var i = 0; i < jt.length; i++) { var j = jt[i]; if (j.side === side && j.g.visible && Math.hypot(j.x - x, j.z - z) < 60) return true; } for (var k = 0; k < drones.length; k++) { var d = drones[k]; if (d.side === side && Math.hypot(d.g.position.x - x, d.g.position.z - z) < 50) return true; } return false; }
+    function seen(x, z) { if (!fow) return true; if (LB.fow && LB.fow.isActive && LB.fow.isActive()) return LB.fow.visible(x, z); if (LB.supply && LB.supply.revealed && LB.supply.revealed(x, z)) return true; if (side < 0 ? x < -10 : x > 10) return true; for (var i = 0; i < jt.length; i++) { var j = jt[i]; if (j.side === side && j.g.visible && Math.hypot(j.x - x, j.z - z) < 60) return true; } for (var k = 0; k < drones.length; k++) { var d = drones[k]; if (d.side === side && Math.hypot(d.g.position.x - x, d.g.position.z - z) < 50) return true; } return false; }
     for (var i = 0; i < sh.length; i++) if (sh[i].side !== side) sh[i].g.visible = seen(sh[i].x, sh[i].z);
     for (var j = 0; j < jt.length; j++) if (jt[j].side !== side && jt[j].st !== 'dead') jt[j].g.visible = seen(jt[j].x, jt[j].z);
     for (var s = 0; s < subs.length; s++) if (subs[s].side !== side) subs[s].g.visible = !fow || subs[s].st !== 'deep';
@@ -218,6 +223,8 @@
     setWeather: function (w) { opt.weather = w; save(); applyWeather(); }, setSpectator: function (v) { opt.spectator = !!v; save(); applyFow(); }, cyber: cyber,
     launchTest: function () { if (silos[0]) silos[0].t = 0.01; },
     ambushTest: function () { var S = subs[0]; if (!S) return false; S.st = 'deep'; S.t = 0.01; return true; },   // v12.0.5 test hook: next frame surfaces + fires
+    _fow: function () { tickFow(); },   // test hook
+    _drones: function () { return drones.map(function (d) { return { side: d.side, x: d.g.position.x, z: d.g.position.z }; }); },
     _subs: function () { return subs.map(function (S) { return { st: S.st, t: +S.t.toFixed(2), x: Math.round(S.x), z: Math.round(S.z), side: S.side }; }); },
     _stepNaval: function (sec) { var F = fx(); for (var t = 0; t < sec; t += 0.1) { for (var s = 0; s < subs.length; s++) tickSub(subs[s], 0.1, F); tickTorps(0.1, F); } },   // test hook
     torpedoes: function () { return torps.map(function (T) { return { x: T.x, z: T.z, tx: T.tgt.x, tz: T.tgt.z }; }); } };
