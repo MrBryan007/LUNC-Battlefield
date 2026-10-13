@@ -1,5 +1,13 @@
 # Changelog
 
+## v12.0.6 — War Systems part 5: supply lines you can cut + reinforcement waves (2026-10-13, extended AI session, cycle 5)
+- New: supply lines (`js/theaters/lines.js`, game layer). Each side's HQ→front supply road now has a forward and a rear depot (fuel tanks, shed, flag).
+- Cut them: any strike within 9 u of an enemy depot damages it; 3 hits destroy it and that side's line is CUT. Its economy income halves, its convoys stop, and its next reinforcement wave is delayed. Depots repair themselves in 25 s, or you can rebuild yours now for 5 fuel. The enemy AI sends bomber raids at your depots.
+- New: reinforcement waves. Every 75 s a column marches from each HQ up the supply road and folds into the line (slower while the line is cut). Visual only: the market still sets army size and the front.
+- Map → WAR SYSTEMS · SUPPLY LINES & WAVES shows line status, depot hp and the next wave per side. `?lines=0` turns it off.
+- Tested: `node --check` on all JS, asset-lifecycle 33/33, headless HIGH / MEDIUM / LOW / phone 390×844 with 0 page errors; 3 strikes cut the enemy line (income 1.0 → 0.5), wave launch + march, AI raid on each. Not measured on a real iPhone/Mac.
+- Build hours (real timestamps): day total so far 0.84 h (incl. the 0.32 h morning run), UNDER the 2–4 h target; the extended session continues.
+
 ## v12.0.5 — Fixes: world map top-right, LOW black ground patches, ?dock=0 war panel, visible torpedo ambush (2026-10-13, extended AI session, cycle 4)
 - Fix: the world-map inset now sits top-right as designed. A global `body > canvas { inset: 0 }` rule also matched it and pinned it left.
 - Fix: the solid black patches on LOW. Two causes: hard-edged near-black scorch discs (environment props) and LOW crater decals that multiplied by a texture whose transparent edge uploads as black. Both now use a soft noisy alpha mask; crater decals fade by shrinking.

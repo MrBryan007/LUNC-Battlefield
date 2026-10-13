@@ -223,3 +223,9 @@ body.fort-placing canvas { cursor: crosshair; }
 .war-float > button { min-height: 40px; padding: 0 14px; border-radius: 10px; border: 1px solid rgba(215,181,109,.5); background: rgba(10,14,12,.86); color: #f1dfb4; font: 700 11px Rajdhani, Inter, sans-serif; letter-spacing: 1px; cursor: pointer; }
 .war-float .war-body { display: none; margin-bottom: 6px; max-height: 60vh; overflow: auto; padding: 4px 12px 12px; border-radius: 12px; background: rgba(10,14,12,.9); border: 1px solid rgba(255,255,255,.1); }
 .war-float.open .war-body { display: block; }
+/* v12.0.6 — supply lines & waves */
+.lines-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.lines-grid > div { display: flex; flex-direction: column; gap: 2px; padding: 6px 8px; border-radius: 8px; background: rgba(255,255,255,.04); font-size: 11px; }
+.lines-grid b.b { color: #7cf0a8; } .lines-grid b.r { color: #ff8a80; }
+.lines-grid .ln-st.cut { color: #ff8a80; font-weight: 700; }
+.lines-grid .ln-wave { color: #9aa59d; font-size: 10px; }
