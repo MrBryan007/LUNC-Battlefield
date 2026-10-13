@@ -208,7 +208,7 @@
   function callIn() {
     if (!ready || callCd > 0) { if (LB.sfx && LB.sfx.ui) try { LB.sfx.ui('deny'); } catch (_) {} return null; }
     var side = playerSide(), d = spawnDrop({ called: true, x: frontX() + side * rnd(10, 22) });
-    if (d) { callCd = CALL_CD; stats.called++; } else stats.lastResult = 'Drop zone busy, try again shortly';
+    if (d) { callCd = CALL_CD * (LB.tech && LB.tech.has && LB.tech.has(side, 'airbridge') ? 0.5 : 1); stats.called++; } else stats.lastResult = 'Drop zone busy, try again shortly';
     renderUi(); return d;
   }
 
