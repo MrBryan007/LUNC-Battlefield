@@ -68,6 +68,7 @@
       '<label><input type="checkbox" id="v12Music"> Adaptive music</label>' +
       '<label>Volume <input type="range" id="v12Vol" min="0" max="1" step="0.05"></label>';
     host.appendChild(p);
+    var bh = doc.createElement('a'); bh.href = 'build-hours.html'; bh.className = 'build-hours-link settings'; bh.textContent = 'Daily build hours log ↗'; bh.target = '_blank'; bh.rel = 'noopener'; host.appendChild(bh);
     var $ = function (id) { return doc.getElementById(id); };
     $('v12Weather').value = opt.weather; $('v12Day').checked = opt.daynight; $('v12Spec').checked = opt.spectator; $('v12Inset').checked = opt.inset; $('v12Music').checked = opt.music;
     $('v12Vol').value = LB.sfx && LB.sfx.getVolume ? LB.sfx.getVolume() : 0.7;
@@ -169,6 +170,8 @@
     ['airW', 'airE', 'naval', 'bullHq', 'bearHq'].forEach(function (k) { var v = V[k]; c.fillRect(X(v.x) - 1.5, Z(v.z) - 1.5, 3, 3); });
     var sh = TH()._ships(); for (var i = 0; i < sh.length; i++) { c.fillStyle = sh[i].st === 'sail' ? (sh[i].side < 0 ? '#7cf0a8' : '#ff8a80') : '#555'; c.fillRect(X(sh[i].x) - 1, Z(sh[i].z) - 1, 2, 2); }
     var jt = TH()._jets(); for (var j = 0; j < jt.length; j++) { if (!jt[j].g.visible) continue; c.fillStyle = jt[j].side < 0 ? '#bfffd9' : '#ffd0cb'; c.fillRect(X(jt[j].x), Z(jt[j].z), 1.5, 1.5); }
+    // v12.1 supply drops: pulsing ping per active crate
+    if (LB.supply && LB.supply.list) { var pl = LB.supply.list(), pr = 2.5 + (performance.now() % 1000) / 250; for (var q = 0; q < pl.length; q++) { c.strokeStyle = pl[q].color; c.lineWidth = 1.2; c.beginPath(); c.arc(X(pl[q].x), Z(pl[q].z), pr, 0, 6.283); c.stroke(); c.fillStyle = pl[q].color; c.fillRect(X(pl[q].x) - 1.5, Z(pl[q].z) - 1.5, 3, 3); } }
     // camera view: target dot + frustum-ish wedge
     var e = E(), T = e.getCameraTarget(), cp = e.camera.position, dist = Math.hypot(cp.x - T.x, cp.z - T.z) + 1;
     var w = Math.max(4, cp.distanceTo(T) * 0.6 * sx);
@@ -180,7 +183,7 @@
   function tickFow() {
     var fow = !opt.spectator, side = LB.commander && LB.commander.getState ? (LB.commander.getState().profile.side === 'bull' ? -1 : 1) : -1;
     var sh = TH()._ships(), jt = TH()._jets();
-    function seen(x, z) { if (!fow) return true; if (side < 0 ? x < -10 : x > 10) return true; for (var i = 0; i < jt.length; i++) { var j = jt[i]; if (j.side === side && j.g.visible && Math.hypot(j.x - x, j.z - z) < 60) return true; } for (var k = 0; k < drones.length; k++) { var d = drones[k]; if (d.side === side && Math.hypot(d.g.position.x - x, d.g.position.z - z) < 50) return true; } return false; }
+    function seen(x, z) { if (!fow) return true; if (LB.supply && LB.supply.revealed && LB.supply.revealed(x, z)) return true; if (side < 0 ? x < -10 : x > 10) return true; for (var i = 0; i < jt.length; i++) { var j = jt[i]; if (j.side === side && j.g.visible && Math.hypot(j.x - x, j.z - z) < 60) return true; } for (var k = 0; k < drones.length; k++) { var d = drones[k]; if (d.side === side && Math.hypot(d.g.position.x - x, d.g.position.z - z) < 50) return true; } return false; }
     for (var i = 0; i < sh.length; i++) if (sh[i].side !== side) sh[i].g.visible = seen(sh[i].x, sh[i].z);
     for (var j = 0; j < jt.length; j++) if (jt[j].side !== side && jt[j].st !== 'dead') jt[j].g.visible = seen(jt[j].x, jt[j].z);
     for (var s = 0; s < subs.length; s++) if (subs[s].side !== side) subs[s].g.visible = !fow || subs[s].st !== 'deep';

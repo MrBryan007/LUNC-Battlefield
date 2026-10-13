@@ -96,6 +96,12 @@
     adopt($('qualityPicker'), B.settings);
     var tb = doc.querySelector('.cmd-topbar'); adopt(tb, B.orders); adopt($('cmdMission'), B.orders);
     adopt($('cmdCall'), B.front);
+    // v12.0.1: v12 panels built before the dock existed fell back to <body> (theater bar floated over the field, even with Hide UI)
+    var th = $('theaterBar'); if (th && th.parentNode !== B.map) { th.classList.remove('floating'); B.map.insertBefore(th, B.map.firstChild); }
+    var sp = $('supplyPanel'); if (sp && sp.parentNode !== B.map) { sp.classList.remove('floating'); sp.hidden = false; if (th && th.parentNode === B.map) B.map.insertBefore(sp, th.nextSibling); else B.map.appendChild(sp); }
+    var tk = $('theaterTicker'); if (tk && tk.parentNode !== B.intel) B.intel.insertBefore(tk, B.intel.firstChild);
+    adopt($('v12Opts'), B.settings);
+    var bh = doc.querySelector('a.build-hours-link.settings'); adopt(bh, B.settings);
   }
 
   function cmdOn() { return doc.body.classList.contains('cmd-on'); }
