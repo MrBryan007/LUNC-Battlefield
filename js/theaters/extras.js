@@ -107,7 +107,7 @@
     if (e.isPaused()) return;
     var F = fx();
     for (var i = 0; i < drones.length; i++) { var d = drones[i]; d.a += dt * 0.25; d.g.position.set(d.cx + Math.cos(d.a) * d.r, d.y, d.cz + Math.sin(d.a) * d.r); d.g.rotation.y = -d.a; }
-    for (var s = 0; s < subs.length; s++) tickSub(subs[s], dt, F);
+    for (var s = 0; s < subs.length; s++) tickSub(subs[s], dt, F); tickTorps(dt, F);
     for (var k = 0; k < silos.length; k++) tickSilo(silos[k], dt, F);
     for (var q = icbms.length - 1; q >= 0; q--) tickIcbm(icbms[q], dt, F, q);
     cyberT -= dt; if (cyberT <= 0) { cyberT = rnd(35, 70); cyber(); }
@@ -123,16 +123,41 @@
     S.t -= dt; S.x += S.dir * dt * 1.2; if (Math.abs(S.x) > 160 || Math.abs(S.x) < 15) S.dir = -S.dir;
     var y = S.st === 'deep' ? -3 : S.st === 'periscope' ? -1.5 : -0.4;
     S.g.position.set(S.x, S.g.position.y + (y - S.g.position.y) * Math.min(1, dt), S.z); S.g.rotation.y = S.dir > 0 ? 0 : Math.PI;
-    if (S.st === 'deep' && S.t <= 0) { S.st = 'periscope'; S.t = 6; }
+    if (S.st === 'deep' && S.t <= 0) { var tg = pickTarget(S); if (tg && Math.hypot(tg.x - S.x, tg.z - S.z) > 70) { S.x = Math.max(-155, Math.min(155, tg.x - S.side * 45)); var sg = Math.random() < 0.5 ? -1 : 1, W = TH().isWater; S.z = tg.z + sg * 25; if (W && !W(S.x, S.z)) S.z = tg.z - sg * 25; if (W && !W(S.x, S.z)) S.z = tg.z; S.g.position.set(S.x, -3, S.z); } S.st = 'periscope'; S.t = 6; }
     else if (S.st === 'periscope') { if (F && Math.random() < dt * 3) F.puff({ kind: 'dust', x: S.x + 0.6, y: 0, z: S.z, size: 0.5, grow: 1, life: 0.8, color: 0xffffff, opacity: 0.5 }); if (S.t <= 0) { torpedo(S); S.st = 'deep'; S.t = rnd(30, 55); } }
   }
-  function torpedo(S) {
+  // v12.0.5: torpedoes are real tracked objects (dark body + white wake, homing on the target's live position) and the
+  // sub repositions near a target lane while deep, so the ambush lands on screen. Game FX (SIMULATED), never touches data.
+  var torps = [];
+  function pickTarget(S) {
     var ships = TH()._ships ? TH()._ships() : [], tgt = null, bd = 1e9;
     for (var i = 0; i < ships.length; i++) { var o = ships[i]; if (o.side === S.side || o.st !== 'sail') continue; var d = Math.abs(o.x - S.x) + Math.abs(o.z - S.z); if (d < bd) { bd = d; tgt = o; } }
-    if (!tgt) return;
-    var F = fx(), steps = 10;
-    for (var k = 0; k < steps; k++) (function (k) { setTimeout(function () { if (!F) return; var t = k / steps; F.puff({ kind: 'dust', x: S.x + (tgt.x - S.x) * t, y: 0, z: S.z + (tgt.z - S.z) * t, size: 0.6, grow: 1, life: 1.5, color: 0xdfeef2, opacity: 0.6 }); if (k === steps - 1) { TH().onStrike(tgt.x, tgt.z, 1.4); TH().splash(tgt.x, tgt.z, 1.8); } }, k * 220); })(k);
+    return tgt;
+  }
+  function torpedo(S) {
+    var tgt = pickTarget(S); if (!tgt) return false;
+    var g = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.32, 3.2, 6), new THREE.MeshStandardMaterial({ color: 0x1b1f22, roughness: 0.5 }));
+    g.rotation.z = Math.PI / 2; g.position.set(S.x, -0.25, S.z); root.add(g);
+    torps.push({ g: g, x: S.x, z: S.z, tgt: tgt, side: S.side, t: 0, wakeT: 0 });
+    stats.torps = (stats.torps || 0) + 1;
     if (LB.ai && LB.ai.send) LB.ai.send({ side: S.side, type: 'sub', text: (S.side < 0 ? 'BULL' : 'BEAR') + ' SUB: "Periscope depth — torpedo away." (SIMULATED)' });
+    return true;
+  }
+  function tickTorps(dt, F) {
+    for (var i = torps.length - 1; i >= 0; i--) {
+      var T = torps[i], tx = T.tgt.x, tz = T.tgt.z, dx = tx - T.x, dz = tz - T.z, d = Math.hypot(dx, dz), sp = 26 * dt;
+      T.t += dt;
+      if (T.tgt.st !== 'sail' || T.t > 12) { root.remove(T.g); T.g.geometry.dispose(); torps.splice(i, 1); continue; }
+      if (d <= Math.max(2.5, sp)) {
+        TH().onStrike(tx, tz, 1.6); TH().splash(tx, tz, 2.4);
+        if (F) { F.puff({ kind: 'dust', x: tx, y: 1, z: tz, size: 4, grow: 6, life: 2.2, color: 0xf2f8fa, opacity: 0.85 }); F.puff({ kind: 'fire', x: tx, y: 1.5, z: tz, size: 2.5, grow: 2, life: 0.9, color: 0xffa040, opacity: 0.9 }); }
+        stats.torpHits = (stats.torpHits || 0) + 1;
+        if (LB.ai && LB.ai.send) LB.ai.send({ side: T.side, type: 'sub', text: (T.side < 0 ? 'BULL' : 'BEAR') + ' SUB: "Torpedo impact — enemy hull hit." (SIMULATED)' });
+        root.remove(T.g); T.g.geometry.dispose(); torps.splice(i, 1); continue;
+      }
+      T.x += dx / d * sp; T.z += dz / d * sp; T.g.position.set(T.x, -0.25, T.z); T.g.rotation.y = Math.atan2(-dz, dx);
+      T.wakeT -= dt; if (F && T.wakeT <= 0) { T.wakeT = 0.08; F.puff({ kind: 'dust', x: T.x, y: 0.05, z: T.z, size: 0.7, grow: 1.6, life: 1.8, color: 0xffffff, opacity: 0.7 }); }
+    }
   }
   function tickSilo(S, dt, F) {
     S.t -= dt;
@@ -191,5 +216,9 @@
 
   LB.v12extras = { update: update, getOptions: function () { return Object.assign({}, opt); }, getStats: function () { return Object.assign({}, stats); },
     setWeather: function (w) { opt.weather = w; save(); applyWeather(); }, setSpectator: function (v) { opt.spectator = !!v; save(); applyFow(); }, cyber: cyber,
-    launchTest: function () { if (silos[0]) silos[0].t = 0.01; } };
+    launchTest: function () { if (silos[0]) silos[0].t = 0.01; },
+    ambushTest: function () { var S = subs[0]; if (!S) return false; S.st = 'deep'; S.t = 0.01; return true; },   // v12.0.5 test hook: next frame surfaces + fires
+    _subs: function () { return subs.map(function (S) { return { st: S.st, t: +S.t.toFixed(2), x: Math.round(S.x), z: Math.round(S.z), side: S.side }; }); },
+    _stepNaval: function (sec) { var F = fx(); for (var t = 0; t < sec; t += 0.1) { for (var s = 0; s < subs.length; s++) tickSub(subs[s], 0.1, F); tickTorps(0.1, F); } },   // test hook
+    torpedoes: function () { return torps.map(function (T) { return { x: T.x, z: T.z, tx: T.tgt.x, tz: T.tgt.z }; }); } };
 })(window);

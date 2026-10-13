@@ -191,12 +191,19 @@
       '<div class="th-note">Crates are a game layer: they never change price, armies or the front. Your side wins intel = fog lifted 30 s, ammo = cooldowns −30%, power-up = +25 Moon Shot charge.</div>';
     var host = doc.querySelector('#sheet-map .sheet-body');
     if (host) { var tb = doc.getElementById('theaterBar'); if (tb && tb.parentNode === host) host.insertBefore(p, tb.nextSibling); else host.insertBefore(p, host.firstChild); }
-    else { p.classList.add('floating'); p.hidden = true; doc.body.appendChild(p); }
+    else {   // v12.0.5: no dock sheet (?dock=0) → a WAR SYSTEMS drawer instead of a hidden panel
+      var w = doc.createElement('div'); w.id = 'warFloat'; w.className = 'war-float';
+      w.innerHTML = '<div class="war-body"></div><button type="button" aria-expanded="false">WAR SYSTEMS ▴</button>';
+      doc.body.appendChild(w); w.querySelector('.war-body').appendChild(p); p.classList.add('floating');
+      w.querySelector('button').addEventListener('click', function () { var o = w.classList.toggle('open'); this.setAttribute('aria-expanded', o); this.textContent = o ? 'WAR SYSTEMS ▾' : 'WAR SYSTEMS ▴'; });
+      el.wrap = w;
+    }
     el.p = p; el.status = p.querySelector('#supStatus'); el.call = p.querySelector('#supCall');
     el.call.addEventListener('click', function () { callIn(); });
   }
   function renderUi() {
     if (!el.p) return;
+    if (el.wrap) el.wrap.hidden = !el.wrap.contains(el.p) || doc.body.hasAttribute('data-ui');   // dock moved it, or Hide UI
     [-1, 1].forEach(function (s) { KLIST.forEach(function (k) { var c = el.p.querySelector('tr[data-s="' + s + '"] td[data-k="' + k + '"]'); if (c) c.textContent = tally[String(s)][k]; }); });
     var act = drops.filter(function (d) { return d.st !== 'done'; }), txt;
     if (act.length) { var d = act[0]; txt = d.st === 'inbound' ? 'Cargo plane inbound' : d.st === 'falling' ? KINDS[d.kind].label + ' crate under canopy' : d.st === 'landed' ? (d.contest > 0 ? 'CONTESTED · ' : '') + KINDS[d.kind].label + ' crate · ' + Math.round(Math.abs(d.prog) * 100) + '% ' + (d.prog < 0 ? 'Bulls' : d.prog > 0 ? 'Bears' : '') : stats.lastResult; }

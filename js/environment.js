@@ -473,6 +473,11 @@
       if (!p) continue;
       if (Math.abs(p.x) < 10) continue;
       const r = 1.2 + seededRand(i + 2220) * 2.2;
+      // v12.0.5: hard-edged near-black discs read as "black ground patches" (worst on LOW, no post-FX) → soft noisy mask
+      if (!scorchedMat.userData.v1205Mask && global.LUNCBattle && LUNCBattle.proctex && LUNCBattle.proctex.blobMask) {
+        scorchedMat.userData.v1205Mask = true; scorchedMat.alphaMap = LUNCBattle.proctex.blobMask(THREE); scorchedMat.color.setHex(0x221c15); scorchedMat.opacity = 0.5;
+        scorchedMat.polygonOffset = true; scorchedMat.polygonOffsetFactor = -3; scorchedMat.polygonOffsetUnits = -3; scorchedMat.needsUpdate = true;
+      }
       const disc = new THREE.Mesh(new THREE.CircleGeometry(r, 10), scorchedMat);
       disc.rotation.x = -Math.PI / 2;
       disc.position.set(p.x, placeY(p.x, p.z, 0.05), p.z);
