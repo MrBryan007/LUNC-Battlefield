@@ -115,6 +115,7 @@
         if (W.st === 'fold') { z += (i - W.col.length / 2) * W.t * 2.4; c.g.scale.setScalar(Math.max(0.01, 1 - W.t / 2.5)); }
         c.g.position.set(x, H(x, z) + Math.abs(Math.sin((W.x + c.ph) * 3)) * 0.12, z); c.g.rotation.y = dirX > 0 ? Math.PI / 2 : -Math.PI / 2;
       }
+      if (W.side !== playerSide()) { var fv = !(LB.fow && LB.fow.isActive && LB.fow.isActive()) || LB.fow.visible(W.x, ROAD_Z); for (var q = 0; q < W.col.length; q++) W.col[q].g.visible = fv; }   // v12.0.8 fog of war
       if (W.st === 'fold' && W.t > 2.5) { W.col.forEach(function (c) { root.remove(c.g); }); waves.splice(w, 1); }
     }
   }

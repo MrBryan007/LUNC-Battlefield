@@ -1,5 +1,14 @@
 # Changelog
 
+## v12.0.8 — Fuller fog of war (2026-10-13, extended AI session, cycle 7)
+- New `js/theaters/fow.js`: a real visibility grid (8 u cells over the whole world) for your side, used when Spectator full vision is OFF (Settings → WORLD). Spectator stays ON by default, so the market view is unchanged.
+- What you can see: your half of the land front, your army, your HQ/airbase radar (90 u), your jets, ships, UAV drones, defenses and supply depots, plus recon-sweep and intel-crate reveals.
+- What shrinks it: fog ×0.6, rain ×0.8, night ×0.7, and an enemy cyber hack blinds your radar for 20 s.
+- Enemy ships, jets, subs, defenses and reinforcement columns outside your vision are hidden. Hidden ships/jets leave last-known ghost markers on the world-map inset, which also dims unseen areas. A soft dark layer covers unseen ground (one textured plane, cheap on LOW).
+- The market-driven armies and the frontline are always shown (data truth). `?fow=0` falls back to the old simple fog.
+- Tested: `node --check` on all JS, asset-lifecycle 33/33, headless HIGH / MEDIUM / LOW / phone 390×844 with 0 page errors and fog on: grid computes in ~1–5 ms, enemy ships hidden + ghosted, fog weather shrinks vision, a cyber hack blinds radar. Not measured on a real iPhone/Mac.
+- Build hours (real timestamps): day total so far 1.08 h (incl. the 0.32 h morning run), UNDER the 2–4 h target; the extended session continues.
+
 ## v12.0.7 — Sound design pass (2026-10-13, extended AI session, cycle 6)
 - New ambience beds in `js/sfx.js`: wind (with gusts, louder the higher the camera), ocean surf (when the camera is over or near the ocean) and rain (with the Rain weather).
 - New Doppler jet pass: when an airborne jet streaks past the camera you hear it rise, then drop in pitch, panned across the stereo field.
