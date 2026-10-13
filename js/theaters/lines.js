@@ -9,7 +9,7 @@
   var LB = global.LUNCBattle = global.LUNCBattle || {}, doc = global.document;
   var qs = new URLSearchParams(global.location.search);
   var enabled = qs.get('lines') !== '0' && qs.get('theaters') !== '0';
-  var ROAD_Z = -32, HQ_X = 205, DEPOT_X = [90, 150], HP = 3, REPAIR_S = 25, WAVE_S = 75, CUT_DELAY = 20, HIT_R = 9;
+  var ROAD_Z = -32, HQ_X = 205, DEPOT_X = [130, 168], HP = 3, REPAIR_S = 25, WAVE_S = 75, CUT_DELAY = 20, HIT_R = 9;
   var THREE, root, ready = false, last = 0, uiT = 0, raidT = 50, el = {}, geo = {}, mat = {}, wrapped = false;
   var depots = [], waves = [], waveT = { '-1': 30, '1': 38 }, stats = { cuts: 0, repairs: 0, waves: 0, raids: 0, hits: 0, last: '' };
   function E() { return LB.engine; }

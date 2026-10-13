@@ -12,6 +12,7 @@
  * Perf: shared geometry/materials, no shadows, far-theater sim LOD (4 Hz when the camera is > 230 away), tier caps, scratch vectors. */
 (function (global) {
   'use strict';
+  function HQX() { var c = global.LUNCBattle && LUNCBattle.config; return ((c && c.layout && c.layout.hqX) || 48) - 4; }
   var LB = global.LUNCBattle = global.LUNCBattle || {};
   var qs = new URLSearchParams(global.location.search);
   var enabled = qs.get('theaters') !== '0';
@@ -351,8 +352,8 @@
     naval: { label: 'Naval', x: 0, z: NAVAL_Z, d: 120, pol: 1.0, az: 0.3 },
     airW: { label: 'Air West', x: -BASE_X, z: BASE_Z, d: 80, pol: 0.9, az: 0.6 },
     airE: { label: 'Air East', x: BASE_X, z: BASE_Z, d: 80, pol: 0.9, az: -0.6 },
-    bullHq: { label: 'Bull HQ', x: -44, z: 0, d: 45, pol: 0.95, az: 0.4 },
-    bearHq: { label: 'Bear HQ', x: 44, z: 0, d: 45, pol: 0.95, az: -0.4 },
+    bullHq: { label: 'Bull HQ', x: -HQX(), z: 0, d: 52, pol: 0.95, az: 0.4 },
+    bearHq: { label: 'Bear HQ', x: HQX(), z: 0, d: 52, pol: 0.95, az: -0.4 },
     overview: { label: 'Overview', x: 0, z: 40, d: 310, pol: 0.62, az: 0 }
   };
   function flyTo(id, dur) {
