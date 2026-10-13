@@ -1,5 +1,13 @@
 # Changelog
 
+## v12.0.9 — War Systems part 6: squad commands with cover and flanking (2026-10-13, extended AI session, cycle 8)
+- New `js/theaters/squads.js` (game layer): three squads of your own (Alpha, Bravo, Charlie; 5 riflemen, 3 on LOW/phone) and three enemy AI squads.
+- Orders in Map → WAR SYSTEMS · SQUADS: Move (then tap the field), Hold, Flank (swings wide along the north/south edge, then hooks into the enemy side), Cover (runs to the nearest friendly wall/bunker/depot; IN COVER takes half the incoming fire, men crouch).
+- Squads trade tracer fire. Incoming fire builds suppression (red bar), which slows them. Selected-squad ring and waypoint marker. Enemy squads move, hold, take cover and flank too, and fog of war hides them.
+- Cosmetic only: never removes market units or moves the front. `?squads=0` turns it off.
+- Tested: `node --check` on all JS, asset-lifecycle 33/33, headless HIGH / MEDIUM / LOW / phone 390×844 with 0 page errors; move, flank, cover (to a depot and a placed wall), tap-to-move on the canvas and AI orders on each. Not measured on a real iPhone/Mac.
+- Build hours (real timestamps, data/build-hours.json): day total 1.17 h before this deploy step (incl. the 0.32 h morning run), UNDER the 2–4 h target. Session ends here.
+
 ## v12.0.8 — Fuller fog of war (2026-10-13, extended AI session, cycle 7)
 - New `js/theaters/fow.js`: a real visibility grid (8 u cells over the whole world) for your side, used when Spectator full vision is OFF (Settings → WORLD). Spectator stays ON by default, so the market view is unchanged.
 - What you can see: your half of the land front, your army, your HQ/airbase radar (90 u), your jets, ships, UAV drones, defenses and supply depots, plus recon-sweep and intel-crate reveals.
