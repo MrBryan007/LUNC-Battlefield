@@ -214,3 +214,6 @@ body[data-weather="fog"] #vignette, body[data-weather="rain"] #vignette { backdr
 .tech-node[data-st="locked"] { opacity: .4; }
 .tech-node[data-st="poor"], .tech-node[data-st="wait"] { opacity: .65; }
 .tech-node:disabled { cursor: default; }
+/* v12.0.4 — defenses */
+.econ-actions button.armed { border-color: #7cf0a8; background: rgba(124,240,168,.18); box-shadow: 0 0 0 1px #7cf0a8 inset; }
+body.fort-placing canvas { cursor: crosshair; }
