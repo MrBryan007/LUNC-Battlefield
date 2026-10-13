@@ -239,6 +239,8 @@
     getTally: function () { return JSON.parse(JSON.stringify(tally)); },
     getStats: function () { return Object.assign({ active: drops.filter(function (d) { return d.st !== 'done'; }).length, callCd: callCd, reveals: reveals.length }, stats); },
     KINDS: KINDS,
+    addReveal: function (x, z, t) { reveals.push({ x: x, z: z, t: t || REVEAL_S }); },   // v12.0.2 economy: recon sweep
+    resetCallCd: function () { callCd = 0; renderUi(); },
     _step: function (sec) { if (!ready) return; for (var t = 0; t < sec; t += 0.1) step(0.1); }   // test hook: fast-forward the supply sim
   };
 })(window);
