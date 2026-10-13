@@ -475,12 +475,15 @@
     // diffed path and the full (token-switch) path share it byte-for-byte.
     // v11.3: ground budget by tier (ULTRA/HIGH 500 · MEDIUM 250 · LOW/mobile 110; ?units=N override).
     // The MARKET still decides the split: each side's share = its order-book wall / (buy + sell walls).
-    const unitsOverride = (function () { const v = parseInt(new URLSearchParams(location.search).get('units'), 10); return v > 0 ? Math.min(800, v) : 0; })();
+    const unitsOverride = (function () { const v = parseInt(new URLSearchParams(location.search).get('units'), 10); return v > 0 ? Math.min(2000, v) : 0; })();
     function groundBudget() {
       if (unitsOverride) return unitsOverride;
       let t = 'HIGH'; try { t = LUNCBattle.quality.getEffectiveName(); } catch (_) {}
-      if (innerWidth < 760 || t === 'LOW') return 110;
-      return t === 'MEDIUM' ? 250 : 500;
+      const wide = !(LUNCBattle.config.layout && LUNCBattle.config.layout.wide === false);
+      // v12.0.11 wide front: ULTRA 1400 · HIGH 1100 · MEDIUM 500 · LOW/mobile 160 (?wide=0 → v11.3 budgets)
+      if (innerWidth < 760 || t === 'LOW') return wide ? 160 : 110;
+      if (t === 'MEDIUM') return wide ? 500 : 250;
+      return wide ? (t === 'ULTRA' ? 1400 : 1100) : 500;
     }
     function armyCounts(wall) {
       const mobile=innerWidth<760;
@@ -578,7 +581,7 @@
           getFrontlineX: function () {
             return priceTerritoryApi ? priceTerritoryApi.getFrontlineX() : targetX;
           },
-          getWorldBounds: { minX: -70, maxX: 70, minZ: -45, maxZ: 45 }
+          getWorldBounds: ((LUNCBattle.config.layout && LUNCBattle.config.layout.wide) ? { minX: -130, maxX: 130, minZ: -62, maxZ: 62 } : { minX: -70, maxX: 70, minZ: -45, maxZ: 45 })
         })
       : null;
     if (!cameraCtrl) console.error('[LUNCBattle] camera.js failed to load');
@@ -587,7 +590,7 @@
       ? LUNCBattle.minimap.createApi({
           mobile: mobileGfx,
           drawHz: (LUNCBattle.quality && LUNCBattle.quality.getEffectivePreset) ? LUNCBattle.quality.getEffectivePreset().minimapHz : 10,
-          worldBounds: { minX: -70, maxX: 70, minZ: -45, maxZ: 45 },
+          worldBounds: ((LUNCBattle.config.layout && LUNCBattle.config.layout.wide) ? { minX: -130, maxX: 130, minZ: -62, maxZ: 62 } : { minX: -70, maxX: 70, minZ: -45, maxZ: 45 }),
           getFrontlineX: function () {
             return priceTerritoryApi ? priceTerritoryApi.getFrontlineX() : targetX;
           },

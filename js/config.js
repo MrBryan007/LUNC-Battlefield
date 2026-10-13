@@ -56,7 +56,7 @@
   };
 
   const config = {
-    BUILD: 'v12.0.10',
+    BUILD: 'v12.0.11',
     TITLE: 'LUNC Ecosystem Battlefield v9.4.16 — iOS playability (WebGL r128)',
     DataTruth,
     tokens,
@@ -81,6 +81,11 @@
   };
 
   global.LUNCBattle = global.LUNCBattle || {};
+  // v12.0.11 wide front: HQs farther apart (visual layout only; price->X mapping untouched)
+  try {
+    var wq = new URLSearchParams(global.location ? global.location.search : '').get('wide');
+    config.layout = wq === '0' ? { wide: false, hqX: 48, spread: 1 } : { wide: true, hqX: 96, spread: 2 };
+  } catch (e) { config.layout = { wide: true, hqX: 96, spread: 2 }; }
   global.LUNCBattle.config = config;
   global.LUNCBattle.DataTruth = DataTruth;
 })(window);
