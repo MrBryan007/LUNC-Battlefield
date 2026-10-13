@@ -38,7 +38,7 @@
   }
   function income() {
     var r = rates(); stats.ticks++;
-    [-1, 1].forEach(function (s) { var k = String(s); RES.forEach(function (x) { var v = r[k][x]; lastRate[k][x] = v; stock[k][x] = Math.min(CAP, stock[k][x] + v); earned[k][x] += v; }); });
+    [-1, 1].forEach(function (s) { var k = String(s); RES.forEach(function (x) { var v = r[k][x] * (LB.tech && LB.tech.has && LB.tech.has(s, 'logistics') ? 1.25 : 1); lastRate[k][x] = v; stock[k][x] = Math.min(CAP, stock[k][x] + v); earned[k][x] += v; }); });
     // supply crates banked since last tick → +5 of their kind (power-ups go to ammo)
     if (LB.supply && LB.supply.getTally) {
       var t = LB.supply.getTally();
@@ -52,7 +52,7 @@
   function apply(side, id) {
     var me = side === playerSide(), fx = 0;
     try { fx = E().getFrontlineX() || 0; } catch (_) {}
-    if (id === 'recon') { if (me && LB.supply && LB.supply.addReveal) LB.supply.addReveal(fx - side * 30, 0, 20); }
+    if (id === 'recon') { if (me && LB.supply && LB.supply.addReveal) { var radar = LB.tech && LB.tech.has && LB.tech.has(side, 'radar'); LB.supply.addReveal(fx - side * 30, 0, radar ? 35 : 20); if (radar) { LB.supply.addReveal(fx - side * 30, -45, 35); LB.supply.addReveal(fx - side * 30, 45, 35); } } }
     else if (id === 'rearm') { if (me) try { var cds = LB.commander.getState().cds; for (var k in cds) if (cds[k] > 0) cds[k] *= 0.7; } catch (_) {} }
     else if (id === 'rush') { if (me && LB.supply && LB.supply.resetCallCd) LB.supply.resetCallCd(); }
   }
