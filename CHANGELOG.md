@@ -1,5 +1,13 @@
 # Changelog
 
+## v12.0.2 — War Systems part 2: war economy (2026-10-13, extended AI session, cycle 1)
+- New: war economy (`js/theaters/economy.js`, game layer). Per-side fuel / ammo / intel stockpiles in Map → WAR SYSTEMS · ECONOMY.
+- Income every 4 s, weighted by market signals and labelled **ESTIMATED · SIMULATED**: fuel ← each side's share of the army (market walls), ammo ← |momentum|, intel ← whichever side momentum favours. Captured supply crates add +5 of their kind (power-ups → ammo).
+- Spend it: Recon sweep (6 intel → fog lifted around the front for 20 s), Rearm (8 ammo → active Commander cooldowns −30 %), Rush drop (8 fuel → supply-drop call ready now). The enemy AI spends too. Never changes price, armies or the front.
+- `?economy=0` turns it off (also off with `?theaters=0`).
+- Tested: `node --check` on all JS, asset-lifecycle test 33/33, headless HIGH / MEDIUM / LOW / phone 390×844 with 0 page errors, income + spend check on each, panel lands in the Map sheet. Not measured on a real iPhone/Mac.
+- Build hours (real timestamps): cycle 1 so far planning 0.01 h, building 0.02 h, testing 0.06 h. Day total so far 0.41 h (incl. the 0.32 h morning run), UNDER the 2–4 h target; the extended session continues.
+
 ## v12.0.1 — War Systems part 1: supply drops (2026-10-13, daily AI build)
 - New: supply drops (`js/theaters/supply.js`, SIMULATED game layer). Cargo planes drop parachute crates with colored smoke, a ground ring and a world-map ping. Contents are fuel, ammo, intel or a power-up.
 - One AI squad per side races to each crate. A capture ring fills for whoever holds it and pauses while CONTESTED. The winner banks it in a per-side tally (Map → WAR SYSTEMS).
