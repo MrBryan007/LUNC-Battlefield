@@ -202,8 +202,20 @@
       };
     }
 
+    function shakeScale() {
+      try {
+        if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return 0;
+        var q = new URLSearchParams(location.search).get('shake');
+        if (q === '0' || q === 'off') return 0;
+        if (q === 'low') return 0.35;
+        if (window.LUNCBattle && LUNCBattle.config && LUNCBattle.config.cameraShake === 'off') return 0;
+        if (window.LUNCBattle && LUNCBattle.config && LUNCBattle.config.cameraShake === 'low') return 0.35;
+      } catch (_) {}
+      return 1;
+    }
+
     function update(dt, keys, cameraShake) {
-      var shake = cameraShake || 0;
+      var shake = (cameraShake || 0) * shakeScale();
       // Remove prior frame shake before pan/orbit so controls see a clean pose
       camera.position.sub(shakeOffset);
       shakeOffset.set(0, 0, 0);
