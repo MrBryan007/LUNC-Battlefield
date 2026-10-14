@@ -8,11 +8,20 @@
   function esc(s) {
     if (s == null) return '';
     return String(s)
-      .replace(/&/g, '&')
-      .replace(/</g, '<')
-      .replace(/>/g, '>')
-      .replace(/"/g, '"')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
       .replace(/'/g, '&#39;');
+  }
+
+  function safeNum(v) {
+    if (v == null || v === '') return '—';
+    var n = Number(v);
+    if (!isFinite(n)) return esc(String(v));
+    if (Math.abs(n) >= 1e6) return (n / 1e6).toFixed(2) + 'M';
+    if (Math.abs(n) >= 1e3) return (n / 1e3).toFixed(1) + 'k';
+    return String(Math.round(n * 100) / 100);
   }
 
 
@@ -291,7 +300,8 @@
       if (list) {
         list.innerHTML = v.slice(0, 8).map(function (val) {
           const name = esc(val.name || val.moniker || val.operator_address || 'validator');
-          const power = val.votingPower != null ? val.votingPower : (val.tokens != null ? val.tokens : '—');
+          const rawPower = val.votingPower != null ? val.votingPower : val.tokens;
+          const power = safeNum(rawPower);
           return '<div class="row"><span>' + name + '</span><strong>' + power + '</strong></div>';
         }).join('');
       }
@@ -320,10 +330,10 @@
         } else {
           contrib = sign + d.toFixed(1) + ' bull';
         }
-        const detail = p.detail ? ' · ' + p.detail : '';
-        const truthClass = 'truth-' + String(p.truth).toLowerCase();
+        const detail = p.detail ? ' · ' + esc(p.detail) : '';
+        const truthClass = 'truth-' + esc(String(p.truth || '').toLowerCase());
         return '<div class="row strength-part' + (p.contributes ? '' : ' unavailable') + '">'
-          + '<span>' + p.name + detail + '</span>'
+          + '<span>' + esc(p.name) + detail + '</span>'
           + '<strong class="' + truthClass + '">' + (p.contributes ? p.truth : 'UNAVAILABLE')
           + ' <span class="micro">(' + contrib + ')</span></strong></div>';
       }).join('');
@@ -616,7 +626,7 @@
       return (zones[side] || []).map(cell).join('');
     };
     const cover = 'bid≤' + (zones.maxBidPct || 0).toFixed(2) + '% · ask≤' + (zones.maxAskPct || 0).toFixed(2) + '%';
-    const src = sourceLabel || zones.sourceLabel || 'Unknown';
+    const src = esc(sourceLabel || zones.sourceLabel || 'Unknown');
     const liveDepth = !!healthState.depthLive;
     let badge;
     if (!liveDepth) {
