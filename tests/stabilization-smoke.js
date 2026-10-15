@@ -21,7 +21,8 @@ const checks = [
   ['reduced-motion gate', camera.includes('prefers-reduced-motion')],
   ['gfx-recover wired', index.includes('gfx-recover.js')],
   ['base-invasion wired', index.includes('base-invasion.js')],
-  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.12')]
+  ['realism-pass wired', index.includes('realism-pass.js')],
+  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.13')]
 ];
 
 let failed = 0;

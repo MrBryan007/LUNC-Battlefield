@@ -1,4 +1,6 @@
-/* War zone look — fires, craters, wire, tracers, heavier atmosphere. Cosmetic only. */
+/* War zone look — fires, craters, wire, tracers, heavier atmosphere. Cosmetic only.
+ * v12.0.13: soft earthy craters (no solid black), grey/brown fire smoke that drifts.
+ * ?warzone=0 disables. */
 (function (global) {
   'use strict';
   var LB = global.LUNCBattle = global.LUNCBattle || {};
@@ -28,13 +30,35 @@
     });
   }
 
+  function softHoleMat(color, opacity) {
+    var THREE = E().THREE;
+    var m = new THREE.MeshStandardMaterial({
+      color: color,
+      roughness: 0.95,
+      metalness: 0.02,
+      transparent: true,
+      opacity: opacity == null ? 0.4 : opacity,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2
+    });
+    try {
+      if (LB.proctex && LB.proctex.blobMask) {
+        m.alphaMap = LB.proctex.blobMask(THREE);
+        m.needsUpdate = true;
+      }
+    } catch (_) {}
+    return m;
+  }
+
   function crater(x, z, r) {
     var THREE = E().THREE;
     var g = new THREE.Group();
-    var hole = new THREE.Mesh(new THREE.CircleGeometry(r, 10), mat(0x1a1410, 0.95, 0.02));
+    var hole = new THREE.Mesh(new THREE.CircleGeometry(r, 12), softHoleMat(0x3a3026, 0.4));
     hole.rotation.x = -Math.PI / 2;
     hole.position.y = 0.03;
-    var rim = new THREE.Mesh(new THREE.RingGeometry(r * 0.85, r * 1.15, 10), mat(0x3a3228, 0.9, 0.04));
+    var rim = new THREE.Mesh(new THREE.RingGeometry(r * 0.85, r * 1.2, 12), softHoleMat(0x5a4e3e, 0.32));
     rim.rotation.x = -Math.PI / 2;
     rim.position.y = 0.05;
     g.add(hole, rim);
@@ -47,8 +71,10 @@
     var g = new THREE.Group();
     var core = new THREE.Mesh(new THREE.SphereGeometry(0.45, 6, 4), mat(0xff6a1a, 0.4, 0.0, 0.9, 0xff4500, 1.4));
     var glow = new THREE.Mesh(new THREE.SphereGeometry(0.9, 6, 4), mat(0xff3300, 0.5, 0.0, 0.35, 0xff2200, 0.8));
-    var smoke = new THREE.Mesh(new THREE.SphereGeometry(0.7, 6, 4), mat(0x222018, 0.9, 0.0, 0.4));
+    // Grey-brown smoke, not solid black
+    var smoke = new THREE.Mesh(new THREE.SphereGeometry(0.75, 8, 6), new THREE.MeshBasicMaterial({ color: 0x8a8478, transparent: true, opacity: 0.18, depthWrite: false }));
     smoke.position.y = 1.6;
+    smoke.userData = { baseOp: 0.22 };
     g.add(core, glow, smoke);
     g.position.set(x, H(x, z) + 0.2, z);
     g.userData = { t: Math.random() * 10 };
@@ -99,43 +125,43 @@
     scene.add(root);
     state.root = root;
 
-    var craters = low() ? 4 : 10;
+    var craters = low() ? 3 : 8;
     for (var i = 0; i < craters; i++) {
-      var x = -60 + i * 12;
-      var z = ((i % 4) - 1.5) * 7;
-      root.add(crater(x, z, 1.6 + (i % 3) * 0.6));
+      var x = -55 + i * 14 + ((i % 2) ? 4 : -3);
+      var z = ((i % 3) - 1) * 10;
+      root.add(crater(x, z, 1.4 + (i % 3) * 0.5));
     }
 
-    var fires = low() ? 2 : 5;
+    var fires = low() ? 2 : 4;
     for (var f = 0; f < fires; f++) {
-      var fx = -40 + f * 16;
-      var fz = (f % 2 ? 9 : -9);
+      var fx = -36 + f * 18;
+      var fz = (f % 2 ? 11 : -11);
       var fl = fire(fx, fz);
       root.add(fl);
       state.fires.push(fl);
     }
 
-    // Wire near both bases and across a gap
     root.add(wire(-92, 8, 10, 0.1));
     root.add(wire(-92, -8, 10, -0.1));
     root.add(wire(92, 8, 10, 0.05));
     root.add(wire(92, -8, 10, -0.05));
     if (!low()) {
-      root.add(wire(-10, 12, 14, 0.4));
-      root.add(wire(8, -12, 12, -0.3));
+      root.add(wire(-10, 14, 14, 0.4));
+      root.add(wire(8, -14, 12, -0.3));
     }
 
-    var tracerCount = low() ? 4 : 10;
+    var tracerCount = low() ? 3 : 8;
     for (var t = 0; t < tracerCount; t++) {
       var tr = tracer();
       root.add(tr);
       state.tracers.push(tr);
     }
 
-    // Heavier war fog
+    // Mild atmosphere nudge only — no crushed black fog
     try {
-      if (scene.fog && scene.fog.color) scene.fog.color.setHex(0x1c1814);
-      if (scene.background && scene.background.setHex) scene.background.setHex(0x141210);
+      if (scene.fog && scene.fog.color) {
+        scene.fog.color.lerp(new THREE.Color(0x2c281f), 0.12);
+      }
     } catch (_) {}
 
     state.ready = true;
@@ -149,7 +175,15 @@
       var s = 1 + Math.sin(t * 6 + i) * 0.15;
       g.children[0].scale.set(s, s * 1.2, s);
       g.children[1].scale.set(s * 1.1, s, s * 1.1);
-      g.children[2].position.y = 1.6 + Math.sin(t * 0.8 + i) * 0.2;
+      var smoke = g.children[2];
+      smoke.position.y = 1.6 + Math.sin(t * 0.8 + i) * 0.25;
+      smoke.position.x = Math.sin(t * 0.3 + i) * 0.35;
+      smoke.position.z = Math.cos(t * 0.25 + i) * 0.2;
+      var ss = 1 + Math.sin(t * 0.5 + i) * 0.12;
+      smoke.scale.set(ss * 1.1, ss * 1.3, ss);
+      if (smoke.material) {
+        smoke.material.opacity = Math.max(0.06, 0.22 * (0.7 + 0.3 * Math.sin(t * 0.6 + i)));
+      }
     });
     state.tracers.forEach(function (tr) {
       tr.userData.life -= dt;

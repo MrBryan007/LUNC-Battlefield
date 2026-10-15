@@ -1,5 +1,13 @@
 # Changelog
 
+## v12.0.13 — Realism pass, part 1 (2026-10-15, AI build)
+- Fixed the solid near-black smoke/scar band along the front (cycle-1 bug). Frontline scorches in `price-territory.js`, battlefield-look / warzone / marks scars, terrain no-man's tint, effects/environment scorches, and unit contact shadows now use soft alpha-falloff earthy greys/browns (not pure black discs); smoke is grey/brown, drifts with wind and thins. Never a solid black strip on any tier.
+- Realism pass module (`js/fx/realism-pass.js`, `?realism=0` kill switch): layered explosions (flash → fireball → rising smoke column → debris → shockwave → scorch), speed-of-sound delay + distance attenuation on far blasts, gravity-based ballistic arcs for shells/arty, muzzle-flash and fire point lights (MEDIUM+), and faction camo / PBR wear materials on invasion bases and defenses (olive drab Bulls, rust-brown Bears).
+- Retook the v12.0.12 HIGH base screenshot once the loader was actually gone (wait for `#loadScreen` hidden / engine ready, not a fixed timeout). Before/after shots in `docs/v12013-shots/`.
+- Remaining realism gaps recorded in `docs/V12-ROADMAP.md`. Market-driven front, data-truth labels, Moon Shot, Commander, v11.4 HUD/dock, Hide UI, and all v12.x systems / `?flags` kept intact.
+- Version bump to v12.0.13 (BUILD, quality api, index tags, cache-bust `?v=20261015v12013`).
+- Tested: `node --check` on all JS, asset-lifecycle, stabilization-smoke, headless HIGH / MEDIUM / LOW / phone 390×844 with 0 page errors; feature checks for soft scars, layered boom, SOS delay, camo mats, ballistic arcs, `?realism=0`.
+
 ## v12.0.12 — Base invasions (2026-10-15, AI build)
 - Deepened base invasions (`js/theaters/base-invasion.js`): each HQ now has barracks infantry that respawn, sentry and machine-gun turrets, mortars, rocket launchers, sniper towers, AA guns, perimeter walls, gates and night searchlights (searchlights only when the day/night cycle is night).
 - Defenses actually fire: MG/sentry tracers (about 1-in-5 visible, realism style), arcing mortar shells, rocket salvos, sniper shots, and AA that tracks enemy jets. Assault squads and Commander strikes damage defenses; wrecks persist and rebuild for 6 fuel from the war economy.

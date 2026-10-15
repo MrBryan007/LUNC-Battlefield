@@ -1,4 +1,5 @@
-/* LUNC Battlefield v9.4.13 — price territory + contested no-man's-land frontline */
+/* LUNC Battlefield v9.4.13 — price territory + contested no-man's-land frontline
+ * v12.0.13: soft earthy frontline scorches (no solid black strip). */
 (function (global) {
   'use strict';
 
@@ -37,7 +38,7 @@
       bag: new THREE.BoxGeometry(1.15, 0.38, 0.42),
       berm: new THREE.BoxGeometry(1.8, 0.42, 0.7),
       bermLong: new THREE.BoxGeometry(2.6, 0.36, 0.85),
-      crater: new THREE.CylinderGeometry(0.55, 0.7, 0.12, 7),
+      crater: new THREE.CircleGeometry(0.85, 12),
       smoke: new THREE.SphereGeometry(0.35, 5, 4),
       tower: new THREE.CylinderGeometry(0.35, 0.48, 2.2, 6),
       bunker: new THREE.BoxGeometry(1.6, 0.85, 1.2),
@@ -52,15 +53,24 @@
       sandbag: mat(0x6a5a3e, 0.98, 0.02),
       earth: mat(0x5a4a34, 1, 0.01),
       earthDark: mat(0x3a3024, 1, 0),
-      scorch: mat(0x1c1a16, 1, 0),
+      scorch: (function () {
+        var m = mat(0x5a4a38, 0.95, 0.02, 0x000000, 0, true, 0.32);
+        m.depthWrite = false;
+        m.polygonOffset = true; m.polygonOffsetFactor = -2; m.polygonOffsetUnits = -2;
+        try {
+          var PT = global.LUNCBattle && global.LUNCBattle.proctex;
+          if (PT && PT.blobMask) { m.alphaMap = PT.blobMask(THREE); m.needsUpdate = true; }
+        } catch (_) {}
+        return m;
+      })(),
       metal: mat(0x3a4038, 0.42, 0.48),
       metalDark: mat(0x222824, 0.5, 0.55),
       bullFlag: mat(0x3a8a68, 0.82, 0.04, 0x2a6a50, 0.06),
       bearFlag: mat(0xa05048, 0.82, 0.04, 0x6a3028, 0.06),
       contestedFlag: mat(0xb8a060, 0.82, 0.04, 0x6a5830, 0.05),
       smoke: new THREE.MeshStandardMaterial({
-        color: 0x6a6860, roughness: 1, metalness: 0,
-        transparent: true, opacity: 0.22, depthWrite: false
+        color: 0x7a7468, roughness: 1, metalness: 0,
+        transparent: true, opacity: 0.16, depthWrite: false
       }),
       defensePartial: mat(0x6a5a3e, 0.98, 0.02, 0x000000, 0, true, 0.42),
       defenseFaint: mat(0x5a5040, 0.98, 0.02, 0x000000, 0, true, 0.22),
@@ -525,16 +535,19 @@
         // Shell holes / scorch
         if (h < 0.78) {
           const hole = new THREE.Mesh(GEO.crater, MAT.scorch);
+          hole.rotation.x = -Math.PI / 2;
           hole.receiveShadow = true;
           addFrontlinePiece(hole, (flHash(i, 22) - 0.5) * 2.2, z + (flHash(i, 24) - 0.5) * 1.4, 0.04);
         }
       }
 
       // Extra scatter craters filling the contested strip (shared geo/mat)
-      const extra = mobile ? 5 : 10;
+      const extra = mobile ? 3 : 6;
       for (let i = 0; i < extra; i++) {
         const z = (flHash(i, 40) - 0.5) * 46;
         const hole = new THREE.Mesh(GEO.crater, MAT.scorch);
+        hole.rotation.x = -Math.PI / 2;
+        hole.scale.setScalar(0.7 + flHash(i, 46) * 0.6);
         hole.receiveShadow = true;
         addFrontlinePiece(hole, (flHash(i, 44) - 0.5) * 3.4, z, 0.035);
       }
@@ -547,6 +560,7 @@
         const localX = (i % 2 ? 0.55 : -0.45);
         const yOff = 0.85 + i * 0.12;
         sm.scale.setScalar(0.75 + i * 0.12);
+        sm.position.set(localX, yOff, z);
         frontlineGroup.add(sm);
         smokeWisps.push({
           mesh: sm, phase: i * 1.7,
@@ -792,9 +806,14 @@
       const now = performance.now() * 0.001;
       for (let i = 0; i < smokeWisps.length; i++) {
         const s = smokeWisps[i];
-        s.mesh.position.y = s.baseY + Math.sin(now * 0.7 + s.phase) * 0.18;
-        s.mesh.material.opacity = 0.16 + Math.sin(now * 0.5 + s.phase) * 0.06;
-        s.mesh.scale.setScalar(0.85 + Math.sin(now * 0.4 + s.phase) * 0.12);
+        // v12.0.13: drift with wind and thin — never a solid column
+        const wx = frontlineX + (s.localX || 0) + Math.sin(now * 0.25 + s.phase) * 0.55;
+        const wz = (s.localZ || 0) + Math.cos(now * 0.2 + s.phase) * 0.25;
+        s.mesh.position.x = wx;
+        s.mesh.position.z = wz;
+        s.mesh.position.y = s.baseY + Math.sin(now * 0.7 + s.phase) * 0.22 + ((now * 0.02) % 0.4);
+        s.mesh.material.opacity = Math.max(0.04, 0.14 + Math.sin(now * 0.5 + s.phase) * 0.05);
+        s.mesh.scale.setScalar(0.9 + Math.sin(now * 0.4 + s.phase) * 0.18);
       }
       for (let i = 0; i < contestedFlags.length; i++) {
         const f = contestedFlags[i];
