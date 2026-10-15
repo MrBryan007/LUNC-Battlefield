@@ -1,4 +1,5 @@
-/* Hits leave marks + lived-in bases. Cosmetic only. Does not touch market math. */
+/* Hits leave marks + lived-in bases. Cosmetic only. Does not touch market math.
+ * v12.0.13: soft earthy scorches (no solid black). */
 (function (global) {
   'use strict';
   var LB = global.LUNCBattle = global.LUNCBattle || {};
@@ -28,13 +29,26 @@
     });
   }
 
+  function softScarMat(color, opacity) {
+    var THREE = E().THREE;
+    var m = new THREE.MeshStandardMaterial({
+      color: color, roughness: 0.95, metalness: 0.02,
+      transparent: true, opacity: opacity == null ? 0.4 : opacity, depthWrite: false,
+      polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2
+    });
+    try {
+      if (LB.proctex && LB.proctex.blobMask) { m.alphaMap = LB.proctex.blobMask(THREE); m.needsUpdate = true; }
+    } catch (_) {}
+    return m;
+  }
+
   function crater(x, z, r) {
     var THREE = E().THREE;
     var g = new THREE.Group();
-    var hole = new THREE.Mesh(new THREE.CircleGeometry(r, 8), mat(0x161210, 0.95, 0.02));
+    var hole = new THREE.Mesh(new THREE.CircleGeometry(r, 10), softScarMat(0x5a4a38, 0.32));
     hole.rotation.x = -Math.PI / 2;
     hole.position.y = 0.04;
-    var rim = new THREE.Mesh(new THREE.RingGeometry(r * 0.8, r * 1.2, 8), mat(0x3a3026, 0.9, 0.04));
+    var rim = new THREE.Mesh(new THREE.RingGeometry(r * 0.8, r * 1.2, 10), softScarMat(0x6a5a44, 0.24));
     rim.rotation.x = -Math.PI / 2;
     rim.position.y = 0.06;
     g.add(hole, rim);
@@ -46,7 +60,7 @@
     var THREE = E().THREE;
     var g = new THREE.Group();
     var core = new THREE.Mesh(new THREE.SphereGeometry(0.3, 5, 4), mat(0xff5a12, 0.4, 0, 0.9, 0xff4400, 1.2));
-    var smoke = new THREE.Mesh(new THREE.SphereGeometry(0.45, 5, 4), mat(0x2a2620, 0.9, 0, 0.35));
+    var smoke = new THREE.Mesh(new THREE.SphereGeometry(0.45, 5, 4), new THREE.MeshBasicMaterial({ color: 0x8a8478, transparent: true, opacity: 0.16, depthWrite: false }));
     smoke.position.y = 0.9;
     g.add(core, smoke);
     g.position.set(x, H(x, z) + 0.15, z);
@@ -67,7 +81,7 @@
     var g = new THREE.Group();
     var wall = new THREE.Mesh(new THREE.BoxGeometry(3.2, 1.4, 0.3), mat(0x4a4540, 0.88, 0.12));
     wall.position.y = 0.7;
-    var hole = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.6, 0.35), mat(0x1a1612, 0.95, 0.02));
+    var hole = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.6, 0.35), mat(0x3a342c, 0.92, 0.04));
     hole.position.set(0.4, 0.8, 0);
     g.add(wall, hole);
     g.position.set(x, H(x, z), z);
@@ -133,7 +147,7 @@
     // Seed a few marks so the field already looks hit
     var seeds = low() ? 3 : 6;
     for (var i = 0; i < seeds; i++) {
-      markAt(-30 + i * 12, (i % 2 ? 6 : -6));
+      markAt(-28 + i * 14, (i % 2 ? 9 : -9));
     }
     hookExplosions();
     state.ready = true;

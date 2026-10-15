@@ -1,4 +1,4 @@
-/* LUNC Battlefield v12.0.12 — Base invasions (deepened). Game/sim layer.
+/* LUNC Battlefield v12.0.13 — Base invasions + camo wear. Game/sim layer.
  * Each HQ gets barracks infantry, sentry + MG turrets, mortars, rockets, sniper towers, AA,
  * perimeter walls/gates and night searchlights. AI assault groups and player Raid orders attack
  * the enemy base; defenses fire (tracers 1-in-5, arcing mortars, rocket salvos, sniper, AA on jets).
@@ -32,12 +32,15 @@
   function far(x, z) { return camDist(x, z) > 140; }
 
   function mat(color, rough, metal) {
+    // v12.0.13: slightly higher roughness = worn paint / fabric, less plastic shine
     return new THREE.MeshStandardMaterial({
-      color: color, roughness: rough == null ? 0.72 : rough, metalness: metal == null ? 0.28 : metal
+      color: color,
+      roughness: rough == null ? 0.84 : rough,
+      metalness: metal == null ? 0.18 : metal
     });
   }
-  function factionColor(side) { return side < 0 ? 0x3d6b4a : 0x6b3d3d; }
-  function factionAccent(side) { return side < 0 ? 0x4a8a5c : 0x8a4a4a; }
+  function factionColor(side) { return side < 0 ? 0x3a4f30 : 0x5a3a32; } // olive drab / rust camo
+  function factionAccent(side) { return side < 0 ? 0x2a3a24 : 0x4a2e28; }
 
   // ------------------------------------------------------------- radio + siren
   function radioAttack(targetSide) {
@@ -830,6 +833,9 @@
       var d = list[0]; d.userData.hp -= (amount || 999); if (d.userData.hp <= 0) wreck(d); return true;
     },
     _wreckCount: function (side) { return defenses.filter(function (d) { return d.userData.side === side && d.userData.wreck; }).length; },
+    _forEachDefense: function (fn) { defenses.forEach(fn); },
+    _forEachBarracks: function (fn) { barracks.forEach(fn); },
+    _forEachWall: function (fn) { walls.forEach(fn); gates.forEach(fn); },
     _step: function (sec) { if (!ready) return; for (var t = 0; t < sec; t += 0.05) step(0.05); }
   };
 })(window);

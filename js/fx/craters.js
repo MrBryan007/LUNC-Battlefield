@@ -190,7 +190,7 @@
     var m = new THREE.MeshBasicMaterial({
       // v12.0.5: normal alpha blending. MultiplyBlending × the soft-dot map turned the dot's transparent edge (rgb 0)
       // into solid black discs on LOW ("black ground patches"). Fade is now done by shrinking + darkening toward the ground tone.
-      color: 0x2a2117, alphaMap: LB.proctex && LB.proctex.blobMask ? LB.proctex.blobMask(THREE) : null,   // opaque grayscale mask (softDot's rgb is 1 to the edge)
+      color: 0x4a3c2e /* v12.0.13 earthy */, alphaMap: LB.proctex && LB.proctex.blobMask ? LB.proctex.blobMask(THREE) : null,   // opaque grayscale mask (softDot's rgb is 1 to the edge)
       transparent: true, opacity: 0.62, depthWrite: false,
       polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, toneMapped: false
     });
