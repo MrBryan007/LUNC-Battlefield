@@ -251,3 +251,11 @@ body.fort-placing canvas, body.sq-moving canvas { cursor: crosshair; }
 .radio-strip .rs-log div { padding: 2px 0; }
 body[data-ui="clean"] .radio-strip, body.cutscene .radio-strip { display: none; }
 body.dock-phone .radio-strip { bottom: calc(env(safe-area-inset-bottom, 0px) + 78px); font-size: 11px; }
+
+/* v12.0.12 — base invasions status block in WAR SYSTEMS */
+.invasion-panel .inv-status { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; font: 500 11px Inter, sans-serif; color: #c8d2cb; }
+.invasion-panel .inv-row { padding: 4px 6px; border-radius: 6px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.06); }
+.invasion-panel .inv-row.b b { color: #5fd68a; }
+.invasion-panel .inv-row.r b { color: #ff8a7a; }
+.invasion-panel .inv-row b { margin-right: 6px; font: 700 11px Rajdhani, Inter, sans-serif; letter-spacing: .4px; }
+body[data-ui="clean"] #invasionPanel { display: none; }

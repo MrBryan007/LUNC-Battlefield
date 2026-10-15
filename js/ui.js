@@ -4,6 +4,18 @@
   const LB = global.LUNCBattle;
   const DT = LB.DataTruth;
 
+  // Escape untrusted API / remote strings before any HTML insertion.
+  function esc(s) {
+    if (s == null) return '';
+    return String(s)
+      .replace(/&/g, '&')
+      .replace(/</g, '<')
+      .replace(/>/g, '>')
+      .replace(/"/g, '"')
+      .replace(/'/g, '&#39;');
+  }
+
+
   /** Rolling LIVE liquidation events (max ~80, 10 min window). */
   const liqEvents = [];
   const LIQ_TTL_MS = 10 * 60 * 1000;
@@ -237,7 +249,7 @@
         burnsEl.innerHTML = '<div class="intel-card burn-card">'
           + '<span class="truth-live">LIVE</span> · ' + burns.events.length + ' events'
           + '<div class="micro">Latest ' + amtStr + ' LUNC'
-          + (top.source ? ' · ' + top.source : '') + '</div></div>';
+          + (top.source ? ' · ' + esc(top.source) : '') + '</div></div>';
       } else {
         burnsEl.textContent = burns.truth + (burns.reason ? ' — ' + burns.reason : '');
       }
@@ -248,8 +260,8 @@
       if (whales.truth === DT.LIVE && whales.events && whales.events.length) {
         whalesEl.innerHTML = '<div class="intel-card whale-card">'
           + '<span class="truth-live">LIVE</span> · ' + whales.events.length + ' events'
-          + '<div class="micro">' + (whales.events[0].classification || 'activity')
-          + (whales.events[0].source ? ' · ' + whales.events[0].source : '') + '</div></div>';
+          + '<div class="micro">' + esc(whales.events[0].classification || 'activity')
+          + (whales.events[0].source ? ' · ' + esc(whales.events[0].source) : '') + '</div></div>';
       } else {
         whalesEl.textContent = whales.truth + (whales.reason ? ' — ' + whales.reason : '');
       }
@@ -261,7 +273,7 @@
         const p = gov.proposals[0];
         govEl.innerHTML = '<div class="intel-card gov-card">'
           + '<span class="truth-live">LIVE</span> · ' + gov.proposals.length + ' proposals'
-          + '<div class="micro">' + (p.title || p.id || 'proposal') + '</div></div>';
+          + '<div class="micro">' + esc(p.title || p.id || 'proposal') + '</div></div>';
       } else {
         govEl.textContent = gov.truth + (gov.reason ? ' — ' + gov.reason : '');
       }
@@ -278,7 +290,7 @@
       const list = document.getElementById('validatorsList');
       if (list) {
         list.innerHTML = v.slice(0, 8).map(function (val) {
-          const name = val.name || val.moniker || val.operator_address || 'validator';
+          const name = esc(val.name || val.moniker || val.operator_address || 'validator');
           const power = val.votingPower != null ? val.votingPower : (val.tokens != null ? val.tokens : '—');
           return '<div class="row"><span>' + name + '</span><strong>' + power + '</strong></div>';
         }).join('');

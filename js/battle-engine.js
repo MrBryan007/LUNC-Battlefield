@@ -246,6 +246,7 @@
         if (LUNCBattle.soundscape) { try { LUNCBattle.soundscape.update(); } catch (e) { if (!drawFrame._sndErr) { drawFrame._sndErr = 1; console.warn('[soundscape]', e); } } }
         if (LUNCBattle.fow) { try { LUNCBattle.fow.update(); } catch (e) { if (!drawFrame._fowErr) { drawFrame._fowErr = 1; console.warn('[fow]', e); } } }
         if (LUNCBattle.voice) { try { LUNCBattle.voice.update(); } catch (e) { if (!drawFrame._vErr) { drawFrame._vErr = 1; console.warn('[voice]', e); } } }
+        if (LUNCBattle.baseInvasion) { try { LUNCBattle.baseInvasion.update(); } catch (e) { if (!drawFrame._invErr) { drawFrame._invErr = 1; console.warn('[invasion]', e); } } }
       }
       // v11.3: Mini Nuke cinematic owns the camera while active (runs even while paused)
       if (window.LUNCBattle && LUNCBattle.cutscene && LUNCBattle.cutscene.isActive()) {
@@ -817,10 +818,13 @@
             LUNCBattle.ui.setPriceChange(coin.usd_24h_change, LUNCBattle.DataTruth.LIVE);
           }
         }
-        // Estimated walls only when no live book — clearly ESTIMATED, never labeled Binance
+        // Estimated walls only when no live book — clearly ESTIMATED, never labeled Binance.
+        // Deterministic: same volume + price always yields the same walls (no Math.random).
         if(depthSource!==SRC.BINANCE && depthSource!==SRC.API) {
           const vol=coin.usd_24h_vol||5e6, base=Math.max(.7,Math.min(5,vol/3.5e6));
-          buyWall=base*(.92+Math.random()*.18); sellWall=base*(.90+Math.random()*.2);
+          const seed = Math.abs(Math.sin((vol || 1) * 0.000001 + (price || 1) * 1000));
+          buyWall=base*(0.92 + seed * 0.18);
+          sellWall=base*(0.90 + (1 - seed) * 0.20);
           depthVendorLabel = 'Estimated (CoinGecko vol proxy)';
         }
         updateStatusUI(); return true;
