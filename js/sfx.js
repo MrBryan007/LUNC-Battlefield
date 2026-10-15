@@ -222,10 +222,44 @@
     noise(0.1, 'bandpass', 2200, 5, 0.035, 0.002);
     tone(base, base * 0.92, 0.05, 'square', 0.018, ctx.currentTime + 0.1); tone(base * 1.25, 0, 0.04, 'square', 0.014, ctx.currentTime + 0.17);
   }
+
+  /** Air-raid / base-under-attack siren. Respects mute, volume, pause and iOS unlock (via ensure). */
+  function siren() {
+    if (!ensure() || muted) return;
+    if (!voice(1800)) return;
+    intensity = Math.min(1, intensity + 0.12);
+    var t0 = ctx.currentTime;
+    // Rising/falling saw sweep through compressor/master so mute & volume apply
+    var o = ctx.createOscillator(); o.type = 'sawtooth';
+    o.frequency.setValueAtTime(380, t0);
+    o.frequency.linearRampToValueAtTime(720, t0 + 0.55);
+    o.frequency.linearRampToValueAtTime(400, t0 + 1.1);
+    o.frequency.linearRampToValueAtTime(680, t0 + 1.55);
+    var g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(0.09, t0 + 0.04);
+    g.gain.exponentialRampToValueAtTime(0.06, t0 + 1.2);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.7);
+    var f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 900; f.Q.value = 0.7;
+    o.connect(f); f.connect(g); g.connect(comp);
+    o.start(t0); o.stop(t0 + 1.75);
+    // Second harmonic for urgency
+    var o2 = ctx.createOscillator(); o2.type = 'square';
+    o2.frequency.setValueAtTime(190, t0);
+    o2.frequency.linearRampToValueAtTime(360, t0 + 0.55);
+    o2.frequency.linearRampToValueAtTime(200, t0 + 1.55);
+    var g2 = ctx.createGain();
+    g2.gain.setValueAtTime(0.0001, t0);
+    g2.gain.exponentialRampToValueAtTime(0.035, t0 + 0.05);
+    g2.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.7);
+    o2.connect(g2); g2.connect(comp);
+    o2.start(t0); o2.stop(t0 + 1.75);
+  }
+
   LB.sfx = {
     setBeds: setBeds, jetPass: jetPass, blip: blip, audio: function () { return ctx ? { ctx: ctx, comp: comp, beds: !!beds } : null; },
     setVolume: setVolume, getVolume: function () { return volume; }, combat: combat, getIntensity: function () { return intensity; },
-    explosion: explosion, gunfire: gunfire, jet: jet, ui: ui, success: success, fail: fail, rank: rank, radio: radio,
+    explosion: explosion, gunfire: gunfire, jet: jet, ui: ui, success: success, fail: fail, rank: rank, radio: radio, siren: siren,
     setMuted: setMuted, isMuted: function () { return muted; }, toggleMute: function () { setMuted(!muted); return muted; },
     setPaused: setPaused, ready: function () { return !!ctx; }
   };

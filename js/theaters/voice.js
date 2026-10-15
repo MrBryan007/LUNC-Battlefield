@@ -36,6 +36,7 @@
     start: ['All stations, this is Overlord. Radio check. The battlefield is live, over.'],
     weather: { fog: 'Watchtower, fog rolling in. Visibility dropping, over.', rain: 'Watchtower, rain over the sector. Expect sloppy air ops, over.', clear: 'Watchtower, skies clearing, over.' },
     night: 'Overlord, sun is down. Night ops, watch for tracers, over.', day: 'Overlord, first light. Back to day ops, over.',
+    invasion: ['Watchtower, BASE UNDER ATTACK. Repeat, base under attack, over.', 'All stations, hostile forces on the wire. BASE UNDER ATTACK, over.', 'HQ, perimeter breach inbound. Siren is live. BASE UNDER ATTACK, over.'],
     humor: ['{c}, who left the coffee on the tank? Over.', 'HQ, request permission to buy the dip. Request denied, over.', '{c}, my horoscope said sideways today. Roger, out.', 'Watchtower, someone keeps shouting wen moon on this channel. Cut it out, over.', '{c}, the chart is not a map, repeat, the chart is not a map. Over.']
   };
   function pick(a) { return a[(Math.random() * a.length) | 0]; }
@@ -120,13 +121,14 @@
     if (kind === 'cut') { if (side === me) { tpl = LINES.cutUs; pri = P.alert; cs = 'HQ'; } else tpl = LINES.cut; }
     else if (kind === 'raid') { tpl = LINES.raid; pri = P.alert; cs = 'Watchtower'; side = 0; }
     else if (kind === 'carrier' || kind === 'nuke') { tpl = LINES[kind]; pri = P.alert; cs = 'Overlord'; side = 0; }
+    else if (kind === 'invasion') { tpl = LINES.invasion; pri = P.alert; cs = 'Watchtower'; side = 0; }
     else tpl = LINES[kind];
     if (!tpl) return;
     if (side && side !== me && kind !== 'cut') { intercepted = true; pri = Math.min(pri, P.chatter); }   // enemy chatter = intercepted
     if (/^squad_/.test(kind) && side === me) pri = P.chatter;
     cs = cs || call(side);
     text = pick(tpl).replace('{c}', cs).replace('{x}', extra || '');
-    say({ pri: pri, side: side, text: text, intercepted: intercepted, callsign: cs, tag: kind === 'raid' || kind === 'carrier' || kind === 'nuke' ? 'ALERT' : '' });
+    say({ pri: pri, side: side, text: text, intercepted: intercepted, callsign: cs, tag: kind === 'raid' || kind === 'carrier' || kind === 'nuke' || kind === 'invasion' ? 'ALERT' : '' });
   }
 
   // ------------------------------------------------------------- HQ announcements (polled)
