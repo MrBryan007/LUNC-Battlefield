@@ -26,6 +26,21 @@ Solid:
 ## v12.0.12 "Base invasions" (shipped 2026-10-15)
 Deepened HQ base defense and assault: firing defenses, wrecks + fuel rebuild, barracks respawn, AI assaults + player Raid, siren/sfx + voice ALERT, WAR SYSTEMS status panel, breach score reward. Kill switch `?invasion=0`. PRs #9–#13 stabilization / look / war-zone / lived-in marks folded into this version bump.
 
+
+## v12.0.13 "Realism pass, part 1" (shipped 2026-10-15)
+Soft frontline scars/smoke (no black strip), layered explosions, SOS-delayed far blasts, camo/PBR wear on invasion bases, gravity ballistic arcs for shells/arty, muzzle/fire lights. Kill switch `?realism=0`.
+
+**Still open for later realism passes (checklist gaps):**
+- **Scale & spacing:** soldier/MBT/carrier real-world proportions; formations still a bit clumped on LOW; base roads/revetments incomplete.
+- **Materials:** authored GLB unit/vehicle skins (current models are procedural boxes); dirt/wear maps on ground units and vehicles; wet shoreline PBR.
+- **Lighting & atmosphere:** dynamic sun-angle shadows on LOW-safe path; volumetric light shafts; better day/night color temperature around bases.
+- **Terrain:** height-aware tracks that persist under vehicles; shoreline foam upgrade; less z-fighting on trench berms.
+- **Motion & physics:** vehicle suspension bob; aircraft banking on turns; ship roll in waves; ragdoll weight tweaks.
+- **Combat behavior:** cover usage, suppression, bounding overwatch, flanking already partly in squads — deepen retreat/medic ranges.
+- **FX:** tracer 1-in-5 everywhere (partial); fires that burn out over minutes; persistent wreck LODs further out.
+- **Audio & radio:** Doppler on more than jets; authentic brevity codes; positional gunfire HRTF-ish pan.
+- **UI:** NATO-ish map symbols on the world inset; less pastel unit silhouettes on the minimap.
+
 ## v12.1 "War Systems"
 **Shipped so far (v12.0.1, 2026-10-13, part 1):** supply drops. Cargo planes, parachute crates with colored smoke, a ground ring and a world-map ping. Fuel / ammo / intel / power-up contents. One AI squad per side races to each crate, with a capture ring and a CONTESTED state. Per-side tally in Map → WAR SYSTEMS. The Commander can call a drop (60 s cooldown). For the Commander's side: intel lifts fog of war around the zone for 30 s, ammo cuts active cooldowns by 30 % (stand-in until reinforcement waves exist), power-up adds +25 Moon Shot charge. `?supply=0` turns it off. Fuel is banked but not spent yet (needs the resource economy / tech tree slice).
 

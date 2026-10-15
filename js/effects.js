@@ -101,7 +101,7 @@
     }
 
     const SHARED = {
-      scorch: new THREE.MeshBasicMaterial({ color: 0x1a1612, transparent: true, opacity: 0.55, depthWrite: false }),
+      scorch: new THREE.MeshBasicMaterial({ color: 0x4a3c2e, transparent: true, opacity: 0.35, depthWrite: false }), // v12.0.13 earthy
       ring: new THREE.MeshBasicMaterial({ color: 0xffe6a8, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false }),
       spark: hotMat(0xffcc66, 0.85),
       smoke: new THREE.MeshBasicMaterial({ color: 0x3b4039, transparent: true, opacity: 0.85, depthWrite: false, map: PT ? PT.smokePuff(THREE) : null }),
@@ -779,6 +779,9 @@
         spawnFireCore(x, z, 0.9 + power * 0.35, 0.85 + power * 0.2);
       } else if (isBurn && CAPS.aftermath > 0) {
         spawnFireCore(x, z, 0.7 + power * 0.2, 0.55);
+      } else if (CAPS.aftermath > 0 && power >= 0.9 && global.LUNCBattle && LUNCBattle.realism && LUNCBattle.realism.isEnabled && LUNCBattle.realism.isEnabled()) {
+        // v12.0.13 realism: flash→fireball core on medium+ blasts
+        spawnFireCore(x, z, 0.55 + power * 0.2, 0.45 + power * 0.1);
       }
 
       acquireFlashLight(

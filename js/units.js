@@ -5,6 +5,7 @@
 
   function createUnitsApi(ctx) {
     const { THREE, scene, terrainHeight, mat } = ctx;
+    const mobile = !!ctx.mobile;
     const Anim = (LB && LB.animations) || null;
     const STATES = (Anim && Anim.STATES) || {
       IDLE: 'IDLE', WALK: 'WALK', RUN: 'RUN', AIM: 'AIM', FIRE: 'FIRE',
@@ -97,16 +98,19 @@
       shadowJet: new THREE.CircleGeometry(0.95, 12)
     };
 
+    // v12.0.13: soft grey-brown contact shadows (pure black discs stacked into a front-line strip)
+    const _shadowMap = (global.LUNCBattle && LUNCBattle.proctex && LUNCBattle.proctex.softDot) ? LUNCBattle.proctex.softDot(THREE) : null;
+    const _shadowOp = mobile ? 0.08 : 0.12;
     const shadowMat = (Mats && Mats.basic)
-      ? Mats.basic({ color: 0x000000, transparent: true, opacity: 0.18, depthWrite: false })
+      ? Mats.basic({ color: 0x2a241c, transparent: true, opacity: _shadowOp, depthWrite: false, map: _shadowMap })
       : new THREE.MeshBasicMaterial({
-          color: 0x000000, transparent: true, opacity: 0.18, depthWrite: false
+          color: 0x2a241c, transparent: true, opacity: _shadowOp, depthWrite: false, map: _shadowMap
         });
     // Shared transparent mats (avoid per-unit .clone() — unique mats break batching / inflate counts)
     const shadowMatAir = (Mats && Mats.basic)
-      ? Mats.basic({ color: 0x000000, transparent: true, opacity: 0.12, depthWrite: false })
+      ? Mats.basic({ color: 0x2a241c, transparent: true, opacity: mobile ? 0.05 : 0.08, depthWrite: false, map: _shadowMap })
       : new THREE.MeshBasicMaterial({
-          color: 0x000000, transparent: true, opacity: 0.12, depthWrite: false
+          color: 0x2a241c, transparent: true, opacity: mobile ? 0.05 : 0.08, depthWrite: false, map: _shadowMap
         });
     const rotorDiscMat = (Mats && Mats.basic)
       ? Mats.basic({ color: 0x3a4640, transparent: true, opacity: 0.55, depthWrite: false })

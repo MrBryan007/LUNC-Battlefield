@@ -51,7 +51,7 @@
       color: 0x1a2218, roughness: 0.35, metalness: 0.15,
       emissive: 0x2a3a28, emissiveIntensity: 0.08
     },
-    'structure.scorch': { color: 0x1c1a16, roughness: 1, metalness: 0 },
+    'structure.scorch': { color: 0x4a3c2e, roughness: 1, metalness: 0 },
     'structure.rubble': { color: 0x4a4a40, roughness: 0.95, metalness: 0.04 },
     'structure.earth': { color: 0x5a4a34, roughness: 1, metalness: 0.01 },
     'structure.wallBull': { color: 0x5c5e54, roughness: 0.92, metalness: 0.04 },
@@ -92,8 +92,8 @@
     'prop.sandbag': { color: 0x6a5a3e, roughness: 0.98, metalness: 0.02 },
     'prop.crate': { color: 0x5a442e, roughness: 0.88, metalness: 0.04 },
     'prop.scorched': {
-      color: 0x141210, roughness: 1, metalness: 0,
-      transparent: true, opacity: 0.45, depthWrite: false
+      color: 0x4a3c2e, roughness: 1, metalness: 0,
+      transparent: true, opacity: 0.38, depthWrite: false
     }
   };
 
