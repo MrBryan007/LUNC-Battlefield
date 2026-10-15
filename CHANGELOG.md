@@ -1,5 +1,15 @@
 # Changelog
 
+## v12.0.12 — Base invasions (2026-10-15, AI build)
+- Deepened base invasions (`js/theaters/base-invasion.js`): each HQ now has barracks infantry that respawn, sentry and machine-gun turrets, mortars, rocket launchers, sniper towers, AA guns, perimeter walls, gates and night searchlights (searchlights only when the day/night cycle is night).
+- Defenses actually fire: MG/sentry tracers (about 1-in-5 visible, realism style), arcing mortar shells, rocket salvos, sniper shots, and AA that tracks enemy jets. Assault squads and Commander strikes damage defenses; wrecks persist and rebuild for 6 fuel from the war economy.
+- Each side's AI periodically sends an assault group at the enemy base. Map → WAR SYSTEMS · BASE INVASIONS has a Raid button (orders a squad + assault group, siren + radio) and a Rebuild button. A base breach awards Commander score (game layer only — never changes price, armies or the front).
+- Siren goes through the shared `sfx` (mute / volume / iOS unlock). "BASE UNDER ATTACK" goes through the voice queue at alert priority with the subtitle / radio log. Gates open for friendly sorties. Status block shows base HP, defenses up/wrecked, barracks headcount and next-assault ETA. Hidden in Hide UI clean mode. `?invasion=0` turns it off. Scales down on LOW/phone; far defenses skip fire on LOW.
+- Also covers the earlier PRs #9–#13 that landed on `main` without a version bump: stabilization + gfx recover, invasion feel, battlefield look, war zone FX, and hit marks / lived-in bases (`js/boot-stage.js`, `js/gfx-recover.js`, `js/fx/*.js`, early `base-invasion.js`).
+- Version bump to v12.0.12 (BUILD, quality api, index tags, cache-bust `?v=20261015v12012`). `feat/v11.1-perf` synced with `main` on deploy.
+- Tested: `node --check` on all JS, asset-lifecycle, stabilization-smoke, headless HIGH / MEDIUM / LOW / phone 390×844 with 0 page errors; feature check (assault → siren+radio, defenses fire, damage→wreck→rebuild, barracks respawn, raid, breach reward, `?invasion=0`). Screenshots in docs/v12012-shots.
+
+
 ## v12.0.11 — Wide front (2026-10-13, AI build)
 - The bases are much farther apart: both HQ compounds moved from x ±48 to ±96, so the land front is about 2x wider and deeper. The price→front mapping and frontline math are unchanged: Bulls west, Bears east, price moves the front.
 - Formations spread out: about 2x the north–south span, 1.6x more clusters per rank, 1.3x rank gap, and more jitter. Big armies now fill back toward their HQs (rear area) instead of clumping at the line.
