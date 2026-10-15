@@ -335,7 +335,7 @@
   // ------------------------------------------------------------- assaults & raids
   function spawnAssault(attackerSide, isRaid) {
     var sq = makeAssaultSquad(attackerSide);
-    var startX = attackerSide * (HQ * 0.35);
+    var startX = -attackerSide * (HQ - 36);  // approach from just outside the enemy perimeter
     var targetX = -attackerSide * HQ;
     var z = (Math.random() - 0.5) * (low() ? 10 : 18);
     sq.position.set(startX, H(startX, z), z);
@@ -389,9 +389,10 @@
 
   function breach(attackerSide, targetSide) {
     var b = bases[String(targetSide)];
-    if (b.hp <= 0) return;
-    b.hp = Math.max(0, b.hp - 28);
-    if (b.hp > 0) return;
+    if (!b || b._breachLock) return;
+    b._breachLock = true;
+    setTimeout(function () { b._breachLock = false; }, 12000);   // one breach pulse per 12 s
+    b.hp = Math.max(0, b.hp - 40);
     stats.breaches++;
     // game-layer reward only — mutate commander session score if present
     try {
@@ -412,7 +413,7 @@
     }
     stats.last = sideName(targetSide) + ' BASE BREACHED (+' + BREACH_SCORE + ' if you)';
     // soft reset base hp after a delay so the match continues
-    setTimeout(function () { if (bases[String(targetSide)]) bases[String(targetSide)].hp = bases[String(targetSide)].max * 0.55; renderUi(); }, 20000);
+    setTimeout(function () { if (bases[String(targetSide)]) bases[String(targetSide)].hp = Math.max(bases[String(targetSide)].hp, bases[String(targetSide)].max * 0.55); renderUi(); }, 20000);
     try {
       if (LB.heavyFx && LB.heavyFx.puff) {
         var bx = targetSide * HQ;
@@ -552,7 +553,7 @@
         continue;
       }
       var hit = nearestEnemySquad(d);
-      if (!hit || hit.dist > (kind === 'sniper' ? 55 : kind === 'rocket' ? 48 : kind === 'mortar' ? 42 : 32)) continue;
+      if (!hit || hit.dist > (kind === 'sniper' ? 60 : kind === 'rocket' ? 52 : kind === 'mortar' ? 48 : 38)) continue;
       var tx = hit.sq.position.x, tz = hit.sq.position.z;
       if (d.userData.head) {
         try { d.userData.head.lookAt(tx, d.position.y + 0.5, tz); } catch (_) {}
@@ -821,6 +822,7 @@
     },
     getStats: function () { return Object.assign({}, stats); },
     // test hooks
+    _forceBreach: function (attacker, target) { breach(attacker == null ? playerSide() : attacker, target == null ? -playerSide() : target); return stats.breaches; },
     _forceAssault: function (side) { return startAssault(side == null ? -playerSide() : side, false); },
     _forceDamage: function (side, amount) {
       var list = defenses.filter(function (d) { return d.userData.side === (side == null ? playerSide() : side) && !d.userData.wreck && d.userData.kind !== 'wall'; });
