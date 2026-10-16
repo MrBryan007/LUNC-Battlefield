@@ -104,10 +104,12 @@
   }
 
   function getStubMat(THREE, side) {
+    // v12.0.14 realism: dark camo silhouettes for far LOD stubs (?realism=0 → classic faction pastel)
+    var RZS = (LB.armyRealism && LB.armyRealism.stubColor && LB.armyRealism.isEnabled()) ? LB.armyRealism : null;
     if (side < 0) {
       if (!_stubMatBull) {
         _stubMatBull = new THREE.MeshBasicMaterial({
-          color: 0x49d39a, transparent: true, opacity: 0.62,
+          color: RZS ? RZS.stubColor(-1) : 0x49d39a, transparent: true, opacity: RZS ? 0.88 : 0.62,
           depthWrite: false, side: THREE.DoubleSide
         });
         _stubMatBull.userData = { luncOwned: true, luncSharedStub: true };
@@ -116,7 +118,7 @@
     }
     if (!_stubMatBear) {
       _stubMatBear = new THREE.MeshBasicMaterial({
-        color: 0xe4675f, transparent: true, opacity: 0.62,
+        color: RZS ? RZS.stubColor(1) : 0xe4675f, transparent: true, opacity: RZS ? 0.88 : 0.62,
         depthWrite: false, side: THREE.DoubleSide
       });
       _stubMatBear.userData = { luncOwned: true, luncSharedStub: true };

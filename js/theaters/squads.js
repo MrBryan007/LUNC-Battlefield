@@ -12,6 +12,7 @@
   var THREE, root, ready = false, last = 0, uiT = 0, aiT = 12, el = {}, geo = {}, mat = {}, squads = [], sel = null, moveArmed = false;
   var stats = { orders: 0, aiOrders: 0, shots: 0, flanks: 0, covers: 0, last: '' };
   function E() { return LB.engine; }
+  function RZ() { var a = LB.armyRealism; return a && a.isEnabled && a.isEnabled() && a.figure ? a : null; }
   function playerSide() { try { return LB.commander.getState().profile.side === 'bull' ? -1 : 1; } catch (_) { return -1; } }
   function sideName(s) { return s < 0 ? 'BULL' : 'BEAR'; }
   function low() { try { return LB.quality.getEffectiveName() === 'LOW' || E().mobile; } catch (_) { return false; } }
@@ -42,6 +43,7 @@
     for (var i = 0; i < n; i++) {
       var m = new THREE.Group(), b = new THREE.Mesh(geo.body, mat.side[String(side)]), h = new THREE.Mesh(geo.head, mat.skin), gun = new THREE.Mesh(geo.gun, mat.gun);
       b.position.y = 0.6; h.position.y = 1.45; gun.position.set(0.3, 0.95, 0.35); m.add(b); m.add(h); m.add(gun); g.add(m);
+      if (RZ()) { b.material = RZ().material(side, 'uniform') || b.material; RZ().figure(m, side, side < 0 ? 0x2f9a66 : 0xb4473f, 1.08, 0.33); }   // v12.0.14 camo + IFF band
       men.push({ g: m, ox: ((i % 3) - 1) * 1.6, oz: (Math.floor(i / 3) - 0.5) * 1.8, ph: Math.random() * 6.28 });
     }
     var ring = new THREE.Mesh(geo.ring, mat.sel); ring.rotation.x = -Math.PI / 2; ring.visible = false; root.add(ring);
