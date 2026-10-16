@@ -251,7 +251,7 @@
     var F = FOOT[type] || FOOT[1];
     var P = type === 1 ? 8.6 : 9.2, R = type === 1 ? 6.0 : 6.4;
     var minP = F.W + 2.6, minR = F.L + 1.1;
-    var D0 = type === 1 ? 13.5 : (lastArmorEnd[String(side < 0 ? -1 : 1)] + 5);
+    var D0 = type === 1 ? 12.0 : (lastArmorEnd[String(side < 0 ? -1 : 1)] + 5);
     var budget = type === 1 ? 34 : 26;
     var spanMax = Z_RANGE.max - Z_RANGE.min;
     var span = Math.min(spanMax, (type === 1 ? 84 : 70) * Math.max(1, (S || 1) / 2));
@@ -401,7 +401,7 @@
             var needX = (FA.L + FB.L) * 0.5 + 0.8, needZ = (FA.W + FB.W) * 0.5 + 0.8;
             var gap = Math.sqrt(dx * dx + dz * dz); if (gap < minGap) minGap = gap;
             if (Math.abs(dx) < needX && Math.abs(dz) < needZ) {
-              var push = (needZ - Math.abs(dz)) * Math.min(1, dt * 3) * 0.5;
+              var push = (needZ - Math.abs(dz)) * Math.min(1, dt * 6) * 0.5;
               var sz = dz >= 0 ? 1 : -1;
               A.position.z -= push * sz; B.position.z += push * sz;
               if (A.userData.rz) A.userData.rz.pz = A.position.z;
