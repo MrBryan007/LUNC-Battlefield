@@ -109,7 +109,7 @@
     if (side < 0) {
       if (!_stubMatBull) {
         _stubMatBull = new THREE.MeshBasicMaterial({
-          color: RZS ? RZS.stubColor(-1) : 0x49d39a, transparent: true, opacity: RZS ? 0.88 : 0.62,
+          color: RZS ? RZS.stubColor(-1) : 0x49d39a, transparent: true, opacity: RZS ? 0.5 : 0.62,
           depthWrite: false, side: THREE.DoubleSide
         });
         _stubMatBull.userData = { luncOwned: true, luncSharedStub: true };
@@ -118,7 +118,7 @@
     }
     if (!_stubMatBear) {
       _stubMatBear = new THREE.MeshBasicMaterial({
-        color: RZS ? RZS.stubColor(1) : 0xe4675f, transparent: true, opacity: RZS ? 0.88 : 0.62,
+        color: RZS ? RZS.stubColor(1) : 0xe4675f, transparent: true, opacity: RZS ? 0.5 : 0.62,
         depthWrite: false, side: THREE.DoubleSide
       });
       _stubMatBear.userData = { luncOwned: true, luncSharedStub: true };
