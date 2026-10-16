@@ -165,7 +165,7 @@
   function iffMaterial(color) {
     var key = String(color);
     if (iffCache[key]) return iffCache[key];
-    var m = new (T().MeshStandardMaterial)({ color: color, roughness: 0.6, metalness: 0.05, emissive: color, emissiveIntensity: 0.28 });
+    var m = new (T().MeshStandardMaterial)({ color: color, roughness: 0.6, metalness: 0.05, emissive: color, emissiveIntensity: 0.2 });
     m.name = 'rz.iff.' + key;
     iffCache[key] = m;
     return m;
@@ -255,6 +255,8 @@
     var budget = type === 1 ? 34 : 26;
     var spanMax = Z_RANGE.max - Z_RANGE.min;
     var span = Math.min(spanMax, (type === 1 ? 84 : 70) * Math.max(1, (S || 1) / 2));
+    // small armies (phone / LOW) form a compact company block (≥ 2–3 ranks) instead of one long thin line
+    if (count <= 40) span = Math.min(span, Math.max(P * 3, P * (Math.ceil(count / 3) - 1)));
     function rowsFor(sp, p) { var per = Math.max(1, Math.floor(sp / p) + 1); return { per: per, rows: Math.ceil(count / per) }; }
     var L = rowsFor(span, P);
     while (L.rows * R > budget && span < spanMax) { span = Math.min(spanMax, span + 8); L = rowsFor(span, P); }
