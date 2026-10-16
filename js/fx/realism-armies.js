@@ -152,7 +152,9 @@
     var key = sideKey(side) + '.' + kindName;
     if (matCache[key]) return matCache[key];
     var K = KIND[kindName] || KIND.armor, P = PAL[sideKey(side)];
-    var c = new (T().Color)(K.air ? (side < 0 ? 0x5d646b : 0x67635a) : P.base);
+    // three r128 treats material colours as linear: convert the sRGB palette so it displays as authored
+    // (the camo multipliers / dust are linear too). Raw hex here washed Bears out to pink-white.
+    var c = lin(K.air ? (side < 0 ? 0x5d646b : 0x67635a) : P.base);
     c.multiplyScalar(K.mul);
     var m = new (T().MeshStandardMaterial)({ color: c, roughness: K.rough, metalness: K.metal, envMapIntensity: 0.45 });
     m.name = 'rz.' + key;
@@ -456,9 +458,9 @@
     aiZLimit: aiZLimit,
     palette: function (side) { return PAL[sideKey(side)]; },
     /** sRGB hex for soldier fatigues (ragdolls / persistent bodies). */
-    bodyColor: function (side) { return side < 0 ? 0x525b38 : 0x4d544a; },
+    bodyColor: function (side) { return lin(side < 0 ? 0x525b38 : 0x4d544a).getHex(); },
     /** Far-LOD stub colour (dark camo silhouette instead of pastel). */
-    stubColor: function (side) { return side < 0 ? 0x3f4830 : 0x474b42; },
+    stubColor: function (side) { return lin(side < 0 ? 0x3f4830 : 0x474b42).getHex(); },
     SCALE: SCALE, MOVE: MOVE, FOOT: FOOT
   };
   if (!enabled) {
