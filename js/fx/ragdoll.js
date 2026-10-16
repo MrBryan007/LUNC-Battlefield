@@ -48,6 +48,7 @@
   function spawn(u, bx, bz, power, mode) {
     var e = E(), THREE = e.THREE, g = acquire(), ud = g.userData;
     var col = u.userData.side < 0 ? e.bullColor() : e.bearColor();
+    if (LB.armyRealism && LB.armyRealism.bodyColor) col = LB.armyRealism.bodyColor(u.userData.side);   // v12.0.14 camo fatigues
     if (!ud.mat) ud.mat = new THREE.MeshStandardMaterial({ roughness: 0.85, metalness: 0.05, transparent: true });
     var m = ud.mat; m.color.setHex(col);
     ud.segs.forEach(function (s) { s.material = m; }); ud.head.material = m;
@@ -144,6 +145,7 @@
   // v11.3: freeze a settled body into the persistent batch and reinforce the soldier
   function bake(r) {
     var col = r.u && r.u.userData && r.u.userData.side < 0 ? E().bullColor() : E().bearColor();
+    if (LB.armyRealism && LB.armyRealism.bodyColor && r.u && r.u.userData) col = LB.armyRealism.bodyColor(r.u.userData.side);
     if (r.mode === 'tumble') r.g.updateMatrixWorld(true);
     LB.persist.addBody(r.g, col);
     finish(r);

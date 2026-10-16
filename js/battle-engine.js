@@ -2126,6 +2126,8 @@
       }
 
       const now=performance.now()*.001;
+      // v12.0.14 realism pass 2 (armies) hooks — null with ?realism=0
+      const ARMY_RZ = (window.LUNCBattle && LUNCBattle.armyRealism && LUNCBattle.armyRealism.postTick) ? LUNCBattle.armyRealism : null;
       function tickAirCombat(u, side, dt, now) {
         const ud = u.userData;
         const type = ud.type | 0;
@@ -2186,7 +2188,9 @@
           else rate = contested ? 0.12 : 0.28; // arty mostly holds rear
           // Near desired + contested → idle more (slow crawl)
           if (contested && Math.abs(dx) < 1.2) rate *= 0.25;
-          const step = dx * Math.min(1, dt * rate);
+          let step = dx * Math.min(1, dt * rate);
+          // v12.0.14 realism (cosmetic): vehicles accelerate/brake toward the SAME desired X (front math untouched)
+          if (ARMY_RZ) step = ARMY_RZ.limitStep(u, type, step, dx, dt);
           const prevX = u.position.x;
           u.position.x += step;
           const speed = Math.abs(step) / Math.max(dt, 1e-4);
@@ -2205,7 +2209,9 @@
           }
           // v8.3: apply rootBob after tickUnit so infantry bob is same-frame
           u.position.y = terrainHeight(u.position.x, u.position.z) + (u.userData.rootBob || 0);
+          if (ARMY_RZ && type !== 0) ARMY_RZ.postTick(u, type, side, dt, now, targetX);
         });
+        if (ARMY_RZ) ARMY_RZ.separate(arr, dt);
       }
       function runUnits() {
         // Ground units only timed as "units"; air branch timed separately below.
@@ -2236,7 +2242,8 @@
             else if (type === 1) rate = urgent ? 0.95 : contested ? 0.35 : 0.7;
             else rate = contested ? 0.12 : 0.28;
             if (contested && Math.abs(dx) < 1.2) rate *= 0.25;
-            const step = dx * Math.min(1, dt * rate);
+            let step = dx * Math.min(1, dt * rate);
+            if (ARMY_RZ) step = ARMY_RZ.limitStep(u, type, step, dx, dt);
             const prevX = u.position.x;
             u.position.x += step;
             u.userData.speed = Math.abs(step) / Math.max(dt, 1e-4);
@@ -2251,7 +2258,9 @@
               });
             }
             u.position.y = terrainHeight(u.position.x, u.position.z) + (u.userData.rootBob || 0);
+            if (ARMY_RZ && type !== 0) ARMY_RZ.postTick(u, type, side, dt, now, targetX);
           });
+          if (ARMY_RZ) ARMY_RZ.separate(arr, dt);
         }
         moveGround(bulls, -1); moveGround(bears, 1);
       }

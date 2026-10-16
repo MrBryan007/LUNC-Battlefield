@@ -51,6 +51,9 @@
   var tmpM = new (global.THREE ? global.THREE.Matrix4 : function () {})();
 
   function q() { return LB.quality && LB.quality.getEffectiveName ? LB.quality.getEffectiveName() : 'HIGH'; }
+  // v12.0.14 realism pass 2 (armies): faction camo instead of faction-tinted paint, camo shader, IFF roof panels.
+  function AR() { var a = LB.armyRealism; return a && a.isEnabled && a.isEnabled() && a.patch ? a : null; }
+  var RZ_GLB = { soldier: [0x56603f, 0x545a4e], veh: [0x5a6242, 0x51574c], tex: [0xe6ead2, 0xd8dad2] };
   function det(i, s) { var x = Math.sin((i + 1.37) * 12.9898 + s * 78.233) * 43758.5453; return x - Math.floor(x); }
 
   // ---------------------------------------------------------------- baking
@@ -210,7 +213,7 @@
     function colorFor(m, f) {
       var name = (m.material && m.material.name) || '';
       var base = (m.material && m.material.color) ? m.material.color.clone() : new THREE.Color(1, 1, 1);
-      if (name === 'Swat') return factionTint(C(0x4f5644), factions[f], 0.14); // olive fatigues + faction
+      if (name === 'Swat') return AR() ? C(RZ_GLB.soldier[f]) : factionTint(C(0x4f5644), factions[f], 0.14); // olive fatigues + faction
       if (name === 'Swat_Black') return C(0x23262a);                          // plate carrier / boots
       if (name === 'Visor') return C(f === 0 ? 0x2a9a90 : 0xa8452a).lerp(C(factions[f]), 0.4);
       return base;
@@ -234,6 +237,7 @@
     }
     var rifleBase = null;
     var mats = factions.map(function () { return stdMat({ vertexColors: true, roughness: 0.72, metalness: 0.06, env: 0.7 }); });
+    if (AR()) mats.forEach(function (m, f) { AR().patch(m, f === 0 ? -1 : 1, 'glbInf'); });
     soldierBatches = [[], []];
     var keys = Object.keys(CLIPS);
     var chain = Promise.resolve();
@@ -337,27 +341,59 @@
         var geos = flat.map(function (e) {
           var nm = (e.mat && e.mat.name) || '';
           var c = e.mat && e.mat.color ? e.mat.color.clone() : new THREE.Color(1, 1, 1);
-          if (/^Main(_Light)?$/.test(nm)) c = factionTint(C(opts.camo || 0x56604c), factions[f], 0.06);
+          if (/^Main(_Light)?$/.test(nm)) c = AR() ? C(RZ_GLB.veh[f]).multiplyScalar(nm === 'Main_Light' ? 1.12 : 1) : factionTint(C(opts.camo || 0x56604c), factions[f], 0.06);
           else if (nm === 'Main_Dark') c = C(0x2f342c);
           else if (nm === 'Wheels') c = C(0x1d1f21);
           else if (nm === 'Main_Details') c = C(0x3b3f3a);
           return bakeMesh(e.mesh, c);
         });
         var g = mergeGeos(geos);
-        perFaction[f].push({ geo: g, mat: stdMat({ vertexColors: true, roughness: 0.55, metalness: 0.35, env: 1.0 }), tex: false });
+        var fm = stdMat({ vertexColors: true, roughness: 0.55, metalness: 0.35, env: 1.0 });
+        if (AR()) AR().patch(fm, f === 0 ? -1 : 1, 'glbVeh');
+        perFaction[f].push({ geo: g, mat: fm, tex: false });
         allGeos.push(g);
       }
       textured.forEach(function (e) {
         var g2 = bakeMesh(e.mesh, null);
         var m2 = stdMat({ map: militaryTexture(e.mat.map), roughness: 0.58, metalness: 0.3, env: 1.0 });
-        m2.color = factionTint(C(0xe2e4d8), factions[f], 0.1);
+        m2.color = AR() ? C(RZ_GLB.tex[f]) : factionTint(C(0xe2e4d8), factions[f], 0.1);
+        if (AR()) AR().patch(m2, f === 0 ? -1 : 1, 'glbVeh');
         perFaction[f].push({ geo: g2, mat: m2, tex: true });
         allGeos.push(g2);
       });
     });
     var norm = normalise(allGeos.slice(0, perFaction[0].length), { length: opts.length, yaw: opts.yaw || 0 });
     [0, 1].forEach(function (f) { perFaction[f].forEach(function (p) { p.geo.applyMatrix4(norm); p.geo.computeBoundingSphere(); }); });
+    if (AR() && opts.iff) addIffPanel(perFaction, factions, opts);
     return perFaction;
+  }
+
+  /** v12.0.14: small faction-coloured IFF roof panel, sitting on the highest roof area near the vehicle centre. */
+  function addIffPanel(perFaction, factions, opts) {
+    try {
+      var all = perFaction[0].map(function (p) { return p.geo; });
+      var box = new THREE.Box3();
+      all.forEach(function (g) { g.computeBoundingBox(); box.union(g.boundingBox); });
+      var size = box.getSize(new THREE.Vector3()), c = box.getCenter(new THREE.Vector3());
+      var roofY = box.min.y, rx = size.x * 0.18, rzz = size.z * 0.18;
+      all.forEach(function (g) {
+        var pa = g.attributes.position;
+        for (var i = 0; i < pa.count; i++) {
+          var x = pa.getX(i), z = pa.getZ(i);
+          if (Math.abs(x - c.x) < rx && Math.abs(z - c.z - (opts.iffZ || 0) * size.z) < rzz) roofY = Math.max(roofY, pa.getY(i));
+        }
+      });
+      if (roofY <= box.min.y) roofY = box.max.y;
+      var w = Math.min(size.x, size.z) * 0.34;
+      [0, 1].forEach(function (f) {
+        var g = new THREE.BoxGeometry(w, 0.03, w * 0.7).toNonIndexed();
+        g.translate(c.x, roofY + 0.016, c.z + (opts.iffZ || 0) * size.z);
+        g.computeBoundingSphere();
+        var m = AR().iffMaterial(factions[f]);
+        perFaction[f].push({ geo: g, mat: m, tex: false, iff: true });
+      });
+      stats.iffPanels = (stats.iffPanels || 0) + 1;
+    } catch (_) {}
   }
 
   function buildMortarGeo() {
@@ -396,9 +432,9 @@
       });
     }
     // Quaternius tanks face -X in the source, trucks face -Z; game forward is +Z.
-    veh('tankA', tankA, { length: 2.75, yaw: Math.PI / 2, camo: 0x5b6450 });
-    veh('tankB', tankB, { length: 2.6, yaw: Math.PI / 2, camo: 0x5d5a4a });
-    veh('ifv', truck, { length: 2.45, yaw: Math.PI });
+    veh('tankA', tankA, { length: 2.75, yaw: Math.PI / 2, camo: 0x5b6450, iff: true });
+    veh('tankB', tankB, { length: 2.6, yaw: Math.PI / 2, camo: 0x5d5a4a, iff: true });
+    veh('ifv', truck, { length: 2.45, yaw: Math.PI, iff: true });
     veh('tech', pickup, { length: 2.2, yaw: Math.PI });
     var mg = buildMortarGeo();
     mortarBatch = makeBatch(mg, stdMat({ vertexColors: true, roughness: 0.5, metalness: 0.6 }), 64);
@@ -528,7 +564,8 @@
         u.updateMatrixWorld();
         if (t === 0) {
           var ci = clipFor(ud.animState, st.sp);
-          st.pose = (st.pose || st.ph) + simDt * tier.poseFps * (ci === 2 ? 1.25 : 1);
+          if (st.rate == null) st.rate = AR() ? 0.84 + Math.random() * 0.32 : 1;   // v12.0.14 gait variety
+          st.pose = (st.pose || st.ph) + simDt * tier.poseFps * (ci === 2 ? 1.25 : 1) * st.rate;
           soldierAt(f, ci, st.pose, u.matrixWorld);
           // v11.3: with big market armies the real units fill the field → thin out the visual escorts
           var escK = tier.infEscort * (infTotal > 280 ? 0.3 : infTotal > 140 ? 0.6 : 1);
@@ -574,7 +611,8 @@
   }
 
   function technical(u, f, idx, front, fx, simDt) {
-    localOffset(u, 1.9 * (idx % 2 ? 1 : -1), -2.6, _tmpPos);
+    if (AR() && u.userData.home && u.userData.home.rz) localOffset(u, 4.3, -0.4, _tmpPos);   // v12.0.14: in the gap between tanks
+    else localOffset(u, 1.9 * (idx % 2 ? 1 : -1), -2.6, _tmpPos);
     _m.compose(_off.set(_tmpPos.x, _tmpPos.y, _tmpPos.z), u.quaternion, _s.set(1, 1, 1));
     pushAll(vehBatches.tech[f], _m);
     stats.technicals++;

@@ -35,6 +35,12 @@
       }
       return accentCache[key];
     }
+    // v12.0.14 realism pass 2 (armies): camo PBR materials + IFF markers; ?realism=0 → null → old look
+    const AR = (LB && LB.armyRealism && LB.armyRealism.isEnabled && LB.armyRealism.isEnabled() && LB.armyRealism.material) ? LB.armyRealism : null;
+    function camoOr(side, kind, fallback) {
+      if (!AR) return fallback;
+      try { return AR.material(side, kind) || fallback; } catch (_) { return fallback; }
+    }
 
     // ---- Shared geometries (low segment counts) ----
     const GEO = {
@@ -398,9 +404,9 @@
     function createInfantry(color, side) {
       const g = new THREE.Group();
       const isBull = side < 0;
-      const accent = accentMat(color, isBull ? 0.08 : 0.1);
-      const body = isBull ? bodyMatBull : bodyMatBear;
-      const cloth = isBull ? clothMat : clothMatBear;
+      const accent = camoOr(side, 'uniform', accentMat(color, isBull ? 0.08 : 0.1));
+      const body = camoOr(side, 'gear', isBull ? bodyMatBull : bodyMatBear);
+      const cloth = camoOr(side, 'trousers', isBull ? clothMat : clothMatBear);
       const parts = {};
 
       // Hips / pelvis
@@ -548,14 +554,15 @@
         rootBob: 0
       });
       g.scale.setScalar(0.95);
+      if (AR && AR.decorate) AR.decorate(g, side, 0, color, parts);
       return g;
     }
 
     function createArmor(color, side) {
       const g = new THREE.Group();
       const isBull = side < 0;
-      const accent = accentMat(color, 0.08);
-      const body = isBull ? bodyMatBull : bodyMatBear;
+      const accent = camoOr(side, 'armor', accentMat(color, 0.08));
+      const body = camoOr(side, 'armorDark', isBull ? bodyMatBull : bodyMatBear);
       const parts = {};
 
       const casters = [];
@@ -643,20 +650,21 @@
         rootBob: 0,
         recoil: 0
       });
+      if (AR && AR.decorate) AR.decorate(g, side, 1, color, parts);
       return g;
     }
 
     function createArtillery(color, side) {
       const g = new THREE.Group();
       const isBull = side < 0;
-      const accent = accentMat(color, 0.06);
-      const body = isBull ? bodyMatBull : bodyMatBear;
+      const accent = camoOr(side, 'art', accentMat(color, 0.06));
+      const body = camoOr(side, 'armorDark', isBull ? bodyMatBull : bodyMatBear);
       const parts = {};
 
       const casters = [];
       const carriage = new THREE.Group();
       // Longer thinner SPG chassis + open mount/shield (NOT closed MBT turret)
-      const chassis = trackCaster(casters, meshFrom(geoArtyChassisBody(), darkMat, true));
+      const chassis = trackCaster(casters, meshFrom(geoArtyChassisBody(), camoOr(side, 'armorDark', darkMat), true));
       const mountShield = meshFrom(geoArtyMountShield(), accent);
       const trailsMerged = meshFrom(geoArtyTrails(), darkMat);
       const feetMerged = meshFrom(geoArtyFeet(), metalMatDark);
@@ -719,6 +727,7 @@
         rootBob: 0,
         recoil: 0
       });
+      if (AR && AR.decorate) AR.decorate(g, side, 2, color, parts);
       return g;
     }
 
@@ -726,7 +735,7 @@
     function createHelicopter(color, side) {
       const g = new THREE.Group();
       const isBull = side < 0;
-      const accent = accentMat(color, 0.1);
+      const accent = camoOr(side, 'air', accentMat(color, 0.1));
       const body = isBull ? bodyMatBull : bodyMatBear;
       const parts = {};
 
@@ -810,7 +819,7 @@
     function createJet(color, side) {
       const g = new THREE.Group();
       const isBull = side < 0;
-      const accent = accentMat(color, 0.12);
+      const accent = camoOr(side, 'air', accentMat(color, 0.12));
       const body = isBull ? bodyMatBull : bodyMatBear;
       const parts = {};
 
@@ -962,6 +971,12 @@
      * Depth is distance behind the live frontline (applied in battle-engine).
      */
     function formationSlots(count, side, type) {
+      if (AR && AR.vehicleSlots && (type === 1 || type === 2)) {
+        try {
+          const S0 = (global.LUNCBattle && LUNCBattle.config && LUNCBattle.config.layout && LUNCBattle.config.layout.spread) || 1;
+          return AR.vehicleSlots(count, side, type, S0);
+        } catch (_) { /* fall through to the classic slots */ }
+      }
       const slots = [];
       const clusterSize = type === 0 ? 4 : 2;
       const nClusters = Math.max(1, Math.ceil(count / clusterSize));

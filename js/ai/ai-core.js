@@ -117,7 +117,9 @@
     if (L && st !== 'QUEST' && st !== 'RETREAT') tz = tz * 0.7 + (L.position.z + (hz - homeZ(L)) * 0.6) * 0.3;
     if (a.sniper) { thinkSniper(u, a, side, b, t); return; }
     if (type === 2) { off *= 0.25; tz = hz + (tz - hz) * 0.3; }  // batteries mostly hold
-    a.offX = off; a.z = Math.max(-Z_LIM, Math.min(Z_LIM, tz)); a.rate = rate * (L ? 1.15 : 1);
+    // v12.0.14 realism: keep units in their own wide-front lane (was a hard ±15 m squeeze → stacked tanks)
+    var zl = (LB.armyRealism && LB.armyRealism.aiZLimit) ? LB.armyRealism.aiZLimit(u, Z_LIM) : Z_LIM;
+    a.offX = off; a.z = Math.max(-zl, Math.min(zl, tz)); a.rate = rate * (L ? 1.15 : 1);
   }
 
   // Engine hook: called per ground unit per frame. Cheap: reads cached brain output.
