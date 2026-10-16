@@ -141,6 +141,12 @@
       legAmp = 0.05;
     }
 
+    // v12.0.14 realism: per-soldier cadence + stride variety (no lockstep); ?realism=0 → gaitMul/gaitAmp unset
+    if (ud.gaitMul) {
+      stride = (stride - phase) * ud.gaitMul + phase;
+      armAmp *= ud.gaitAmp || 1;
+      legAmp *= ud.gaitAmp || 1;
+    }
     const swing = Math.sin(stride);
     const swingOpp = Math.sin(stride + Math.PI);
 

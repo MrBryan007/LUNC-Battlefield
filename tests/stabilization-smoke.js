@@ -22,7 +22,8 @@ const checks = [
   ['gfx-recover wired', index.includes('gfx-recover.js')],
   ['base-invasion wired', index.includes('base-invasion.js')],
   ['realism-pass wired', index.includes('realism-pass.js')],
-  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.13')]
+  ['realism-armies wired', index.includes('realism-armies.js')],
+  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.14')]
 ];
 
 let failed = 0;

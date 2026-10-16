@@ -170,6 +170,12 @@
     var legs = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.55, 0.26), mat(0x2a2a28, 0.9, 0.05));
     legs.position.y = 0.28;
     g.add(body, head, legs);
+    var RZa = LB.armyRealism && LB.armyRealism.isEnabled && LB.armyRealism.isEnabled() && LB.armyRealism.figure ? LB.armyRealism : null;
+    if (RZa) {   // v12.0.14 realism: camo fatigues + faction IFF band (was a solid faction-colour torso)
+      body.material = RZa.material(side, 'uniform') || body.material;
+      legs.material = RZa.material(side, 'trousers') || legs.material;
+      RZa.figure(g, side, color, 1.12, 0.25);
+    }
     g.userData = { side: side, alive: true, hp: 30, cd: 0, speed: 5.5 + Math.random() * 1.5 };
     return g;
   }

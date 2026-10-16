@@ -89,7 +89,10 @@
     [-1, 1].forEach(function (side) {
       for (var i = 0; i < n; i++) {
         var r = new THREE.Group(), b = new THREE.Mesh(geo.body, mat.side[side]), h = new THREE.Mesh(geo.head, mat.skin);
+        var RZa = LB.armyRealism && LB.armyRealism.isEnabled && LB.armyRealism.isEnabled() && LB.armyRealism.figure ? LB.armyRealism : null;   // v12.0.14
+        if (RZa) { b.material = RZa.material(+side, 'uniform') || b.material; }
         b.position.y = 0.7; h.position.y = 1.65; r.add(b); r.add(h);
+        if (RZa) RZa.figure(r, +side, +side < 0 ? 0x3fbf7f : 0xd9564c, 1.15, 0.39);
         var sx = fxX + side * rnd(14, 34), sz = d.z + rnd(-18, 18);
         if (Math.sign(d.x - fxX) === side) sx = d.x + side * rnd(14, 26);   // crate on this side's ground: start from their rear
         r.position.set(sx, 0, sz); root.add(r);

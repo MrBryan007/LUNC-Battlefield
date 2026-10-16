@@ -35,11 +35,20 @@ Soft frontline scars/smoke (no black strip), layered explosions, SOS-delayed far
 - **Materials:** authored GLB unit/vehicle skins (current models are procedural boxes); dirt/wear maps on ground units and vehicles; wet shoreline PBR.
 - **Lighting & atmosphere:** dynamic sun-angle shadows on LOW-safe path; volumetric light shafts; better day/night color temperature around bases.
 - **Terrain:** height-aware tracks that persist under vehicles; shoreline foam upgrade; less z-fighting on trench berms.
-- **Motion & physics:** vehicle suspension bob; aircraft banking on turns; ship roll in waves; ragdoll weight tweaks.
+- **Motion & physics:** ~~vehicle suspension bob~~ (v12.0.14); aircraft banking on turns; ship roll in waves; ragdoll weight tweaks.
 - **Combat behavior:** cover usage, suppression, bounding overwatch, flanking already partly in squads — deepen retreat/medic ranges.
 - **FX:** tracer 1-in-5 everywhere (partial); fires that burn out over minutes; persistent wreck LODs further out.
 - **Audio & radio:** Doppler on more than jets; authentic brevity codes; positional gunfire HRTF-ish pan.
-- **UI:** NATO-ish map symbols on the world inset; less pastel unit silhouettes on the minimap.
+- **UI:** NATO-ish map symbols on the world inset; less pastel unit silhouettes on the minimap (3D units are camo since v12.0.14).
+
+## v12.0.14 "Realism pass, part 2: armies" (shipped 2026-10-16)
+Camo PBR materials (object-space shader: Bulls woodland/olive drab, Bears grey-green/tan, dust + grime, roughness) on all ground units, aircraft, GLB layers and theater figures. Faction IFF roof panels / shoulder bands. MBT ×1.45 / SPG ×1.3, staggered vehicle ranks (7–9 m pitch, no overlap), separation, wide-lane AI z-clamp. Vehicle accel/brake/turn-rate limits, suspension pitch/roll/bob, turret slew, infantry gait variety. LOW/phone get the flat camo base. Kill switch `?realism=0`.
+
+**Still open after part 2:**
+- **Scale:** MBTs are about 4.4 m long against a 1.8 m soldier (a real one is about 10 m). Going further needs an authored MBT model with real proportions, because uniform scaling of the stubby procedural/GLB hulls makes them too tall. The GLB soldier is still 1.25 m against the 1.85 m procedural one. At HIGH counts (121 MBT + 66 SPG per side) the formations reach about 75 m behind the front.
+- **Motion:** GLB (v11) tanks are merged meshes, so their turrets can't slew (procedural tanks do). There's no track/wheel slip, and units don't take terrain-aware routes around obstacles.
+- **Materials:** camo is shader noise, not authored skins. There are no decals (numbers, mud splatter maps) and no wet/muddy variation by weather.
+- From part 1: dynamic sun-angle shadows on LOW, terrain tracks that persist under vehicles, shoreline foam, aircraft banking, ship roll, fires burning out over minutes, Doppler, brevity codes, NATO-ish minimap symbols.
 
 ## v12.1 "War Systems"
 **Shipped so far (v12.0.1, 2026-10-13, part 1):** supply drops. Cargo planes, parachute crates with colored smoke, a ground ring and a world-map ping. Fuel / ammo / intel / power-up contents. One AI squad per side races to each crate, with a capture ring and a CONTESTED state. Per-side tally in Map → WAR SYSTEMS. The Commander can call a drop (60 s cooldown). For the Commander's side: intel lifts fog of war around the zone for 30 s, ammo cuts active cooldowns by 30 % (stand-in until reinforcement waves exist), power-up adds +25 Moon Shot charge. `?supply=0` turns it off. Fuel is banked but not spent yet (needs the resource economy / tech tree slice).
