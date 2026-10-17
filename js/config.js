@@ -88,8 +88,8 @@
   // Single source of truth for current release metadata.
   // Historical comments and changelog entries are left untouched.
   const BUILD = Object.freeze({
-    version: 'v12.0.15',
-    codename: 'Realism pass, part 3: sea & air',
+    version: 'v12.0.16',
+    codename: 'Tactical map',
     date: '2026-10-17'
   });
 
