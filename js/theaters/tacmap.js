@@ -122,7 +122,7 @@
       [A.bulls, A.bears].forEach(function (arr, k) {
         var side = k ? 1 : -1;
         for (var i = 0; i < arr.length; i++) {
-          var u = arr[i]; if (!u || !u.userData || u.visible === false) continue;
+          var u = arr[i]; if (!u || !u.userData || u.userData.alive === false) continue;   // not .visible: LOD hides far units
           var ty = u.userData.type | 0; if (ty === 4) continue;           // fixed-wing come from the theater list
           var ux = u.position.x, uz = u.position.z; if (ux < B.minX || ux > B.maxX || uz < B.minZ || uz > B.maxZ) continue;
           if (fowOn && side !== own && !LB.fow.visible(ux, uz)) continue;
