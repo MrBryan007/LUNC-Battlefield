@@ -57,7 +57,7 @@ Ship heave/pitch/roll from the ocean wave function, turning circles at lane ends
 - **Scale:** the carrier is 22 m against a 1.8 m soldier (a real one is about 330 m). Ship and airbase scale is still "toy" relative to the infantry; it needs a dedicated naval scale pass (camera, lanes and sim ranges all scale with it).
 - **Aircraft:** no landing gear or flaps animation, no carrier traps (deck jets RTB to the airbase), and AA kills are still a random roll rather than a fuze/proximity model.
 - **Sea:** no foam on wave crests, shoreline breakers are a pulsing strip, and there are no ship smoke stacks or exhaust.
-- Carried over: fires that burn out over minutes, Doppler on more than jets, brevity codes, NATO-ish minimap symbols, persistent terrain tracks.
+- Carried over: fires that burn out over minutes, Doppler on more than jets, brevity codes, persistent terrain tracks. (NATO-ish map symbols shipped in v12.0.16.)
 
 ## v12.1 "War Systems"
 **Shipped so far (v12.0.1, 2026-10-13, part 1):** supply drops. Cargo planes, parachute crates with colored smoke, a ground ring and a world-map ping. Fuel / ammo / intel / power-up contents. One AI squad per side races to each crate, with a capture ring and a CONTESTED state. Per-side tally in Map → WAR SYSTEMS. The Commander can call a drop (60 s cooldown). For the Commander's side: intel lifts fog of war around the zone for 30 s, ammo cuts active cooldowns by 30 % (stand-in until reinforcement waves exist), power-up adds +25 Moon Shot charge. `?supply=0` turns it off. Fuel is banked but not spent yet (needs the resource economy / tech tree slice).
@@ -69,7 +69,7 @@ Remaining in v12.1:
 - **Market compatibility:** the market sets the reinforcement budget and resource income. Player choices never alter market data.
 - **Supply drops:** cargo planes drop parachute crates into drop zones marked with smoke and a map ping. Contents are fuel, ammo, intel or a power-up. AI squads race to capture them (progress ring, contested state). The Commander can call one in. An intel drop reveals the area; an ammo drop speeds up the next wave.
 - **Sound design and music:** WebAudio SFX scaled by size, jet Doppler, gunfire, radio blips, ambient wind/ocean/rain, adaptive music layers, mute, a volume slider, iOS unlock-on-tap and distance attenuation.
-- **Tactical minimap:** always-on inset with an expand toggle, unit dots and pings.
+- ~~**Tactical minimap:** always-on inset with an expand toggle, unit dots and pings.~~ Shipped v12.0.16 (`js/theaters/tacmap.js`, `?tacmap=0`): APP-6-style symbols, FLOT, expand mode with grid, legend, fly-to and pings. Still open: drawing orders/arrows on the map, and squad selection from the map.
 - **Fog of war:** a per-faction visibility grid, reveals from UAVs, flares and radar, ghosted last-known enemies, shader darkening (cheap on LOW), and vision reduced by weather, night and cyber. Spectator full-vision toggle.
 - Deepen the basic v12.0 items: drone spotting/strikes, sub sonar/ASW, cyber effects on radar/AA, weather affecting accuracy, and a playable ridge sector.
 
