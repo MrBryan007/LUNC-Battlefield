@@ -24,7 +24,7 @@ const checks = [
   ['realism-pass wired', index.includes('realism-pass.js')],
   ['realism-armies wired', index.includes('realism-armies.js')],
   ['realism-seaair wired', index.includes('realism-seaair.js') && index.indexOf('realism-seaair.js') < index.indexOf('theaters/theaters.js')],
-  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.14')]
+  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.15')]
 ];
 
 let failed = 0;

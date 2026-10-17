@@ -50,6 +50,15 @@ Camo PBR materials (object-space shader: Bulls woodland/olive drab, Bears grey-g
 - **Materials:** camo is shader noise, not authored skins. There are no decals (numbers, mud splatter maps) and no wet/muddy variation by weather.
 - From part 1: dynamic sun-angle shadows on LOW, terrain tracks that persist under vehicles, shoreline foam, aircraft banking, ship roll, fires burning out over minutes, Doppler, brevity codes, NATO-ish minimap symbols.
 
+## v12.0.15 "Realism pass, part 3: sea & air" (shipped 2026-10-17)
+Ship heave/pitch/roll from the ocean wave function, turning circles at lane ends, foam wakes + bow spray (MEDIUM+), jet bank/pitch in the airframe's axes, runway line-up, approach → glide slope → flare → rollout → taxi-in, sRGB-correct theater colours and a deeper sea. Fixed the skirt showing through wave troughs (gold discs) and the v10 ridge ring cutting through the airbases. Kill switch `?seaair=0`.
+
+**Still open after part 3:**
+- **Scale:** the carrier is 22 m against a 1.8 m soldier (a real one is about 330 m). Ship and airbase scale is still "toy" relative to the infantry; it needs a dedicated naval scale pass (camera, lanes and sim ranges all scale with it).
+- **Aircraft:** no landing gear or flaps animation, no carrier traps (deck jets RTB to the airbase), and AA kills are still a random roll rather than a fuze/proximity model.
+- **Sea:** no foam on wave crests, shoreline breakers are a pulsing strip, and there are no ship smoke stacks or exhaust.
+- Carried over: fires that burn out over minutes, Doppler on more than jets, brevity codes, NATO-ish minimap symbols, persistent terrain tracks.
+
 ## v12.1 "War Systems"
 **Shipped so far (v12.0.1, 2026-10-13, part 1):** supply drops. Cargo planes, parachute crates with colored smoke, a ground ring and a world-map ping. Fuel / ammo / intel / power-up contents. One AI squad per side races to each crate, with a capture ring and a CONTESTED state. Per-side tally in Map → WAR SYSTEMS. The Commander can call a drop (60 s cooldown). For the Commander's side: intel lifts fog of war around the zone for 30 s, ammo cuts active cooldowns by 30 % (stand-in until reinforcement waves exist), power-up adds +25 Moon Shot charge. `?supply=0` turns it off. Fuel is banked but not spent yet (needs the resource economy / tech tree slice).
 
