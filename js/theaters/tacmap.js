@@ -147,9 +147,10 @@
       var S = sh[si]; if (!S.g.visible && S.side !== own) continue;
       var px2 = X(S.x), pz2 = Z(S.z); if (px2 < -10 || px2 > W + 10 || pz2 < -10 || pz2 > H + 10) continue;
       if (S.st !== 'sail') { c.fillStyle = 'rgba(160,160,160,.6)'; c.fillRect(px2 - 1.5, pz2 - 1.5, 3, 3); continue; }
-      var ss2 = gs * (S.kind === 'carrier' ? 1.25 : 1); sideColNow = sideCol(S.side);
+      var ss2 = gs * (S.kind === 'carrier' ? 1.5 : 1.2); sideColNow = sideCol(S.side);
       frame(c, px2, pz2, ss2, S.side === own, 'sea', S.side);
-      label(c, S.kind === 'carrier' ? 'CV' : S.kind === 'battleship' ? 'BB' : 'DD', px2, pz2, Math.max(5, ss2 * 0.85), '#f2f6f3');
+      if (big) label(c, S.kind === 'carrier' ? 'CV' : S.kind === 'battleship' ? 'BB' : 'DD', px2, pz2, Math.max(6, ss2 * 0.8), '#f2f6f3');
+      else { c.fillStyle = sideColNow; c.fillRect(px2 - 0.8, pz2 - 0.8, 1.6, 1.6); }
       n++;
     }
     // aircraft (airborne) with a heading leader
@@ -215,6 +216,7 @@
       '<div>Tap / click: fly the camera there · long-press / right-click: drop a ping · N: open/close · Esc: close</div></div>' +
       '<div class="tac-foot" id="tacFoot"></div></div>';
     doc.body.appendChild(wrap); big = wrap;
+    if (global.innerWidth < 760) { state.view = 'front'; wrap.querySelectorAll('[data-tv]').forEach(function (x) { x.classList.toggle('on', x.getAttribute('data-tv') === 'front'); }); }   // phones: denser default
     var cv = wrap.querySelector('#tacCanvas'); bctx = cv.getContext('2d');
     wrap.addEventListener('click', function (ev) {
       var b = ev.target.closest('button'); if (!b) return;

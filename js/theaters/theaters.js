@@ -421,6 +421,7 @@
     var e = E(); if (!e || !THREE) return;
     var T = e.getCameraTarget(), off = e.camera.position.clone().sub(T), len = off.length() || 1;
     var want = Math.max(30, Math.min(160, d || len)); off.multiplyScalar(want / len);
+    if (off.y < want * 0.5) { var hz = Math.hypot(off.x, off.z) || 1, ny = want * 0.5, nh = Math.sqrt(Math.max(1, want * want - ny * ny)); off.set(off.x / hz * nh, ny, off.z / hz * nh); }   // look down on the spot
     var to = new THREE.Vector3(x, 0.5, z);
     fly = { t: 0, dur: 1.4, fromT: T, toT: to, fromP: e.camera.position.clone(), toP: to.clone().add(off), id: 'point' };
   }
