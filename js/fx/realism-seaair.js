@@ -45,7 +45,7 @@
     var th = LB.theaters;
     if (th && th.waveAt) { var w = th.waveAt(x, z); if (w !== null) return w + 0.35; }   // relative to the −0.35 sea level
     var t = performance.now() * 0.001;           // flat ocean on LOW → gentle synthetic swell for hull motion only
-    return Math.sin(x * 0.09 + t * 1.1) * 0.12 + Math.sin(z * 0.13 + t * 0.8) * 0.08;
+    return Math.sin(x * 0.09 + t * 1.1) * 0.2 + Math.sin(z * 0.13 + t * 0.8) * 0.15;
   }
 
   // ---------------------------------------------------------------- ships
@@ -238,7 +238,8 @@
       if (st === 'takeoff') pitchT = Math.max(pitchT, 0.15);
     } else if (st === 'takeoff') { pitchT = J.sp > 20 ? 0.16 : 0; }
     else if (st === 'land') { pitchT = J.sp > 9 ? 0.06 : 0; }
-    if (st === 'down') { a.bank += dt * 2.6; pitchT = -0.6; }
+    if (st === 'down') { a.bank = wrap(a.bank + dt * 2.6); pitchT = -0.6; }       // spinning in, nose down
+    else if (st === 'parked' || st === 'dead') { a.bank = 0; a.pitch = 0; pitchT = 0; }
     else a.bank += (bankT - a.bank) * Math.min(1, dt * 3.2);
     a.pitch += (pitchT - a.pitch) * Math.min(1, dt * (st === 'takeoff' ? 2 : 3));
     // ground states face the direction they actually move (theaters taxi used to roll out backwards)
@@ -251,7 +252,7 @@
     if (st === 'parked' && mv > 40) { a.vyaw = J.hd; yaw = J.hd; }
     J.g.rotation.order = 'YZX';
     J.g.rotation.set(a.bank, yaw, a.pitch);
-    stats.maxBank = Math.max(stats.maxBank * 0.998, Math.abs(a.bank));
+    if (st !== 'down') stats.maxBank = Math.max(stats.maxBank * 0.998, Math.abs(a.bank));
     a.px = J.x; a.py = J.y; a.pz = J.z; a.phd = J.hd;
   }
 
