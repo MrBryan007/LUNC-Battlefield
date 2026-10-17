@@ -26,3 +26,13 @@ Poly Pizza lists each of these as **CC0 (public domain)**: commercial use and mo
 ## Rules for future assets
 
 Use only CC0, CC-BY (add attribution here), or project-original assets. Record the file, author, license, URL, and modifications for each one. Never use ripped commercial-game assets, assets from Retro Rewind, or "free download" sites with no clear license.
+
+## v12 starter skins (all CC0 1.0 per their Poly Pizza pages, checked 2026-10-12)
+
+| File | Model | Author | License | Source URL | Modifications |
+| --- | --- | --- | --- | --- | --- |
+| `assets/models/v12/helicopter.glb` | "Helicopter" | kazuma | CC0 1.0 | https://poly.pizza/m/EQJ2MECUbx | none (1.1k tris); runtime faction tint; procedural rotor disc kept on top |
+| `assets/models/v12/radar.glb` | "Roof Radar" | Quaternius | CC0 1.0 | https://poly.pizza/m/V7XQDxF8JC | none (~1k tris) |
+| `assets/models/v12/bunker_sandbag.glb` | "Sack Trench Small" | Quaternius | CC0 1.0 | https://poly.pizza/m/iHyRewQQcN | gltfpack `-si 0.35 -noq` (3.6k → ~1.3k tris) |
+| `assets/models/v12/watchtower.glb` | "Small Watch Tower" | Quaternius | CC0 1.0 | https://poly.pizza/m/CygapExMf5 | none (~0.6k tris) |
+Re-fetch with `tools/fetch-v12-assets.sh`.

@@ -1,0 +1,261 @@
+/* v11.4 — organized minimal HUD (js/ui/hud-dock.js). Scoped to body.dock-on so ?dock=0 = old layout. */
+body.dock-on {
+  --st: env(safe-area-inset-top, 0px); --sb: env(safe-area-inset-bottom, 0px);
+  --sl: env(safe-area-inset-left, 0px); --sr: env(safe-area-inset-right, 0px);
+  --topH: 48px; --dockH: 58px;
+}
+/* old chrome that the dock replaces */
+body.dock-on #hudTabs, body.dock-on .cmd-enter-btn ~ #hudTabs { display: none !important; }
+body.dock-on #vignette { opacity: .6; }
+
+/* ---------- top bar ---------- */
+.dock-top {
+  position: fixed; z-index: 72; left: 0; right: 0; top: 0;
+  padding: calc(var(--st) + 6px) calc(var(--sr) + 8px) 6px calc(var(--sl) + 8px);
+  display: flex; align-items: center; gap: 6px; pointer-events: none;
+  background: linear-gradient(rgba(6,9,7,.72), rgba(6,9,7,0));
+}
+.dock-top > * { pointer-events: auto; }
+.dock-top .dt-left, .dock-top .dt-right { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.dock-top .dt-right { margin-left: auto; }
+body.dock-on #buildTag { position: static !important; transform: none !important; margin: 0; font-size: 10px; padding: 4px 7px; white-space: nowrap; }
+body.dock-on #statusTray { position: static !important; display: flex; gap: 4px; align-items: center; transform: none !important; }
+body.dock-on #statusTray > #btnHideUi { position: static !important; }
+body.dock-on #agentStatus { display: none; }
+body.dock-on #dataMode { position: static !important; font-size: 10px; padding: 4px 7px; max-width: 34vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dt-chip, .dt-btn, body.dock-on .dock-top .cmd-icon-btn, body.dock-on .dock-top #btnHideUi {
+  min-height: 36px; min-width: 36px; border-radius: 10px; border: 1px solid rgba(255,255,255,.14); background: rgba(8,12,10,.78);
+  color: #dfe7e1; font: 600 11px Inter, system-ui, sans-serif; cursor: pointer; backdrop-filter: blur(8px);
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 9px;
+}
+body.dock-on .dock-top .cmd-icon-btn { position: static !important; width: 40px; height: 40px; font-size: 14px; }
+body.dock-on .dock-top #btnHideUi { height: 40px; }
+.dt-btn { width: 44px; height: 44px; font-size: 18px; padding: 0; }
+.dt-chip.market { height: 40px; max-width: 46vw; overflow: hidden; }
+.dt-chip.market .dt-adv { color: #d7b56d; white-space: nowrap; }
+.dt-chip.market[data-state^="BULL"] .dt-adv { color: #49d39a; } .dt-chip.market[data-state^="BEAR"] .dt-adv { color: #ff7b72; }
+.dt-chip.market .dt-price { color: #fff; opacity: .85; white-space: nowrap; }
+
+/* ---------- bottom dock ---------- */
+.dock-bar {
+  position: fixed; z-index: 72; left: 50%; transform: translateX(-50%); bottom: calc(var(--sb) + 6px);
+  display: flex; gap: 4px; padding: 5px; border-radius: 16px; max-width: calc(100vw - 12px - var(--sl) - var(--sr));
+  background: rgba(7,11,9,.86); border: 1px solid rgba(255,255,255,.1); backdrop-filter: blur(10px); overflow-x: auto; scrollbar-width: none;
+}
+.dock-bar button {
+  flex: 0 0 auto; min-width: 48px; height: 48px; padding: 0 6px; border-radius: 12px; border: 1px solid transparent; background: transparent;
+  color: #b9c4bc; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+}
+.dock-bar button[hidden] { display: none; }
+.dock-bar .di { font-size: 17px; line-height: 1; }
+.dock-bar .dl { font: 600 9px Inter, system-ui, sans-serif; letter-spacing: .3px; white-space: nowrap; }
+.dock-bar button:hover { color: #fff; background: rgba(255,255,255,.05); }
+.dock-bar button.active { color: #0b1410; background: #d7b56d; }
+.dock-bar button[data-dock="strike"].active { background: #ff9a5a; }
+
+/* ---------- orders pill ---------- */
+.orders-pill {
+  position: fixed; z-index: 71; left: 50%; transform: translateX(-50%); top: calc(var(--st) + var(--topH) + 6px);
+  display: flex; align-items: center; gap: 8px; height: 30px; padding: 0 11px; max-width: min(360px, 78vw);
+  border-radius: 15px; border: 1px solid rgba(215,181,109,.3); background: rgba(8,12,10,.74); color: #e6ece8;
+  font: 600 11px Inter, system-ui, sans-serif; cursor: pointer; backdrop-filter: blur(8px);
+}
+.orders-pill[hidden] { display: none; }
+.orders-pill .op-txt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.orders-pill .op-bar { flex: 0 0 46px; height: 4px; border-radius: 2px; background: rgba(255,255,255,.12); overflow: hidden; }
+.orders-pill .op-bar b { display: block; height: 100%; background: #49d39a; }
+.orders-pill .op-t { color: #d7b56d; }
+body.dock-on .orders-pill::before { content: ''; position: absolute; inset: -7px 0; }   /* 44px tap target */
+
+/* ---------- sheets ---------- */
+.dock-sheet {
+  position: fixed; z-index: 74; display: none; flex-direction: column;
+  left: calc(var(--sl) + 8px); right: calc(var(--sr) + 8px); bottom: calc(var(--sb) + var(--dockH) + 14px);
+  max-height: calc(100vh - var(--st) - var(--sb) - var(--topH) - var(--dockH) - 30px);
+  max-height: calc(100dvh - var(--st) - var(--sb) - var(--topH) - var(--dockH) - 30px);
+  border-radius: 16px; background: rgba(7,11,9,.94); border: 1px solid rgba(255,255,255,.12); box-shadow: 0 10px 40px rgba(0,0,0,.5);
+  backdrop-filter: blur(12px); overflow: hidden;
+}
+.dock-sheet.open { display: flex; animation: sheetIn .18s ease-out; }
+@keyframes sheetIn { from { transform: translateY(10px); } }
+.sheet-head { display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 14px; border-bottom: 1px solid rgba(255,255,255,.07); }
+.sheet-head b { font: 700 13px Rajdhani, Inter, sans-serif; letter-spacing: 1px; color: #d7b56d; text-transform: uppercase; }
+.sheet-head .qual { font-size: 8px; }
+.sheet-x { margin-left: auto; width: 44px; height: 44px; border: 0; border-radius: 10px; background: rgba(255,255,255,.05); color: #ccd5cf; font-size: 16px; cursor: pointer; }
+.sheet-body { overflow: auto; -webkit-overflow-scrolling: touch; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+@media (min-width: 900px) and (min-height: 500px) {
+  .dock-sheet { left: auto; right: calc(var(--sr) + 12px); width: 390px; top: calc(var(--st) + var(--topH) + 8px); bottom: calc(var(--sb) + var(--dockH) + 16px); max-height: none; }
+}
+/* adopted panels: drop their own fixed positioning inside sheets */
+body.dock-on .dock-sheet .sheet-body > * {
+  position: static !important; inset: auto !important; transform: none !important; width: auto !important; max-width: none !important;
+  max-height: none !important; margin: 0 !important; opacity: 1 !important; visibility: visible !important; display: block;
+}
+body.dock-on .dock-sheet #tokenBar, body.dock-on .dock-sheet #qualityPicker { display: flex !important; flex-wrap: wrap; gap: 8px; }
+body.dock-on .dock-sheet #tokenBar .token-btn { min-height: 44px; flex: 1 1 30%; }
+body.dock-on .dock-sheet #leftPanel, body.dock-on .dock-sheet #rightPanel { display: block !important; overflow: visible !important; background: transparent !important; border: 0 !important; box-shadow: none !important; padding: 0 !important; }
+body.dock-on .dock-sheet #topHud { display: block !important; background: transparent !important; border: 0 !important; box-shadow: none !important; }
+body.dock-on .dock-sheet #topHud .cmd-primary { display: grid !important; grid-template-columns: 1fr 1fr; gap: 8px; }
+body.dock-on .dock-sheet #battleBadge { display: block !important; text-align: center; }
+body.dock-on .dock-sheet .minimap-wrap { display: flex !important; align-items: center; }
+body.dock-on .dock-sheet #dataTruthLegend, body.dock-on .dock-sheet #hint { display: block !important; font-size: 11px; line-height: 1.5; }
+body.dock-on .dock-sheet .cmd-topbar, body.dock-on .dock-sheet .cmd-mission { display: flex !important; flex-wrap: wrap; gap: 8px; background: transparent !important; border: 0 !important; box-shadow: none !important; padding: 0 !important; }
+body.dock-on .dock-sheet .cmd-mission { display: block !important; }
+body.dock-on .dock-sheet .cmd-call { display: block !important; }
+body.dock-on .dock-sheet .cmd-call button { min-height: 44px; }
+/* sheets: hide adopted things that are not in their sheet (safety for late CSS) */
+body.dock-on #topHud:not(.dock-sheet #topHud) { display: none !important; }
+
+/* ---------- strike strip (#cmdBar) ---------- */
+body.dock-on.cmd-on .cmd-bar { display: none !important; }
+body.dock-on.cmd-on.dock-strike .cmd-bar, body.dock-on.cmd-on[data-ui="cmd"] .cmd-bar {
+  display: flex !important; position: fixed !important; z-index: 73; left: 50% !important; right: auto !important; top: auto !important;
+  transform: translateX(-50%) !important; bottom: calc(var(--sb) + var(--dockH) + 14px) !important; max-width: calc(100vw - 16px) !important; flex-wrap: wrap; justify-content: center;
+}
+body.dock-on.cmd-on[data-ui="cmd"] .cmd-bar { bottom: calc(var(--sb) + 8px) !important; }
+body.dock-on.dock-phone.cmd-on .cmd-bar { display: none !important; }
+body.dock-on.dock-phone.cmd-on.dock-strike .cmd-bar, body.dock-on.dock-phone.cmd-on[data-ui="cmd"] .cmd-bar {
+  display: grid !important; grid-template-columns: repeat(4, 56px); gap: 6px; padding: 6px; width: auto !important;
+}
+body.dock-on.dock-phone .cmd-bar .cmd-ability { width: 56px; height: 56px; }
+body.dock-on.dock-phone .cmd-bar .cmd-heavy-toggle { grid-column: span 2; min-height: 44px; flex-direction: row; }
+body.dock-on .cmd-heavy { left: 50%; transform: translateX(-50%); }
+body.dock-on.dock-phone .cmd-heavy { grid-template-columns: repeat(3, 56px); }
+@media (max-height: 500px) {   /* landscape phone: one wide row */
+  body.dock-on.dock-phone.cmd-on.dock-strike .cmd-bar, body.dock-on.dock-phone.cmd-on[data-ui="cmd"] .cmd-bar { grid-template-columns: repeat(8, 50px); }
+  body.dock-on.dock-phone .cmd-bar .cmd-ability { width: 50px; height: 50px; }
+  body.dock-on.dock-phone .cmd-bar .cmd-heavy-toggle { grid-column: span 1; }
+  body.dock-on { --dockH: 54px; }
+  .dock-bar button { height: 44px; }
+}
+/* remaining commander chrome is inside the Orders sheet; field stays clean */
+body.dock-on .cmd-mission:not(.dock-sheet .cmd-mission), body.dock-on .cmd-topbar:not(.dock-sheet .cmd-topbar) { display: none !important; }
+body.dock-on .intel-float { bottom: calc(var(--sb) + var(--dockH) + 20px) !important; top: auto !important; }
+body.dock-on.dock-strike .intel-float { display: none !important; }
+body.dock-on #btnRestoreUi { top: calc(var(--st) + 8px); }
+
+/* ---------- Hide UI integration ---------- */
+body.dock-on[data-ui] .dock-top, body.dock-on[data-ui] .dock-sheet, body.dock-on[data-ui="clean"] .dock-bar, body.dock-on[data-ui="clean"] .orders-pill,
+body.dock-on[data-ui="cmd"] .dock-bar { opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; }
+body.dock-on[data-ui="cmd"] .orders-pill { top: calc(var(--st) + 8px); }
+body.cutscene .dock-top, body.cutscene .dock-bar, body.cutscene .dock-sheet, body.cutscene .orders-pill { visibility: hidden !important; }
+
+/* phones: tighter top bar + full-width dock that fits 8 buttons without scrolling */
+body.dock-on.dock-phone #buildTag { display: none !important; }
+body.dock-on.dock-phone .dock-sheet #buildTag { display: block !important; }
+body.dock-on.dock-phone .dock-top { gap: 4px; }
+body.dock-on.dock-phone .dt-chip.market { max-width: none; flex: 1 1 auto; min-width: 0; padding: 0 7px; font-size: 10px; }
+body.dock-on.dock-phone .dt-chip.market .dt-price { display: none; }
+body.dock-on.dock-phone #dataMode { max-width: 26vw; }
+body.dock-on.dock-phone .dock-top .cmd-icon-btn, body.dock-on.dock-phone .dt-btn { width: 44px; min-width: 44px; height: 44px; }
+body.dock-on.dock-phone .dock-top #btnHideUi { width: 44px; min-width: 44px; height: 44px; padding: 0; font-size: 0; }
+body.dock-on.dock-phone .dock-top #btnHideUi::before { content: '⛶'; font-size: 17px; }
+body.dock-on.dock-phone .dock-bar { left: calc(var(--sl) + 6px); right: calc(var(--sr) + 6px); transform: none; gap: 2px; padding: 4px; justify-content: space-between; }
+body.dock-on.dock-phone .dock-bar button { flex: 1 1 0; min-width: 44px; padding: 0 2px; }
+body.dock-on.dock-phone .dock-bar .dl { font-size: 8px; letter-spacing: 0; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+body.dock-on .orders-pill { top: calc(var(--st) + 60px); }
+
+/* v12 — theater jump bar (Map sheet) + BREAKING ticker (Intel sheet) */
+.theater-bar { display: block; }
+.theater-bar .th-title { font: 700 11px Rajdhani, Inter, sans-serif; letter-spacing: 1px; color: #d7b56d; margin-bottom: 6px; }
+.theater-bar .th-btns { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.theater-bar button { min-height: 44px; border-radius: 10px; border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.05); color: #dfe7e1; font: 600 11px Inter, sans-serif; cursor: pointer; }
+.theater-bar button:hover, .theater-bar button.on { background: #d7b56d; color: #0b1410; }
+.theater-bar .th-note { margin-top: 6px; font-size: 10px; line-height: 1.4; color: #9aa59d; }
+.theater-bar.floating { position: fixed; left: 10px; bottom: 10px; z-index: 40; width: 300px; padding: 8px; background: rgba(7,11,9,.86); border-radius: 12px; }
+.theater-ticker { border-left: 3px solid #ff5a4a; background: rgba(120,20,14,.25); padding: 6px 8px; border-radius: 6px; font: 700 11px Inter, sans-serif; color: #ffd9d2; letter-spacing: .3px; }
+.theater-ticker div + div { opacity: .7; font-weight: 500; margin-top: 3px; }
+/* v12 — world settings, inset map, fog of war, cyber glitch, night/weather tint */
+.v12-opts { display: flex !important; flex-direction: column; gap: 8px; font: 500 12px Inter, sans-serif; color: #dfe7e1; }
+.v12-opts label { display: flex; align-items: center; gap: 8px; min-height: 36px; }
+.v12-opts select, .v12-opts input[type=range] { flex: 1; min-height: 32px; }
+.world-inset { position: fixed; z-index: 70; left: auto; bottom: auto; right: calc(env(safe-area-inset-right, 0px) + 8px); top: calc(env(safe-area-inset-top, 0px) + 58px);
+  width: 150px; height: 100px; border-radius: 10px; border: 1px solid rgba(255,255,255,.18); background: rgba(7,11,9,.6); cursor: pointer; }
+.world-inset[hidden] { display: none; }
+body.dock-phone .world-inset { width: 108px; height: 72px; top: calc(env(safe-area-inset-top, 0px) + 100px); }
+body[data-ui] .world-inset, body.cutscene .world-inset { display: none; }
+.fow-overlay { position: fixed; inset: 0; z-index: 2; pointer-events: none; opacity: 0; transition: opacity .6s;
+  background: radial-gradient(ellipse at 50% 55%, rgba(0,0,0,0) 45%, rgba(4,6,8,.55) 100%); }
+body.fow-on .fow-overlay { opacity: 1; }
+body.cyber-glitch canvas { filter: hue-rotate(80deg) contrast(1.3) saturate(1.4); }
+body.night #vignette { opacity: 1 !important; background: radial-gradient(ellipse at center, rgba(10,16,40,.15), rgba(4,6,20,.55)); }
+body[data-weather="fog"] #vignette, body[data-weather="rain"] #vignette { backdrop-filter: saturate(.8); }
+
+/* v12.0.1 — v12.1 part 1: supply drops (Map sheet → WAR SYSTEMS) */
+.supply-panel { margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,.08); font: 500 12px Inter, sans-serif; color: #dfe7e1; }
+.supply-panel .th-title { font: 700 11px Rajdhani, Inter, sans-serif; letter-spacing: 1px; color: #d7b56d; margin-bottom: 6px; }
+.supply-panel .th-note { margin-top: 6px; font-size: 10px; line-height: 1.4; color: #9aa59d; }
+.sup-tally { width: 100%; border-collapse: collapse; font-size: 11px; text-align: center; }
+.sup-tally th { font-weight: 700; font-size: 10px; padding: 2px 0; }
+.sup-tally td { padding: 3px 0; border-top: 1px solid rgba(255,255,255,.06); font-variant-numeric: tabular-nums; }
+.sup-tally td.b { color: #7cf0a8; text-align: left; font-weight: 700; } .sup-tally td.r { color: #ff8a80; text-align: left; font-weight: 700; }
+.sup-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.sup-row button { min-height: 44px; padding: 0 12px; border-radius: 10px; border: 1px solid rgba(215,181,109,.5); background: rgba(215,181,109,.14); color: #f1dfb4; font: 700 11px Inter, sans-serif; cursor: pointer; }
+.sup-row button:disabled { opacity: .5; cursor: default; }
+.sup-status { flex: 1; font-size: 11px; color: #c9d4cc; line-height: 1.3; }
+.supply-panel.floating[hidden] { display: none; }
+.build-hours-link { display: inline-block; margin-top: 10px; color: #d7b56d; font: 600 12px Inter, sans-serif; }
+/* v12.0.2 — war economy */
+.econ-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.econ-actions button { flex: 1 1 30%; min-width: 92px; padding: 6px 6px; border-radius: 8px; border: 1px solid rgba(215,181,109,.45); background: rgba(215,181,109,.12); color: #f2e6c8; font: 600 11px Inter, sans-serif; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.econ-actions button small { font-weight: 500; font-size: 9.5px; color: #b9ad8f; }
+.econ-actions button:disabled { opacity: .45; cursor: default; }
+.qual.est { color: #ffd36a; }
+/* v12.0.3 — tech tree */
+.tech-tree { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; }
+.tech-node { position: relative; text-align: left; padding: 7px 8px 9px; border-radius: 8px; border: 1px solid rgba(90,180,255,.35); background: rgba(90,180,255,.08); color: #dfe9f3; font: 500 10.5px Inter, sans-serif; cursor: pointer; display: flex; flex-direction: column; gap: 2px; overflow: hidden; }
+.tech-node b { font: 700 12px Rajdhani, Inter, sans-serif; letter-spacing: .5px; }
+.tech-node small { color: #9fb0bf; font-size: 9.5px; line-height: 1.3; }
+.tech-node em { font-style: normal; color: #d7b56d; font-size: 9.5px; }
+.tech-node .tech-bar { position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; background: rgba(255,255,255,.06); }
+.tech-node .tech-bar span { display: block; height: 100%; width: 0; background: #5ab4ff; transition: width .4s; }
+.tech-node[data-st="done"] { border-color: #7cf0a8; background: rgba(124,240,168,.12); }
+.tech-node[data-st="done"] em::before { content: '✓ researched · '; color: #7cf0a8; }
+.tech-node[data-st="locked"] { opacity: .4; }
+.tech-node[data-st="poor"], .tech-node[data-st="wait"] { opacity: .65; }
+.tech-node:disabled { cursor: default; }
+/* v12.0.4 — defenses */
+.econ-actions button.armed { border-color: #7cf0a8; background: rgba(124,240,168,.18); box-shadow: 0 0 0 1px #7cf0a8 inset; }
+body.fort-placing canvas, body.sq-moving canvas { cursor: crosshair; }
+/* v12.0.5 — ?dock=0: WAR SYSTEMS floating drawer (supply / economy / tech / defenses) */
+.war-float { position: fixed; z-index: 60; left: 10px; bottom: calc(env(safe-area-inset-bottom, 0px) + 70px); max-width: min(360px, calc(100vw - 20px)); }
+.war-float[hidden] { display: none; }
+.war-float > button { min-height: 40px; padding: 0 14px; border-radius: 10px; border: 1px solid rgba(215,181,109,.5); background: rgba(10,14,12,.86); color: #f1dfb4; font: 700 11px Rajdhani, Inter, sans-serif; letter-spacing: 1px; cursor: pointer; }
+.war-float .war-body { display: none; margin-bottom: 6px; max-height: 60vh; overflow: auto; padding: 4px 12px 12px; border-radius: 12px; background: rgba(10,14,12,.9); border: 1px solid rgba(255,255,255,.1); }
+.war-float.open .war-body { display: block; }
+/* v12.0.6 — supply lines & waves */
+.lines-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.lines-grid > div { display: flex; flex-direction: column; gap: 2px; padding: 6px 8px; border-radius: 8px; background: rgba(255,255,255,.04); font-size: 11px; }
+.lines-grid b.b { color: #7cf0a8; } .lines-grid b.r { color: #ff8a80; }
+.lines-grid .ln-st.cut { color: #ff8a80; font-weight: 700; }
+.lines-grid .ln-wave { color: #9aa59d; font-size: 10px; }
+/* v12.0.9 — squads */
+.sq-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.sq-btn { position: relative; display: flex; flex-direction: column; gap: 2px; padding: 7px 8px 9px; border-radius: 8px; border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.04); color: #dfe7e1; font: 600 11px Inter, sans-serif; cursor: pointer; text-align: left; overflow: hidden; min-height: 44px; }
+.sq-btn b { font: 700 12px Rajdhani, Inter, sans-serif; letter-spacing: .5px; }
+.sq-btn .sq-st { font-size: 9.5px; color: #9fb0bf; }
+.sq-btn.sel { border-color: #ffd36a; background: rgba(255,211,106,.12); }
+.sq-btn .sq-sup { position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; background: rgba(255,255,255,.06); }
+.sq-btn .sq-sup span { display: block; height: 100%; width: 0; background: #ff8a80; transition: width .3s; }
+.sq-orders button { flex: 1 1 22%; min-width: 70px; }
+/* v12.0.10 — radio subtitle strip */
+.radio-strip { position: fixed; z-index: 62; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom, 0px) + 84px); max-width: min(560px, calc(100vw - 20px));
+  padding: 6px 12px; border-radius: 10px; background: rgba(8,12,10,.82); border: 1px solid rgba(124,240,168,.25); color: #dfe7e1; font: 500 12px/1.35 Inter, sans-serif;
+  opacity: 0; pointer-events: none; transition: opacity .35s; cursor: pointer; }
+.radio-strip.live, .radio-strip.open { opacity: 1; pointer-events: auto; }
+.radio-strip .rs-cur b, .radio-strip .rs-log b { font: 700 11px Rajdhani, Inter, sans-serif; letter-spacing: .6px; margin-right: 6px; text-transform: uppercase; }
+.radio-strip b.b { color: #7cf0a8; } .radio-strip b.r { color: #ff8a80; } .radio-strip b.hq { color: #ffd36a; }
+.radio-strip .rs-int, .radio-strip .rs-tag, .radio-strip .rs-log i { font-style: normal; font-size: 9px; font-weight: 700; padding: 1px 5px; margin-right: 6px; border-radius: 4px; background: rgba(255,138,128,.18); color: #ff8a80; }
+.radio-strip .rs-tag { background: rgba(255,211,106,.16); color: #ffd36a; }
+.radio-strip .rs-log { margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,.08); max-height: 34vh; overflow: auto; font-size: 11px; color: #b9c4bc; }
+.radio-strip .rs-log div { padding: 2px 0; }
+body[data-ui="clean"] .radio-strip, body.cutscene .radio-strip { display: none; }
+body.dock-phone .radio-strip { bottom: calc(env(safe-area-inset-bottom, 0px) + 78px); font-size: 11px; }
+
+/* v12.0.12 — base invasions status block in WAR SYSTEMS */
+.invasion-panel .inv-status { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; font: 500 11px Inter, sans-serif; color: #c8d2cb; }
+.invasion-panel .inv-row { padding: 4px 6px; border-radius: 6px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.06); }
+.invasion-panel .inv-row.b b { color: #5fd68a; }
+.invasion-panel .inv-row.r b { color: #ff8a7a; }
+.invasion-panel .inv-row b { margin-right: 6px; font: 700 11px Rajdhani, Inter, sans-serif; letter-spacing: .4px; }
+body[data-ui="clean"] #invasionPanel { display: none; }
