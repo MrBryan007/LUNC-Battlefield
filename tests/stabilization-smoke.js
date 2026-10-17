@@ -23,8 +23,9 @@ const checks = [
   ['base-invasion wired', index.includes('base-invasion.js')],
   ['realism-pass wired', index.includes('realism-pass.js')],
   ['realism-armies wired', index.includes('realism-armies.js')],
+  ['tacmap wired', index.includes('theaters/tacmap.js') && read('js/theaters/extras.js').includes('LB.tacmap.drawInset')],
   ['realism-seaair wired', index.includes('realism-seaair.js') && index.indexOf('realism-seaair.js') < index.indexOf('theaters/theaters.js')],
-  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.15')]
+  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.16')]
 ];
 
 let failed = 0;

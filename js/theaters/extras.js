@@ -184,6 +184,7 @@
     if (LB.ai && LB.ai.send) LB.ai.send({ side: side, type: 'cyber', text: (side < 0 ? 'BULL' : 'BEAR') + ' CYBER: radar spoofing on the enemy airbase — brief static (SIMULATED)' });
   }
   function drawInset() {
+    if (LB.tacmap && LB.tacmap.drawInset && LB.tacmap.drawInset(inset)) return;   // v12.0.16 tactical symbols (?tacmap=0 → dots)
     var c = ictx, W = 150, H = 100, B = TH().bounds, sx = W / (B.maxX - B.minX), sz = H / (B.maxZ - B.minZ);
     var X = function (x) { return (x - B.minX) * sx; }, Z = function (z) { return (z - B.minZ) * sz; };
     c.clearRect(0, 0, W, H);
