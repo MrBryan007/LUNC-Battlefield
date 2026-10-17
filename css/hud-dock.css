@@ -259,3 +259,36 @@ body.dock-phone .radio-strip { bottom: calc(env(safe-area-inset-bottom, 0px) + 7
 .invasion-panel .inv-row.r b { color: #ff8a7a; }
 .invasion-panel .inv-row b { margin-right: 6px; font: 700 11px Rajdhani, Inter, sans-serif; letter-spacing: .4px; }
 body[data-ui="clean"] #invasionPanel { display: none; }
+
+/* v12.0.16 tactical map (js/theaters/tacmap.js) */
+.tac-expand { position: fixed; z-index: 71; right: calc(env(safe-area-inset-right, 0px) + 11px); top: calc(env(safe-area-inset-top, 0px) + 58px + 100px - 25px);
+  width: 22px; height: 22px; padding: 0; border-radius: 6px; border: 1px solid rgba(255,255,255,.28); background: rgba(7,11,9,.78); color: #f0e2b8;
+  font: 700 13px/20px Inter, system-ui, sans-serif; cursor: pointer; }
+.tac-expand:hover { border-color: rgba(215,181,109,.6); }
+.tac-expand[hidden] { display: none; }
+body.dock-phone .tac-expand { top: calc(env(safe-area-inset-top, 0px) + 100px + 72px - 25px); width: 26px; height: 26px; line-height: 24px; }
+body[data-ui] .tac-expand, body.cutscene .tac-expand, body[data-ui] .tac-map, body.cutscene .tac-map, body.tac-open .tac-expand { display: none; }
+.tac-map { position: fixed; z-index: 76; left: calc(env(safe-area-inset-left, 0px) + 12px); right: calc(env(safe-area-inset-right, 0px) + 12px);
+  top: calc(env(safe-area-inset-top, 0px) + 52px); bottom: calc(env(safe-area-inset-bottom, 0px) + 74px); display: flex; flex-direction: column;
+  background: rgba(6,10,8,.94); border: 1px solid rgba(215,181,109,.32); border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,.5); color: #dfe7e1; overflow: hidden; }
+.tac-map[hidden] { display: none; }
+.tac-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 7px 10px; font: 600 11px Inter, system-ui, sans-serif; letter-spacing: .4px; border-bottom: 1px solid rgba(255,255,255,.08); }
+.tac-head b { font: 700 13px Rajdhani, Inter, sans-serif; letter-spacing: 1.2px; color: #d7b56d; }
+.tac-head .qual { font-size: 9px; padding: 1px 5px; border-radius: 4px; background: rgba(255,255,255,.07); }
+.tac-head .qual.sim { color: #9ec7ff; } .tac-head .qual.live { color: #58d08f; } .tac-head .qual.est { color: #d7b56d; }
+.tac-sp { flex: 1; }
+.tac-head button, .tac-open-btn { min-width: 30px; height: 28px; padding: 0 9px; border-radius: 7px; border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.05); color: #e8efe9; font: 600 12px Inter, system-ui, sans-serif; cursor: pointer; }
+.tac-seg { display: inline-flex; gap: 0; } .tac-seg button { border-radius: 0; } .tac-seg button:first-child { border-radius: 7px 0 0 7px; } .tac-seg button:last-child { border-radius: 0 7px 7px 0; }
+.tac-head button.on { background: rgba(215,181,109,.22); border-color: rgba(215,181,109,.55); color: #f6e7bf; }
+.tac-body { position: relative; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 6px; }
+.tac-body canvas { display: block; border-radius: 6px; touch-action: none; cursor: crosshair; }
+.tac-legend { position: absolute; left: 10px; bottom: 30px; max-width: min(460px, calc(100% - 20px)); padding: 8px 10px; border-radius: 9px; background: rgba(6,10,8,.92); border: 1px solid rgba(255,255,255,.12); font: 11px/1.5 Inter, system-ui, sans-serif; }
+.tac-legend[hidden] { display: none; }
+.tac-legend .lg { display: inline-block; width: 12px; height: 8px; border: 1.5px solid #58d08f; margin-right: 4px; vertical-align: -1px; }
+.tac-legend .lg.dia { width: 8px; height: 8px; border-color: #ff7b72; transform: rotate(45deg); margin: 0 6px 0 4px; }
+.tac-foot { position: absolute; left: 10px; bottom: 6px; font: 10.5px Inter, system-ui, sans-serif; color: #c9b98f; pointer-events: none; }
+.tac-open-btn { display: block; width: 100%; margin: 0 0 8px; height: 34px; color: #f0e2b8; border-color: rgba(215,181,109,.4); }
+@media (max-width: 720px) {
+  .tac-map { left: 4px; right: 4px; top: calc(env(safe-area-inset-top, 0px) + 46px); bottom: calc(env(safe-area-inset-bottom, 0px) + 66px); }
+  .tac-head { gap: 6px; padding: 6px 8px; } .tac-head .tac-flot { order: 9; width: 100%; }
+}

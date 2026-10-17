@@ -416,6 +416,14 @@
     var to = new THREE.Vector3(v.x, 0.5, v.z), pos = new THREE.Vector3().setFromSpherical(_sph).add(to);
     fly = { t: 0, dur: dur || 1.6, fromT: T, toT: to, fromP: e.camera.position.clone(), toP: pos, id: id };
   }
+  // v12.0.16 tactical map: fly the camera to any world point, keeping the current view angle
+  function flyToPoint(x, z, d) {
+    var e = E(); if (!e || !THREE) return;
+    var T = e.getCameraTarget(), off = e.camera.position.clone().sub(T), len = off.length() || 1;
+    var want = Math.max(30, Math.min(160, d || len)); off.multiplyScalar(want / len);
+    var to = new THREE.Vector3(x, 0.5, z);
+    fly = { t: 0, dur: 1.4, fromT: T, toT: to, fromP: e.camera.position.clone(), toP: to.clone().add(off), id: 'point' };
+  }
   function tickCamera(dt) {
     var e = E(), cam = e.camera, c = e.controls;
     if (fly) {
@@ -497,7 +505,7 @@
     // v12.0.15: the ocean shader's wave height at a world point (null when the ocean is flat), its time uniform, centre z
     waveAt: function (x, z) { if (!oceanU) return null; var T = oceanU.value; return -0.35 + Math.sin(x * 0.09 + T * 1.1) * 0.35 + Math.sin((z - (SHORE + 160)) * 0.13 + T * 0.8) * 0.25; },
     oceanUniform: function () { return oceanU; }, oceanZ: function () { return SHORE + 160; }, update: update, flyTo: flyTo, tour: startTour, isWater: isWater, splash: splash, onStrike: onStrike,
-    VIEWS: VIEWS, CAPS: CAPS,
+    VIEWS: VIEWS, CAPS: CAPS, flyToPoint: flyToPoint,
     getStats: function () { return Object.assign({ tier: tierN, cap: cap }, stats); },
     _ships: function () { return ships; }, _jets: function () { return jets; }
   };
