@@ -34,10 +34,11 @@
   function tierName() { try { return LB.quality.getEffectiveName(); } catch (_) { return 'HIGH'; } }
   function phone() { return innerWidth < 760 || (E() && E().mobile); }
   function fx() { return LB.heavyFx || null; }
+  function SA() { var m = LB.seaAir; return m && m.on && m.on() ? m : null; }   // v12.0.15 sea & air realism (?seaair=0)
   function rnd(a, b) { return a + Math.random() * (b - a); }
 
   // ---------------------------------------------------------------- world
-  function mat(name, o) { return mats[name] || (mats[name] = new THREE.MeshStandardMaterial(o)); }
+  function mat(name, o) { return mats[name] || (mats[name] = new THREE.MeshStandardMaterial(SA() ? SA().fixColor(o) : o)); }
   function mesh(g, m, x, y, z, sx, sy, sz, parent) {
     var o = new THREE.Mesh(geos[g], m); o.position.set(x, y, z); o.scale.set(sx, sy, sz);
     o.castShadow = false; o.receiveShadow = false; (parent || root).add(o); return o;
@@ -48,6 +49,7 @@
     var g = new THREE.PlaneGeometry(BOUNDS.maxX * 2 + 260, 320, seg[0], seg[1]);
     g.rotateX(-Math.PI / 2);
     var m = new THREE.MeshStandardMaterial({ color: 0x1f5468, roughness: 0.28, metalness: 0.15 });
+    if (SA()) { m.color.setHex(0x1a4657); SA().fixMaterial(m); m.roughness = 0.22; }   // v12.0.15: sRGB→linear, deeper sea
     if (waves) {
       oceanU = { value: 0 };
       m.onBeforeCompile = function (sh) {
@@ -65,6 +67,40 @@
     beach.rotation.x = -Math.PI / 2; beach.position.set(0, -0.3, SHORE - 5); root.add(beach);
     foam = new THREE.Mesh(new THREE.PlaneGeometry(BOUNDS.maxX * 2 + 260, 2.2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.45, depthWrite: false }));
     foam.rotation.x = -Math.PI / 2; foam.position.set(0, -0.2, SHORE + 1.2); root.add(foam);
+    hideSkirtUnderSea();
+  }
+  // v12.0.15 fix: the far ground skirt (y −0.55) poked up through every wave trough (ocean dips to −0.95) as gold
+  // striped discs across the whole sea. Discard skirt fragments under the ocean footprint.
+  function hideSkirtUnderSea() {
+    var sk = scene.getObjectByName('ground-skirt'); if (!sk || !sk.material || sk.material.userData.seaCut) return;
+    var m = sk.material, prev = m.onBeforeCompile, z0 = (SHORE + 2).toFixed(1), z1 = (SHORE + 318).toFixed(1), xw = (BOUNDS.maxX + 128).toFixed(1);
+    m.userData.seaCut = true;
+    m.onBeforeCompile = function (sh, r) {
+      if (prev) prev.call(this, sh, r);
+      sh.vertexShader = 'varying vec3 vSeaW;\n' + sh.vertexShader.replace('#include <project_vertex>', '#include <project_vertex>\n vSeaW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+      sh.fragmentShader = 'varying vec3 vSeaW;\n' + sh.fragmentShader.replace('#include <clipping_planes_fragment>',
+        '#include <clipping_planes_fragment>\n if (vSeaW.z > ' + z0 + ' && vSeaW.z < ' + z1 + ' && abs(vSeaW.x) < ' + xw + ') discard;');
+    };
+    m.customProgramCacheKey = function () { return 'skirt-seacut'; };
+    m.needsUpdate = true;
+  }
+  // v12.0.15 fix: the v10 scenery ridge rings (r 230 / 320) were sized for the old small field — in the wide world the
+  // inner ring cut straight through both airbases as a dark jagged wall and both rings stood in the sea. Push them out
+  // past the playable world, a bit taller, and lower them to below the horizon over the ocean (open-sea horizon south).
+  function pushRidgesOut() {
+    var rings = [];
+    scene.traverse(function (o) { var p = o.isMesh && o.geometry && o.geometry.parameters; if (p && p.openEnded && (p.radiusTop === 230 || p.radiusTop === 320) && !o.userData.wideRidge) rings.push(o); });
+    rings.forEach(function (o) {
+      var p = o.geometry.parameters, k = p.radiusTop === 230 ? 1.8 : 1.65, H = p.height, pos = o.geometry.attributes.position;
+      for (var i = 0; i < pos.count; i++) {
+        var y = pos.getY(i); if (y <= -H / 2 + 1e-3) continue;
+        var zr = pos.getZ(i) / p.radiusTop, t = Math.max(0, Math.min(1, (zr - 0.05) / 0.35)); t = t * t * (3 - 2 * t);
+        pos.setY(i, y + (-H / 2 - 3 - y) * t);
+      }
+      pos.needsUpdate = true; o.geometry.computeVertexNormals();
+      o.scale.set(k, 1.6, k); o.position.y = (H * 1.6) / 2 - 1.2 - 0.4 * H; o.userData.wideRidge = true;
+    });
+    return rings.length;
   }
   function buildBase(side) {
     var bx = side * BASE_X, g = new THREE.Group(); g.position.set(bx, 0, BASE_Z); root.add(g);
@@ -118,7 +154,7 @@
   function buildConvoy(side) {
     for (var i = 0; i < cap.convoy; i++) {
       var g = new THREE.Group(), m = mat('truck' + side, { color: side < 0 ? 0x4b5b3c : 0x5e4a3a, roughness: 0.8 });
-      mesh('box', m, 0, 0.7, 0, 2.2, 1.2, 1.1, g); mesh('box', mat('dark', {}), 1.3, 0.55, 0, 0.8, 0.9, 1.0, g); root.add(g);
+      mesh('box', m, 0, 0.7, 0, 2.2, 1.2, 1.1, g); mesh('box', mat('dark', { color: 0x2b2e30, roughness: 0.8 }), 1.3, 0.55, 0, 0.8, 0.9, 1.0, g); root.add(g);   // v12.0.15: was {} → cached a WHITE 'dark' (ship turrets)
       convoys.push({ g: g, side: side, t: i / cap.convoy, dir: 1 });
     }
     var road = new THREE.Mesh(geos.box, mat('road', { color: 0x5b5446, roughness: 1 })); road.scale.set(170, 0.05, 2.4); road.position.set(side * 125, -0.32, -32); root.add(road);
@@ -130,6 +166,7 @@
     geos.box = new THREE.BoxGeometry(1, 1, 1); geos.cyl = new THREE.CylinderGeometry(0.5, 0.5, 1, 10); geos.cone = new THREE.ConeGeometry(0.5, 1, 8);
     root = new THREE.Group(); root.name = 'v12-theaters'; scene.add(root);
     buildOcean(); buildBase(-1); buildBase(1); buildConvoy(-1); buildConvoy(1);
+    try { pushRidgesOut(); } catch (err) { console.warn('[theaters] ridges', err); }
     [-1, 1].forEach(function (side) {
       for (var i = 0; i < cap.ships; i++) spawnShip(side, i, cap.carrier && i === 0 ? 'carrier' : i % 2 ? 'battleship' : 'destroyer');
       var nj = Math.max(1, Math.floor(cap.jets / 2));
@@ -181,6 +218,7 @@
     J.t -= dt;
     if (J.st === 'parked') { if (J.t <= 0 && airborne() < cap.jets) { J.st = 'taxi'; J.sp = 3; } }
     else if (J.st === 'taxi') { J.x -= J.side * J.sp * dt * -1; if (Math.abs(J.x - J.side * BASE_X) < 30) { J.z += (BASE_Z - J.z) * Math.min(1, dt * 2); } if (Math.abs(J.z - BASE_Z) < 0.6) { J.st = 'takeoff'; J.hd = J.side < 0 ? 0 : Math.PI; } }
+    else if (J.st === 'takeoff' && SA() && J.y < 0.9 && !SA().lineUp(J, dt)) { J.sp = 0; }   // v12.0.15: turn onto the runway first
     else if (J.st === 'takeoff') { J.sp = Math.min(34, J.sp + 14 * dt); J.x += Math.cos(J.hd) * J.sp * dt; if (J.sp > 20) J.y += dt * 6; J.g.rotation.set(0, J.hd, J.sp > 20 ? 0.18 : 0); if (J.y > 18) { J.st = 'cruise'; J.t = rnd(28, 45); pickTarget(J); } }
     else if (J.st === 'cruise' || J.st === 'fight') {
       this_x = J.x; this_z = J.z; var foe = enemyOf(J.side, jets);
@@ -196,6 +234,8 @@
       }
       if (F && Math.random() < dt * 4) F.puff({ kind: 'smoke', x: J.x - Math.cos(J.hd) * 2, y: J.y, z: J.z + Math.sin(J.hd) * 2, size: 0.5, grow: 1.4, life: 0.8, color: 0xd0d3d4, opacity: 0.25 });
       if (J.t <= 0) J.st = 'rtb';
+    } else if ((J.st === 'rtb' || J.st === 'land') && SA() && SA().flyHome(J, dt, homeCtx(J))) {
+      // v12.0.15: initial point → final approach → glide slope + flare → rollout → taxi-in (realism-seaair.js)
     } else if (J.st === 'rtb') {
       var hx = J.side * BASE_X + J.side * 40, d2 = steer(J, hx, 10, BASE_Z, dt, 0.9);
       if (d2 < 8) { J.st = 'land'; J.hd = J.side < 0 ? Math.PI : 0; }
@@ -210,6 +250,13 @@
     } else if (J.st === 'dead') { if (J.t <= 0) park(J); }
     J.g.position.set(J.x, J.y, J.z);
     if (J.st === 'taxi' || J.st === 'parked' || J.st === 'land') J.g.rotation.y = J.hd;
+    if (SA()) SA().jetPose(J, dt);
+  }
+  var _home = null;
+  function homeCtx(J) {
+    if (!_home) _home = { bx: 0, bz: BASE_Z, steer: steer, park: park, rnd: rnd, rate: sortieRate,
+      slotXZ: function (j) { return { x: j.side * BASE_X - j.side * (6 + (j.slot % 6) * 6), z: BASE_Z - 12 - Math.floor(j.slot / 6) * 6 }; } };
+    _home.bx = J.side * BASE_X; return _home;
   }
   function airborne() { var n = 0; for (var i = 0; i < jets.length; i++) { var s = jets[i].st; if (s === 'cruise' || s === 'fight' || s === 'rtb' || s === 'takeoff') n++; } return n; }
   function pickTarget(J) {
@@ -250,16 +297,20 @@
   function tickShip(s, dt) {
     var F = fx();
     if (s.st === 'sink') {
-      s.t += dt; s.g.rotation.z = Math.min(0.32, s.t * 0.04) * s.side; s.g.position.y = -Math.min(1.6, s.t * 0.15);
+      s.t += dt; s.g.rotation.z = Math.min(0.32, s.t * 0.04) * s.side; s.g.position.y = (s._sy || 0) - Math.min(1.6, s.t * 0.15);
+      if (SA()) SA().sinkTick(s);
       if (F && Math.random() < dt * 3) F.puff({ kind: 'smoke', x: s.x, y: 2, z: s.z, vy: 1.6, size: 2, grow: 1.6, life: 3, color: 0x221f1c, opacity: 0.5 });
-      if (s.t > 12) { s.st = 'hulk'; hulks.push(s); if (hulks.length > 6) { var h = hulks.shift(); root.remove(h.g); ships.splice(ships.indexOf(h), 1); } }
+      if (s.t > 12) { s.st = 'hulk'; hulks.push(s); if (hulks.length > 6) { var h = hulks.shift(); root.remove(h.g); if (LB.seaAir) LB.seaAir.dropShip(h); ships.splice(ships.indexOf(h), 1); } }
       return;
     }
     if (s.st === 'hulk') return;
-    s.x += s.dir * s.speed * dt;
-    if (s.side < 0 ? (s.x < -170 || s.x > -18) : (s.x > 170 || s.x < 18)) s.dir = -s.dir;
-    s.g.position.x = s.x; s.g.rotation.y = s.dir > 0 ? 0 : Math.PI;
-    s.g.position.y = Math.sin(performance.now() * 0.0012 + s.z) * 0.12;
+    if (SA()) SA().moveShip(s, dt, s.side < 0 ? -170 : 18, s.side < 0 ? -18 : 170);   // v12.0.15: turning circles, heave/pitch/roll, wake
+    else {
+      s.x += s.dir * s.speed * dt;
+      if (s.side < 0 ? (s.x < -170 || s.x > -18) : (s.x > 170 || s.x < 18)) s.dir = -s.dir;
+      s.g.position.x = s.x; s.g.rotation.y = s.dir > 0 ? 0 : Math.PI;
+      s.g.position.y = Math.sin(performance.now() * 0.0012 + s.z) * 0.12;
+    }
     if (s.burn > 0 && F && Math.random() < dt * 4) F.puff({ kind: Math.random() < 0.4 ? 'fire' : 'smoke', x: s.x + rnd(-3, 3), y: 2.4, z: s.z, vy: 1.3, size: 1.2, grow: 1.4, life: 1.8, color: Math.random() < 0.4 ? 0xff7a1a : 0x2e2a26, opacity: 0.55, flicker: true });
     s.reload -= dt * navalWeight(s.side);
     if (s.reload <= 0 && s.kind !== 'carrier') {
@@ -309,7 +360,9 @@
   function deckLaunch(s) {
     // a deck jet: borrow a parked jet of this side and launch it from the carrier
     for (var i = 0; i < jets.length; i++) { var J = jets[i]; if (J.side === s.side && J.st === 'parked' && airborne() < cap.jets) {
-      J.x = s.x; J.z = s.z; J.y = 2.3; J.hd = s.dir > 0 ? 0 : Math.PI; J.sp = 14; J.st = 'takeoff'; return; } }
+      J.x = s.x; J.z = s.z; J.y = 2.3; J.hd = s.dir > 0 ? 0 : Math.PI; J.sp = 14; J.st = 'takeoff';
+      if (SA() && s._sa) { J.y = s.g.position.y + 2.35; J.hd = s._sa.hd; if (J._sa) { J._sa.ap = 0; J._sa.vyaw = J.hd; J._sa.phd = J.hd; J._sa.px = J.x; J._sa.py = J.y; J._sa.pz = J.z; } }
+      return; } }
   }
   function splash(x, z, p) {
     var F = fx(); if (!F) return;
@@ -440,7 +493,10 @@
   }
 
   LB.theaters = {
-    isEnabled: function () { return enabled && ready; }, bounds: BOUNDS, update: update, flyTo: flyTo, tour: startTour, isWater: isWater, splash: splash, onStrike: onStrike,
+    isEnabled: function () { return enabled && ready; }, bounds: BOUNDS,
+    // v12.0.15: the ocean shader's wave height at a world point (null when the ocean is flat), its time uniform, centre z
+    waveAt: function (x, z) { if (!oceanU) return null; var T = oceanU.value; return -0.35 + Math.sin(x * 0.09 + T * 1.1) * 0.35 + Math.sin((z - (SHORE + 160)) * 0.13 + T * 0.8) * 0.25; },
+    oceanUniform: function () { return oceanU; }, oceanZ: function () { return SHORE + 160; }, update: update, flyTo: flyTo, tour: startTour, isWater: isWater, splash: splash, onStrike: onStrike,
     VIEWS: VIEWS, CAPS: CAPS,
     getStats: function () { return Object.assign({ tier: tierN, cap: cap }, stats); },
     _ships: function () { return ships; }, _jets: function () { return jets; }

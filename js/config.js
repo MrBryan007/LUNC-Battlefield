@@ -88,9 +88,9 @@
   // Single source of truth for current release metadata.
   // Historical comments and changelog entries are left untouched.
   const BUILD = Object.freeze({
-    version: 'v12.0.14',
-    codename: 'Realism pass, part 2: armies',
-    date: '2026-10-16'
+    version: 'v12.0.15',
+    codename: 'Realism pass, part 3: sea & air',
+    date: '2026-10-17'
   });
 
   const config = {
