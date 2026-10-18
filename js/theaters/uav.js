@@ -97,7 +97,7 @@
     try { th._ships().forEach(function (S) { if (S.side !== side && S.st === 'sail') out.push({ kind: 'ship', x: S.x, z: S.z, o: S, label: S.kind === 'carrier' ? 'carrier' : S.kind === 'battleship' ? 'battleship' : 'destroyer' }); }); } catch (_) {}
     try { th._jets().forEach(function (J) { if (J.side !== side && J.st === 'parked' && J.g.visible) out.push({ kind: 'jet', x: J.x, z: J.z, o: J, label: 'jet on the apron' }); }); } catch (_) {}
     try { if (LB.lines && LB.lines.depots) LB.lines.depots().forEach(function (d) { if (d.side !== side && d.hp > 0) out.push({ kind: 'depot', x: d.x, z: d.z, label: d.role + ' depot' }); }); } catch (_) {}
-    try { if (LB.baseInvasion && LB.baseInvasion._forEachDefense) LB.baseInvasion._forEachDefense(function (m) { var u = m.userData; if (u.side !== side && !u.wreck && u.kind !== 'wall') out.push({ kind: 'defense', x: m.position.x, z: m.position.z, o: m, sub: u.kind, label: u.kind + ' position' }); }); } catch (_) {}
+    try { if (LB.baseInvasion && LB.baseInvasion._forEachDefense) LB.baseInvasion._forEachDefense(function (m) { var u = m.userData; if (u.side !== side && !u.wreck && u.kind !== 'wall' && u.kind !== 'gate') out.push({ kind: 'defense', x: m.position.x, z: m.position.z, o: m, sub: u.kind, label: u.kind + ' position' }); }); } catch (_) {}
     return out;
   }
   function aiTask(D) {
@@ -199,17 +199,17 @@
         var ix = hit ? p.x : M.x, iz = hit ? p.z : M.z;
         if (F) { F.puff({ kind: 'fire', x: ix, y: 1.2, z: iz, size: 2.4, grow: 0.8, life: 0.5, color: 0xffa040, opacity: 0.95, flicker: true }); F.puff({ kind: 'smoke', x: ix, y: 1.6, z: iz, vy: 2.5, size: 2.2, grow: 1.4, life: 3.2, color: 0x4a4540, opacity: 0.6 }); }
         try { if (TH().isWater && TH().isWater(ix, iz) && !hit) TH().splash(ix, iz, 1); else TH().onStrike(ix, iz, 0.55); } catch (_) {}
-        if (hit) stats.hits++;
+        if (hit) { stats.hits++; stats.lastHit = M.tgt.kind + ':' + M.tgt.label; } else stats.misses = (stats.misses || 0) + 1;
         radio(M.side, M.cs, hit ? M.cs + ', splash. Good hit on the ' + M.tgt.label + '.' : M.cs + ', miss, round impacted short.', M.side === playerSide() ? 2 : 1);
       }
     }
   }
   function threatAt(D) {   // per-second chance an enemy air-defence envelope gets the drone
     var side = D.side, p = 0, th = TH();
-    if (Math.hypot(D.x - (-side * BASE_X), D.z - BASE_Z) < 60) p += 0.035;   // enemy airbase AA
-    try { if (LB.baseInvasion && LB.baseInvasion._forEachDefense) LB.baseInvasion._forEachDefense(function (m) { var u = m.userData; if (u.side !== side && !u.wreck && u.kind === 'aa' && Math.hypot(m.position.x - D.x, m.position.z - D.z) < 42) p += 0.03; }); } catch (_) {}
-    try { th._ships().forEach(function (S) { if (S.side !== side && S.st === 'sail' && Math.hypot(S.x - D.x, S.z - D.z) < 34) p += S.kind === 'destroyer' ? 0.025 : 0.015; }); } catch (_) {}
-    return Math.min(0.12, p * (0.6 + 0.4 * wmult()));
+    if (Math.hypot(D.x - (-side * BASE_X), D.z - BASE_Z) < 60) p += 0.02;   // enemy airbase AA
+    try { if (LB.baseInvasion && LB.baseInvasion._forEachDefense) LB.baseInvasion._forEachDefense(function (m) { var u = m.userData; if (u.side !== side && !u.wreck && u.kind === 'aa' && Math.hypot(m.position.x - D.x, m.position.z - D.z) < 42) p += 0.015; }); } catch (_) {}
+    try { th._ships().forEach(function (S) { if (S.side !== side && S.st === 'sail' && Math.hypot(S.x - D.x, S.z - D.z) < 34) p += S.kind === 'destroyer' ? 0.012 : 0.007; }); } catch (_) {}
+    return Math.min(0.06, p * (0.6 + 0.4 * wmult()));
   }
 
   // ------------------------------------------------------------------ flight
@@ -336,6 +336,7 @@
     _step: function (sec) { if (!ready) return false; for (var t = 0; t < sec; t += 0.05) step(0.05); renderUi(); return true; },
     _shootDown: function (i) { var D = list[i || 0]; if (!D || D.st === 'dead') return false; D.st = 'down'; stats.downs++; return true; },
     _place: function (i, x, z) { var D = list[i || 0]; if (!D) return false; D.x = x; D.z = z; D.y = D.alt; D.st = 'orbit'; D.task = { x: x, z: z, kind: 'test', by: 'cmdr', until: performance.now() + 60000 }; D.cd = 0; return true; },
+    _threat: function (i) { var D = list[i || 0]; return D ? threatAt(D) : null; },
     _resetCd: function () { cmdCd = 0; list.forEach(function (D) { D.cd = 0; }); }
   };
 })(window);

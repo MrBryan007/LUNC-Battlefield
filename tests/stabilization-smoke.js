@@ -25,7 +25,8 @@ const checks = [
   ['realism-armies wired', index.includes('realism-armies.js')],
   ['tacmap wired', index.includes('theaters/tacmap.js') && read('js/theaters/extras.js').includes('LB.tacmap.drawInset')],
   ['realism-seaair wired', index.includes('realism-seaair.js') && index.indexOf('realism-seaair.js') < index.indexOf('theaters/theaters.js')],
-  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.16')]
+  ['uav wired', index.includes('theaters/uav.js') && index.indexOf('theaters/uav.js') > index.indexOf('theaters/extras.js') && read('js/theaters/extras.js').includes('_droneList') && engine.includes('LUNCBattle.uav.update()')],
+  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.17')]
 ];
 
 let failed = 0;
