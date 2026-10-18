@@ -37,7 +37,7 @@ Soft frontline scars/smoke (no black strip), layered explosions, SOS-delayed far
 - **Terrain:** height-aware tracks that persist under vehicles; shoreline foam upgrade; less z-fighting on trench berms.
 - **Motion & physics:** ~~vehicle suspension bob~~ (v12.0.14); aircraft banking on turns; ship roll in waves; ragdoll weight tweaks.
 - **Combat behavior:** cover usage, suppression, bounding overwatch, flanking already partly in squads — deepen retreat/medic ranges.
-- **FX:** tracer 1-in-5 everywhere (partial); fires that burn out over minutes; persistent wreck LODs further out.
+- **FX:** tracer 1-in-5 everywhere (partial); ~~fires that burn out over minutes~~ (shipped v12.0.19, `js/fx/fires.js`, `?fires=0`); persistent wreck LODs further out.
 - **Audio & radio:** Doppler on more than jets; authentic brevity codes; positional gunfire HRTF-ish pan.
 - **UI:** NATO-ish map symbols on the world inset; less pastel unit silhouettes on the minimap (3D units are camo since v12.0.14).
 

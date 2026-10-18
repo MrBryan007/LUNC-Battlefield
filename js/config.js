@@ -88,8 +88,8 @@
   // Single source of truth for current release metadata.
   // Historical comments and changelog entries are left untouched.
   const BUILD = Object.freeze({
-    version: 'v12.0.18',
-    codename: 'Weather & cyber warfare',
+    version: 'v12.0.19',
+    codename: 'Fires that burn out',
     date: '2026-10-18'
   });
 

@@ -226,6 +226,9 @@
       if (window.LUNCBattle && LUNCBattle.v11 && LUNCBattle.v11.update) {
         try { LUNCBattle.v11.update(); } catch (e) { if (!drawFrame._v11Err) { drawFrame._v11Err = 1; console.warn('[v11]', e); } }
       }
+      if (window.LUNCBattle && LUNCBattle.fires && LUNCBattle.fires.update) {   // v12.0.19 fires that burn out over minutes
+        try { LUNCBattle.fires.update(); } catch (e) { if (!drawFrame._fireErr) { drawFrame._fireErr = 1; console.warn('[fires]', e); } }
+      }
       if (window.LUNCBattle && LUNCBattle.craters && LUNCBattle.craters.update) {
         try { LUNCBattle.craters.update(); } catch (e) { if (!drawFrame._crErr) { drawFrame._crErr = 1; console.warn('[craters]', e); } }
       }
