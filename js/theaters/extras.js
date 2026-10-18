@@ -106,7 +106,7 @@
     var now = performance.now(), dt = Math.min(0.1, (now - (last || now)) / 1000); last = now;
     if (e.isPaused()) return;
     var F = fx();
-    for (var i = 0; i < drones.length; i++) { var d = drones[i]; d.a += dt * 0.25; d.g.position.set(d.cx + Math.cos(d.a) * d.r, d.y, d.cz + Math.sin(d.a) * d.r); d.g.rotation.y = -d.a; }
+    for (var i = 0; i < drones.length; i++) { var d = drones[i]; if (d.ctl) continue; d.a += dt * 0.25; d.g.position.set(d.cx + Math.cos(d.a) * d.r, d.y, d.cz + Math.sin(d.a) * d.r); d.g.rotation.y = -d.a; }
     for (var s = 0; s < subs.length; s++) tickSub(subs[s], dt, F); tickTorps(dt, F);
     for (var k = 0; k < silos.length; k++) tickSilo(silos[k], dt, F);
     for (var q = icbms.length - 1; q >= 0; q--) tickIcbm(icbms[q], dt, F, q);
@@ -225,7 +225,8 @@
     launchTest: function () { if (silos[0]) silos[0].t = 0.01; },
     ambushTest: function () { var S = subs[0]; if (!S) return false; S.st = 'deep'; S.t = 0.01; return true; },   // v12.0.5 test hook: next frame surfaces + fires
     _fow: function () { tickFow(); },   // test hook
-    _drones: function () { return drones.map(function (d) { return { side: d.side, x: d.g.position.x, z: d.g.position.z }; }); },
+    _droneList: function () { return drones; },   // v12.0.17: js/theaters/uav.js takes these over
+    _drones: function () { return drones.filter(function (d) { return !d.dead && d.g.visible; }).map(function (d) { return { side: d.side, x: d.g.position.x, z: d.g.position.z }; }); },
     _subs: function () { return subs.map(function (S) { return { st: S.st, t: +S.t.toFixed(2), x: Math.round(S.x), z: Math.round(S.z), side: S.side }; }); },
     _stepNaval: function (sec) { var F = fx(); for (var t = 0; t < sec; t += 0.1) { for (var s = 0; s < subs.length; s++) tickSub(subs[s], 0.1, F); tickTorps(0.1, F); } },   // test hook
     torpedoes: function () { return torps.map(function (T) { return { x: T.x, z: T.z, tx: T.tgt.x, tz: T.tgt.z }; }); } };

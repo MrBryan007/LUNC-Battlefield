@@ -88,9 +88,9 @@
   // Single source of truth for current release metadata.
   // Historical comments and changelog entries are left untouched.
   const BUILD = Object.freeze({
-    version: 'v12.0.16',
-    codename: 'Tactical map',
-    date: '2026-10-17'
+    version: 'v12.0.17',
+    codename: 'UAV recon & strike drones',
+    date: '2026-10-18'
   });
 
   const config = {
