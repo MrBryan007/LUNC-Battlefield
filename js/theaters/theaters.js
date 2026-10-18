@@ -19,6 +19,9 @@
   var E = function () { return LB.engine; };
   var BOUNDS = { minX: -260, maxX: 260, minZ: -120, maxZ: 230 };
   var SHORE = 62, NAVAL_Z = 135, BASE_X = 205, BASE_Z = -55;
+  // v12.0.18: weather / night / cyber modifiers from js/theaters/wx-combat.js (1 when it is off)
+  function WXM(k, side) { try { return LB.wxCombat && LB.wxCombat.isEnabled() ? LB.wxCombat.mod(k, side) : 1; } catch (_) { return 1; } }
+  function WXOFF(side, sys) { try { return !!(LB.wxCombat && LB.wxCombat.isEnabled() && LB.wxCombat.offline(side, sys)); } catch (_) { return false; } }
   var CAPS = { LOW: { ships: 2, carrier: false, jets: 4, aa: 1, waves: false, convoy: 0 },
     MEDIUM: { ships: 3, carrier: false, jets: 8, aa: 2, waves: true, convoy: 2 },
     HIGH: { ships: 5, carrier: true, jets: 16, aa: 3, waves: true, convoy: 3 },
@@ -279,7 +282,7 @@
       if (d < 2 || m.t > 3) {
         missiles.splice(i, 1);
         if (o.flare > 0 && Math.random() < 0.4) { o.flare--; if (F) for (var k = 0; k < 4; k++) F.puff({ kind: 'fire', x: o.x, y: o.y - k * 0.5, z: o.z, vy: -2, size: 0.5, grow: 0.2, life: 0.8, color: 0xffd27a, opacity: 0.9, delay: k * 0.05 }); continue; }
-        if (d < 4 && (o.st === 'cruise' || o.st === 'fight' || o.st === 'rtb')) { if (F) F.puff({ kind: 'fire', x: o.x, y: o.y, z: o.z, size: 2.4, grow: 0.6, life: 0.6, color: 0xff9a3a, opacity: 0.95 }); o.st = 'down'; stats.kills++; }
+        if (d < 4 && (o.st === 'cruise' || o.st === 'fight' || o.st === 'rtb') && Math.random() < WXM('ir', m.side)) { if (F) F.puff({ kind: 'fire', x: o.x, y: o.y, z: o.z, size: 2.4, grow: 0.6, life: 0.6, color: 0xff9a3a, opacity: 0.95 }); o.st = 'down'; stats.kills++; }
       }
     }
   }
@@ -326,7 +329,7 @@
   function broadside(s, t) {
     var F = fx(), n = s.kind === 'battleship' ? 3 : 2;
     for (var i = 0; i < n && shells.length < 40; i++) {
-      var ox = s.x + rnd(-s.g.scale.x * 3, 3), tx = t.x + rnd(-6, 6), tz = t.z + rnd(-4, 4), T = 2.4 + Math.abs(tx - ox) / 70;
+      var sp = WXM('gun', s.side), ox = s.x + rnd(-s.g.scale.x * 3, 3), tx = t.x + rnd(-6, 6) * sp, tz = t.z + rnd(-4, 4) * sp, T = 2.4 + Math.abs(tx - ox) / 70;
       shells.push({ x: ox, y: 2, z: s.z, vx: (tx - ox) / T, vz: (tz - s.z) / T, vy: 9.8 * T / 2, t: 0, tgt: t, from: s });
       if (F) F.puff({ kind: 'fire', x: ox, y: 2, z: s.z, size: 1.4, grow: 0.4, life: 0.25, color: 0xffd090, opacity: 0.95 });
       if (F) F.puff({ kind: 'smoke', x: ox, y: 2.2, z: s.z, vy: 0.6, size: 1.4, grow: 1.6, life: 1.6, color: 0x9a9a96, opacity: 0.35 });
@@ -377,11 +380,12 @@
     for (var r = 0; r < radars.length; r++) radars[r].rotation.y += dt * 1.6;
     for (var i = 0; i < aaGuns.length; i++) {
       var a = aaGuns[i]; a.cd -= dt; if (a.cd > 0) continue; a.cd = 0.7;
+      if (WXOFF(a.side, 'aa')) continue;   // v12.0.18: AA knocked out by a cyber hack
       this_x = a.wx; this_z = a.wz; var foe = enemyOf(a.side, jets);
       if (!foe || foe.d > 60) continue;
       var o = foe.o; a.g.rotation.y = Math.atan2(o.x - a.wx, o.z - a.wz);
       if (F) F.puff({ kind: 'smoke', x: o.x + rnd(-4, 4), y: o.y + rnd(-2, 3), z: o.z + rnd(-4, 4), size: 1.3, grow: 1.2, life: 1.2, color: 0x262422, opacity: 0.6 });
-      if (Math.random() < 0.06 && o.st !== 'down') { o.st = 'down'; stats.kills++; }
+      if (Math.random() < 0.06 * WXM('aa', a.side) && o.st !== 'down') { o.st = 'down'; stats.kills++; }   // v12.0.18 weather / cyber
     }
     for (var c = 0; c < convoys.length; c++) {
       var v = convoys[c]; if (LB.lines && LB.lines.isCut && LB.lines.isCut(v.side)) continue;   // v12.0.6: cut supply line → convoys halt

@@ -92,6 +92,7 @@
     isEnabled: function () { return enabled && ready; }, isActive: function () { return enabled && ready && active; }, update: update, visible: visibleAt,
     ghosts: function () { var o = []; for (var g in ghosts) o.push(ghosts[g]); return o; },
     getStats: function () { return Object.assign({ active: active, radarDownS: Object.assign({}, radarDown) }, stats); },
+    clearRadar: function (side) { radarDown[String(side)] = 0; },   // v12.0.18 counter-hack
     _compute: function () { if (ready) { active = !spectator(); if (active) { compute(); trackGhosts(); } } }
   };
 })(window);
