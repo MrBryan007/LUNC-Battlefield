@@ -163,6 +163,29 @@
       c.strokeStyle = sideColNow; c.lineWidth = 1; c.beginPath(); c.moveTo(jx, jz); c.lineTo(jx + Math.cos(J.hd) * js * 2.6, jz - Math.sin(J.hd) * js * 2.6 * (sz / sx)); c.stroke();
       n++;
     }
+    // v12.0.17 UAVs (air frames + UAV label, own sensor ring on the big map) and SPOT markers from drone sensors
+    if (LB.uav && LB.uav.isEnabled && LB.uav.isEnabled()) {
+      var ul = LB.uav.list();
+      for (var uq = 0; uq < ul.length; uq++) {
+        var U = ul[uq]; if (U.st === 'dead' || U.st === 'rearm') continue; var ou = U.side === own;
+        if (!ou && fowOn && !LB.fow.visible(U.x, U.z)) continue;
+        var ux2 = X(U.x), uz2 = Z(U.z), us = gs * 0.75; sideColNow = sideCol(U.side);
+        frame(c, ux2, uz2, us, ou, 'air', U.side);
+        if (big) {
+          label(c, 'UAV', ux2, uz2 + us * 2.3, Math.max(6, us * 0.9), '#f2f6f3');
+          if (ou) { c.strokeStyle = 'rgba(255,255,255,.35)'; c.lineWidth = 1; c.setLineDash([3, 3]); c.beginPath(); c.arc(ux2, uz2, Math.max(4, U.sensor * sx), 0, 6.283); c.stroke(); c.setLineDash([]); }
+        }
+        n++;
+      }
+      var spl = LB.uav.spots();
+      for (var sq = 0; sq < spl.length; sq++) {
+        var SP = spl[sq]; if (SP.by !== own) continue;
+        var spx = X(SP.x), spz = Z(SP.z), sr = big ? 7 : 3.2, sa = Math.max(0.2, 1 - SP.age / 20);
+        c.strokeStyle = 'rgba(255,92,72,' + sa.toFixed(2) + ')'; c.lineWidth = big ? 1.6 : 1;
+        c.beginPath(); c.moveTo(spx, spz - sr); c.lineTo(spx + sr * 0.9, spz + sr * 0.6); c.lineTo(spx - sr * 0.9, spz + sr * 0.6); c.closePath(); c.stroke();
+        if (big) label(c, 'SPOT', spx, spz - sr - 7, 9, 'rgba(255,140,120,' + sa.toFixed(2) + ')');
+      }
+    }
     // fog of war: dim unseen ground + last-known ghosts
     if (fowOn) {
       var step = big ? 10 : 4; c.fillStyle = 'rgba(4,6,10,.5)';
