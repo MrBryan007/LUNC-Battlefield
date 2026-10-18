@@ -11,6 +11,8 @@
   var qs = new URLSearchParams(global.location.search);
   var enabled = qs.get('invasion') !== '0' && qs.get('theaters') !== '0';
   var THREE, root, ready = false, last = 0, uiT = 0, assaultT = 38, wrapDone = false;
+  function wxM(k, side) { try { return LB.wxCombat && LB.wxCombat.isEnabled() ? LB.wxCombat.mod(k, side) : 1; } catch (_) { return 1; } }
+  function wxOff(side, sys) { try { return !!(LB.wxCombat && LB.wxCombat.isEnabled() && LB.wxCombat.offline(side, sys)); } catch (_) { return false; } }
   var HQ = 96, REBUILD_FUEL = 6, BARRACKS_S = 18, ASSAULT_CD = 42, RAID_CD = 28, BREACH_SCORE = 180;
   var defenses = [], barracks = [], gates = [], walls = [], lights = [], squads = [], shells = [], tracers = [];
   var bases = { '-1': { hp: 100, max: 100, side: -1 }, '1': { hp: 100, max: 100, side: 1 } };
@@ -558,11 +560,13 @@
       var kind = d.userData.kind;
       if (kind === 'aa') {
         var jet = nearestEnemyJet(d);
-        if (jet) { fireAA(d, jet); d.userData.cd = low() ? 1.6 : 0.9; }
+        if (jet && !wxOff(d.userData.side, 'aa')) { fireAA(d, jet); d.userData.cd = low() ? 1.6 : 0.9; }
         continue;
       }
       var hit = nearestEnemySquad(d);
-      if (!hit || hit.dist > (kind === 'sniper' ? 60 : kind === 'rocket' ? 52 : kind === 'mortar' ? 48 : 38)) continue;
+      var rng = kind === 'sniper' ? 60 : kind === 'rocket' ? 52 : kind === 'mortar' ? 48 : 38;
+      if (kind === 'sniper' || kind === 'mg' || kind === 'sentry') rng *= wxM('sight');   // v12.0.18: rain / fog / night shorten direct fire
+      if (!hit || hit.dist > rng) continue;
       var tx = hit.sq.position.x, tz = hit.sq.position.z;
       if (d.userData.head) {
         try { d.userData.head.lookAt(tx, d.position.y + 0.5, tz); } catch (_) {}

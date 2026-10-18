@@ -32,6 +32,7 @@
     var own = side === playerSide();
     try { LB.voice.say({ pri: pri != null ? pri : (own ? 2 : 1), side: side, callsign: cs, text: text, intercepted: !own, tag: 'SIMULATED' }); } catch (_) {}
   }
+  function jammed(side) { try { return !!(LB.wxCombat && LB.wxCombat.isEnabled() && LB.wxCombat.offline(side, 'uav')); } catch (_) { return false; } }   // v12.0.18 cyber
   function col(hex) { var c = new THREE.Color(hex); if (c.convertSRGBToLinear) c.convertSRGBToLinear(); return c; }
 
   // ------------------------------------------------------------------ airframe
@@ -132,7 +133,7 @@
     return note(D.cs + ' tasked to ' + grid(x, z) + ' (ETA ' + eta + ' s)', true, D);
   }
   function commandStrike() {
-    var side = playerSide(), mine = ownAlive(side).filter(function (D) { return D.ammo > 0; }), best = null;
+    var side = playerSide(), mine = ownAlive(side).filter(function (D) { return D.ammo > 0 && !jammed(D.side); }), best = null;
     mine.forEach(function (D) { var t = pickStrike(D); if (t && (!best || t.d < best.t.d)) best = { D: D, t: t }; });
     if (!best) return note(mine.length ? 'No spotted target in missile range — task the UAV closer' : 'No armed UAV airborne', false);
     fire(best.D, best.t); return note(best.D.cs + ': rifle on the ' + best.t.label, true);
@@ -256,7 +257,8 @@
     D.y += Math.max(-3 * dt, Math.min(3 * dt, alt - D.y));
     // sensor + weapons + threats at 1 Hz
     D.sense -= dt;
-    if (D.sense <= 0 && D.st !== 'rtb' && D.y > 8) {
+    D.jam = jammed(D.side);
+    if (D.sense <= 0 && D.st !== 'rtb' && D.y > 8 && !D.jam) {
       D.sense = 1; sense(D);
       if (D.ammo > 0 && D.cd <= 0) { var t = pickStrike(D); if (t) fire(D, t); }
       if (D.ammo <= 0 && !missiles.some(function (m) { return m.cs === D.cs; })) { D.st = 'rtb'; radio(D.side, D.cs, D.cs + ', winchester. RTB to rearm.', 1); }
@@ -300,7 +302,7 @@
     if (!el.status) return;
     var side = playerSide(), html = list.filter(function (D) { return D.side === side; }).map(function (D) {
       var where = D.st === 'dead' ? Math.ceil(D.t) + ' s' : D.st === 'rearm' ? Math.ceil(D.t) + ' s' : grid(D.task ? D.task.x : D.x, D.task ? D.task.z : D.z);
-      return '<div><b>' + D.cs + '</b> · ' + ST[D.st] + ' · ' + where + ' · ' + D.ammo + ' msl' + (D.task && D.task.by === 'cmdr' ? ' · YOUR TASK' : '') + '</div>';
+      return '<div><b>' + D.cs + '</b> · ' + ST[D.st] + (D.jam ? ' · LINK JAMMED' : '') + ' · ' + where + ' · ' + D.ammo + ' msl' + (D.task && D.task.by === 'cmdr' ? ' · YOUR TASK' : '') + '</div>';
     }).join('');
     var nSpot = Object.keys(spots).filter(function (k) { return spots[k].by === side; }).length;
     html += '<div>Contacts spotted (20 s): ' + nSpot + ' · fired ' + stats.fired + ' · hits ' + stats.hits + ' · lost ' + stats.downs + '</div>';
