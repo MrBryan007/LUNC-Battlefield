@@ -11,7 +11,7 @@ Solid:
 - v11.4 HUD dock unchanged.
 
 **BASIC in v12.0** (to be deepened in v12.1):
-- **UAV drones**: orbit only; they don't spot or strike (they give vision only when fog of war is on).
+- **UAV drones**: orbit only; they don't spot or strike (they give vision only when fog of war is on). *Deepened in v12.0.17.*
 - **Submarines**: one per side, surfacing to periscope depth with a torpedo ambush on the nearest enemy ship. No sonar and no ASW.
 - **ICBM silos**: an occasional *inert test launch* arcing into the ocean. Cosmetic only, with no damage.
 - **Cyber layer**: a periodic screen-glitch pulse and a radio message (SIMULATED). No gameplay effect.
@@ -71,7 +71,7 @@ Remaining in v12.1:
 - **Sound design and music:** WebAudio SFX scaled by size, jet Doppler, gunfire, radio blips, ambient wind/ocean/rain, adaptive music layers, mute, a volume slider, iOS unlock-on-tap and distance attenuation.
 - ~~**Tactical minimap:** always-on inset with an expand toggle, unit dots and pings.~~ Shipped v12.0.16 (`js/theaters/tacmap.js`, `?tacmap=0`): APP-6-style symbols, FLOT, expand mode with grid, legend, fly-to and pings. Still open: drawing orders/arrows on the map, and squad selection from the map.
 - **Fog of war:** a per-faction visibility grid, reveals from UAVs, flares and radar, ghosted last-known enemies, shader darkening (cheap on LOW), and vision reduced by weather, night and cyber. Spectator full-vision toggle.
-- Deepen the basic v12.0 items: drone spotting/strikes, sub sonar/ASW, cyber effects on radar/AA, weather affecting accuracy, and a playable ridge sector.
+- Deepen the basic v12.0 items: ~~drone spotting/strikes~~ (shipped v12.0.17, `js/theaters/uav.js`, `?uav=0`: tasked orbits, sensor spotting with SPOT markers, two missiles per sortie, RTB/rearm, AA shoot-downs, Commander tasking with `U`), sub sonar/ASW, cyber effects on radar/AA, weather affecting accuracy, and a playable ridge sector.
 
 ## v12.2 Multiplayer
 - **Hot-seat first:** turn handoff or split control, a camera and fog per player, and a pass-the-device screen.
