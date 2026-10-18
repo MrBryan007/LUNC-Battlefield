@@ -22,7 +22,7 @@
     fog: { gun: 1.7, aa: 0.55, ir: 0.65, sight: 0.55 }
   };
   var NIGHT = { gun: 1.15, aa: 0.85, ir: 1, sight: 0.75 };
-  var ready = false, last = 0, uiT = 0, out = { '-1': {}, '1': {} }, immune = { '-1': 0, '1': 0 }, hackCd = 0, el = {}, wet = 0, ground = null, gBase = null, splT = 0;
+  var wrapped = false, ready = false, last = 0, uiT = 0, out = { '-1': {}, '1': {} }, immune = { '-1': 0, '1': 0 }, hackCd = 0, el = {}, wet = 0, ground = null, gBase = null, splT = 0;
   var stats = { hacks: 0, outages: 0, counters: 0, playerHacks: 0, last: '', wet: 0 };
   function rnd(a, b) { return a + Math.random() * (b - a); }
   function playerSide() { try { return LB.commander.getState().profile.side === 'bear' ? 1 : -1; } catch (_) { return -1; } }
@@ -41,7 +41,8 @@
 
   // ------------------------------------------------------------------ cyber
   function wrapAi() {
-    if (!LB.ai || !LB.ai.send || LB.ai.send._wx) return;
+    if (wrapped || !LB.ai || !LB.ai.send || LB.ai.send._wx) return;
+    wrapped = true;
     var s0 = LB.ai.send, g = function (msg) { try { if (msg && msg.type === 'cyber' && (msg.side === -1 || msg.side === 1) && !msg._wx) onHack(msg.side, null); } catch (_) {} return s0.apply(this, arguments); };
     g._wx = true; g._fow = s0._fow; g._snd = s0._snd; LB.ai.send = g;
   }
