@@ -195,6 +195,10 @@
       polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, toneMapped: false
     });
     decals = new THREE.InstancedMesh(g, m, CAPS.decals);
+    // v12.0.19: r128 setColorAt() sizes instanceColor from this.count — with count 0 it was empty, so every LOW decal
+    // rendered with a zero colour (black discs). Allocate it for the full pool before count is set to 0.
+    decals.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(CAPS.decals * 3).fill(1), 3);
+    decals.instanceColor.setUsage(THREE.DynamicDrawUsage);
     decals.count = 0; decals.frustumCulled = false; decals.renderOrder = 1; decals.name = 'v12-crater-decals';
     decals.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     for (var i = 0; i < CAPS.decals; i++) decalData.push({ life: 0, s: 0, dark: 0 });
