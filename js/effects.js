@@ -101,7 +101,7 @@
     }
 
     const SHARED = {
-      scorch: new THREE.MeshBasicMaterial({ color: 0x1a1612, transparent: true, opacity: 0.55, depthWrite: false }),
+      scorch: new THREE.MeshBasicMaterial({ color: 0x4a3c2e, transparent: true, opacity: 0.35, depthWrite: false }), // v12.0.13 earthy
       ring: new THREE.MeshBasicMaterial({ color: 0xffe6a8, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false }),
       spark: hotMat(0xffcc66, 0.85),
       smoke: new THREE.MeshBasicMaterial({ color: 0x3b4039, transparent: true, opacity: 0.85, depthWrite: false, map: PT ? PT.smokePuff(THREE) : null }),
@@ -116,6 +116,16 @@
     const inactiveLights = [];
     const inactiveAftermath = [];
     const MAX_FLASH_LIGHTS = mobile ? 1 : 3;
+    /* v11.1: fixed light pool created once at init. Lights are never added/removed
+       after startup (light count is baked into every lit shader; changing it recompiles
+       all materials = freeze). "Off" = intensity 0. */
+    for (let li = 0; li < MAX_FLASH_LIGHTS; li++) {
+      const pl = new THREE.PointLight(0xffffff, 0, 10);
+      pl.castShadow = false;
+      pl.position.set(0, -50, 0);
+      scene.add(pl);
+      inactiveLights.push(pl);
+    }
 
     const tmpV = new THREE.Vector3();
     const tmpV2 = new THREE.Vector3();
@@ -346,8 +356,7 @@
       if (!entry || !entry.light) return;
       const light = entry.light;
       light.intensity = 0;
-      if (light.parent) scene.remove(light);
-      if (inactiveLights.length < MAX_FLASH_LIGHTS * 2) inactiveLights.push(light);
+      if (inactiveLights.indexOf(light) < 0) inactiveLights.push(light);
     }
 
     function acquireFlashLight(color, intensity, distance, x, y, z, life) {
@@ -355,16 +364,12 @@
         const oldest = flashLights.shift();
         releaseFlashLight(oldest);
       }
-      let light = inactiveLights.pop() || null;
-      if (!light) {
-        light = new THREE.PointLight(0xffffff, 1, 10);
-        light.castShadow = false;
-      }
+      const light = inactiveLights.pop() || null;
+      if (!light) return;
       light.color.setHex(color);
       light.intensity = intensity;
       light.distance = distance;
       light.position.set(x, y, z);
-      if (!light.parent) scene.add(light);
       flashLights.push({ light: light, life: life });
     }
 
@@ -586,6 +591,9 @@
 
     function scorchDecal(x, z, scale) {
       scale = scale == null ? 1 : scale;
+      // v12: persistent craters/scorch (deform + damage texture, or LOW decal pool) replace the fading disc
+      const CR = global.LUNCBattle && global.LUNCBattle.craters;
+      if (CR && CR.isReady() && CR.impact(x, z, scale)) return;
       while (scorches.length >= CAPS.scorches) {
         const old = scorches.shift();
         if (old) {
@@ -771,6 +779,9 @@
         spawnFireCore(x, z, 0.9 + power * 0.35, 0.85 + power * 0.2);
       } else if (isBurn && CAPS.aftermath > 0) {
         spawnFireCore(x, z, 0.7 + power * 0.2, 0.55);
+      } else if (CAPS.aftermath > 0 && power >= 0.9 && global.LUNCBattle && LUNCBattle.realism && LUNCBattle.realism.isEnabled && LUNCBattle.realism.isEnabled()) {
+        // v12.0.13 realism: flash→fireball core on medium+ blasts
+        spawnFireCore(x, z, 0.55 + power * 0.2, 0.45 + power * 0.1);
       }
 
       acquireFlashLight(

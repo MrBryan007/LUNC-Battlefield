@@ -241,3 +241,57 @@ body.cmd-watch .cmd-enter-btn { display: block; }
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
 body.cmd-watch #hint { bottom: 64px; }
+
+/* v11.1 — six-ability bar (arty/air/moon/cluster/emp/flare) */
+@media (max-width: 1180px) and (min-width: 721px) {
+  .cmd-bar { gap: 7px; padding: 7px; }
+  .cmd-ability { width: 64px; height: 64px; }
+  .cmd-ab-icon { font-size: 21px; }
+  .cmd-ab-name { font-size: 9.5px; }
+}
+.cmd-ab-name { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 3px; }
+@media (max-width: 720px) {
+  /* 3×2 grid of 52px buttons + call panel on top; keeps the bar inside the left half of a 390px screen */
+  .cmd-bar { width: auto; max-width: 62vw; display: grid; grid-template-columns: repeat(3, 52px); gap: 5px; padding: 5px; }
+  .cmd-call { grid-column: 1 / -1; }
+  .cmd-ability { width: 52px; height: 52px; border-radius: 11px; }
+  .cmd-ab-icon { font-size: 18px; }
+  .cmd-ab-name { font-size: 8px; letter-spacing: .3px; }
+  .cmd-ab-cd { top: 2px; right: 3px; font-size: 10px; }
+}
+.cmd-ability.flare.ready .cmd-ab-icon { filter: drop-shadow(0 0 8px rgba(255,240,170,.6)); }
+.cmd-ability.emp.ready .cmd-ab-icon { filter: drop-shadow(0 0 8px rgba(140,200,255,.6)); }
+
+/* v11.3 — Heavy weapons row (toggle: ` key or HEAVY button). Hidden until opened so the base bar stays compact. */
+.cmd-heavy-toggle { align-self: stretch; min-width: 46px; border: 1px solid rgba(255,140,90,.35); background: rgba(40,14,8,.7); color: #ffb08a;
+  border-radius: 12px; font: 700 10px Rajdhani, Inter, sans-serif; letter-spacing: 1px; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; }
+.cmd-heavy-toggle kbd { font-size: 9px; opacity: .7; }
+body.cmd-heavy-open .cmd-heavy-toggle { background: rgba(120,34,14,.8); color: #fff; }
+.cmd-heavy { display: none; position: absolute; left: 0; bottom: calc(100% + 8px); gap: 8px; padding: 7px; border-radius: 14px;
+  background: rgba(14,8,6,.8); border: 1px solid rgba(255,140,90,.25); backdrop-filter: blur(8px); }
+body.cmd-heavy-open .cmd-heavy { display: flex; }
+.cmd-bar { position: relative; }
+.cmd-heavy .cmd-ability { border-color: rgba(255,140,90,.35); }
+.cmd-ability.nuke.ready .cmd-ab-icon { filter: drop-shadow(0 0 10px rgba(255,220,90,.85)); }
+@media (max-width: 720px) {
+  .cmd-heavy-toggle { grid-column: 1 / -1; min-height: 26px; flex-direction: row; border-radius: 9px; }
+  .cmd-heavy { grid-template-columns: repeat(3, 52px); gap: 5px; padding: 5px; }
+  body.cmd-heavy-open .cmd-heavy { display: grid; }
+}
+
+/* v11.3 — Mini Nuke cutscene */
+#nukeCut { position: fixed; inset: 0; z-index: 90; pointer-events: none; display: none; }
+#nukeCut.show { display: block; pointer-events: auto; cursor: pointer; }
+#nukeCut .nc-bar { position: absolute; left: 0; right: 0; height: 11vh; background: #000; transition: transform .4s ease; }
+#nukeCut .nc-bar.top { top: 0; } #nukeCut .nc-bar.bot { bottom: 0; }
+#nukeCut .nc-flash { position: absolute; inset: 0; background: #fff; opacity: 0; transition: opacity .9s ease-out; }
+#nukeCut.flash .nc-flash { opacity: 1; transition: opacity .05s; }
+#nukeCut .nc-beat { position: absolute; left: 4vw; top: calc(11vh + 14px); font: 700 13px Rajdhani, Inter, sans-serif; letter-spacing: 3px; color: #ffd27a; text-shadow: 0 0 8px rgba(0,0,0,.8); }
+#nukeCut .nc-card { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%) scale(.96); text-align: center; opacity: 0; transition: opacity .35s, transform .6s; color: #fff; }
+#nukeCut .nc-card b { display: block; font: 800 clamp(26px, 5vw, 56px) Rajdhani, Inter, sans-serif; letter-spacing: 6px; text-shadow: 0 0 24px rgba(255,160,60,.8); }
+#nukeCut .nc-card span { display: block; margin-top: 6px; font: 500 13px Inter, sans-serif; color: #ffd9a8; }
+#nukeCut.card .nc-card { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+#nukeCut .nc-skip { position: absolute; right: 3vw; bottom: calc(11vh + 12px); font: 500 11px Inter, sans-serif; color: rgba(255,255,255,.6); }
+body.cutscene #topHud, body.cutscene #leftPanel, body.cutscene #rightPanel, body.cutscene #hudTabs, body.cutscene #tokenBar, body.cutscene #hint,
+body.cutscene #dataTruthLegend, body.cutscene #statusTray, body.cutscene #buildTag, body.cutscene #battleBadge, body.cutscene .minimap-wrap,
+body.cutscene .cmd-layer, body.cutscene #btnRestoreUi, body.cutscene .intel-float, body.cutscene #qualityPicker { visibility: hidden !important; }

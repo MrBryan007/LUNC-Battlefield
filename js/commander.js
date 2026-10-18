@@ -16,6 +16,8 @@
   'use strict';
   var LB = global.LUNCBattle = global.LUNCBattle || {};
   var STORE = 'luncBattle.commander.v10';
+  // v12: adaptive layer hooks (js/learn/learn.js). No-ops when the layer is absent or ?learn=0.
+  function learn(type, data) { var L = LB.learn; if (L && L.emit) { try { L.emit(type, data); } catch (_) {} } }
   var doc = global.document;
 
   var RANKS = [
@@ -26,10 +28,25 @@
   ];
 
   var ABILITIES = {
-    arty: { key: '1', name: 'Artillery', icon: '✸', cd: 5, radius: 3.2, desc: 'Three-shell barrage' },
-    air: { key: '2', name: 'Airstrike', icon: '✈', cd: 16, radius: 2.6, desc: 'Bomb run across the target' },
-    moon: { key: '3', name: 'Moon Shot', icon: '☾', cd: 0, radius: 6.5, desc: 'Ultimate — charge by landing hits' }
+    arty: { key: '1', name: 'Artillery', icon: '✸', cd: 3, radius: 3.2, desc: 'Three-shell barrage' },
+    air: { key: '2', name: 'Airstrike', icon: '✈', cd: 8, radius: 2.6, desc: 'Bomb run across the target' },
+    moon: { key: '3', name: 'Moon Shot', icon: '☾', cd: 0, radius: 6.5, desc: 'Ultimate — charge by landing hits' },
+    cluster: { key: '4', name: 'Cluster Mortars', icon: '☄', cd: 4, radius: 2.8, desc: 'Scattered mortar shells' },
+    emp: { key: '5', name: 'EMP Pulse', icon: '⚡', cd: 6, radius: 3.5, desc: 'Disrupts armor (x2 armor score)' },
+    flare: { key: '6', name: 'Recon Flare', icon: '✦', cd: 3.5, radius: 5.0, desc: 'Lights the zone — bonus hits' },
+    // v11.3 heavy row (toggle with ` or the HEAVY button)
+    moab: { key: '7', name: 'MOAB', icon: '◉', cd: 45, radius: 7.5, desc: 'Massive single blast + shockwave', heavy: true },
+    cbomb: { key: '8', name: 'Cluster Bombs', icon: '⁂', cd: 20, radius: 7.0, desc: 'Bomber canister — bomblets over a wide area', heavy: true },
+    napalm: { key: '9', name: 'Napalm', icon: '♨', cd: 24, radius: 2.0, desc: 'Jet run — line of fire burns 6s', heavy: true },
+    gas: { key: '0', name: 'Gas Bomb', icon: '☁', cd: 18, radius: 4.5, desc: 'Lingering cloud — DoT, units panic', heavy: true },
+    a10: { key: '-', name: 'A-10 BRRRT', icon: '✠', cd: 16, radius: 1.6, desc: 'Strafing gun run along a line', heavy: true },
+    nuke: { key: '=', name: 'Mini Nuke', icon: '☢', cd: 0, radius: 13, desc: 'Ultimate — charge by landing hits (cinematic)', heavy: true }
   };
+  var HEAVY_ORDER = ['moab', 'cbomb', 'napalm', 'gas', 'a10', 'nuke'];
+  var HEAVY_MULT = { 0: 1.5, 1: 1.5, 2: 1.5 };
+  var ABILITY_ORDER = ['arty', 'air', 'moon', 'cluster', 'emp', 'flare'];
+  var FLARE_MS = 6000, FLARE_MULT = 1.5;   // flare zone: +50% score for hits inside it
+  var flareZones = [];                       // { x, z, r, until } — game-only, cosmetic
 
   var POINTS = { 0: 10, 1: 30, 2: 45 }; // infantry / armor / artillery
 
@@ -42,7 +59,7 @@
   var profile = load();
   var session = null;
   var armed = null;
-  var cds = { arty: 0, air: 0, moon: 0 };
+  var cds = { arty: 0, air: 0, moon: 0, cluster: 0, emp: 0, flare: 0, moab: 0, cbomb: 0, napalm: 0, gas: 0, a10: 0, nuke: 0 };
   var reticle = null;
   var el = {};
   var pointer = { x: 0, y: 0, has: false };
@@ -62,8 +79,13 @@
   }
 
   function newSession() {
-    session = { score: 0, combo: 0, comboT: 0, level: 1, charge: 0, hits: 0, strikes: 0, streak: 0, missionsDone: 0 };
-    cds = { arty: 0, air: 0, moon: 0 };
+    session = { score: 0, combo: 0, comboT: 0, level: 1, charge: 0, nuke: 0, hits: 0, strikes: 0, streak: 0, missionsDone: 0 };
+    if (LB.ragdoll && LB.ragdoll.clear) LB.ragdoll.clear();   // session end/restart: drop lingering bodies
+    if (LB.damage && LB.damage.reset) LB.damage.reset();      // v11.3: wrecks / debris / building damage
+    if (LB.heavyFx && LB.heavyFx.clear) LB.heavyFx.clear();
+    if (LB.medics && LB.medics.reset) LB.medics.reset();
+    cds = { arty: 0, air: 0, moon: 0, cluster: 0, emp: 0, flare: 0, moab: 0, cbomb: 0, napalm: 0, gas: 0, a10: 0, nuke: 0 };
+    flareZones = [];
     call = null;
     nextMission();
     renderAll();
@@ -81,11 +103,23 @@
     ];
     if (live) pool.push({ id: 'call', text: 'Call the Front correctly', call: true, n: 1 });
     var pick = pool[(Math.random() * pool.length) | 0];
+    // v12 adaptive orders: engagement-weighted pick with novelty decay + difficulty scaling (game-only, labelled ADAPTIVE)
+    var adv = LB.learn && LB.learn.missionAdvice ? LB.learn.missionAdvice(pool.map(function (p) { return p.id; })) : null;
+    if (adv) {
+      var tw = 0; pool.forEach(function (p) { tw += adv.weights[p.id] || 0; });
+      var r = Math.random() * tw;
+      for (var pi = 0; pi < pool.length; pi++) { r -= adv.weights[pool[pi].id] || 0; if (r <= 0) { pick = pool[pi]; break; } }
+      if (!pick.call && adv.difficulty) pick.n = Math.max(1, Math.round(pick.n * adv.difficulty));
+    }
     if (mission && pick.id === mission.id && pool.length > 1) pick = pool[(pool.indexOf(pick) + 1) % pool.length];
     var time = Math.max(30, 75 - (L - 1) * 5);
+    if (adv && adv.difficulty) time = Math.round(time / Math.sqrt(adv.difficulty));
     if (pick.call) time = Math.max(time, 50);
     mission = { id: pick.id, text: pick.text.replace('{n}', pick.n), type: pick.type, n: pick.n, got: 0,
-      combo: !!pick.combo, call: !!pick.call, time: time, left: time, reward: 120 + 60 * L };
+      combo: !!pick.combo, call: !!pick.call, time: time, left: time, reward: 120 + 60 * L, adaptive: !!adv };
+    if (LB.learn && LB.learn.noteMission) LB.learn.noteMission(pick.id);
+    if (adv && el.cmdMission) el.cmdMission.title = 'ADAPTIVE orders (game-only): target and timer tuned ×' + adv.difficulty.toFixed(2) + ' from your recent mission results. Market data is never changed.';
+    learn('mission:new', { id: pick.id, n: pick.n, time: time, difficulty: adv ? adv.difficulty : 1 });
     toast('NEW ORDERS', mission.text, 'info');
     if (sfx()) sfx().radio();
   }
@@ -102,6 +136,7 @@
     var reward = mission.reward + Math.round(mission.left * 4);
     addScore(reward, null, true);
     session.missionsDone++;
+    learn('mission:done', { id: mission.id, left: mission.left, time: mission.time, got: mission.got });
     session.level++;
     toast('MISSION COMPLETE', '+' + reward + ' · Level ' + session.level, 'win');
     if (sfx()) sfx().success();
@@ -110,6 +145,7 @@
   }
 
   function failMission() {
+    learn('mission:fail', { id: mission.id, left: 0, time: mission.time, got: mission.got });
     toast('MISSION FAILED', mission.text + ' — new orders incoming', 'bad');
     if (sfx()) sfx().fail();
     session.streak = 0;
@@ -143,7 +179,8 @@
   }
   function friendlyColor() { return profile.side === 'bull' ? E().bullColor() : E().bearColor(); }
 
-  function resolveHits(x, z, radius, power, noCharge) {
+  var lastAbility = null;  // v12: attributes async volley hits to the most recent strike
+  function resolveHits(x, z, radius, power, noCharge, typeMult) {
     var army = enemyArmy();
     var now = performance.now();
     var n = 0, pts = 0;
@@ -164,7 +201,11 @@
       u.position.x += (dx / d) * push;
       u.position.z += (dz / d) * push * 0.6;
       n++;
-      pts += POINTS[t] || 10;
+      if (LB.damage && LB.damage.hitUnit) try { LB.damage.hitUnit(u, power, x, z); } catch (_) {}
+      if (LB.ragdoll && LB.ragdoll.kill && t === 0 && power >= 2) try { LB.ragdoll.kill(u, x, z, power * 0.6); } catch (_) {}
+      var up = (POINTS[t] || 10) * ((typeMult && typeMult[t]) || 1);
+      if (inFlare(u.position.x, u.position.z, now)) up *= FLARE_MULT;
+      pts += Math.round(up);
       missionProgress('hit', t);
     }
     if (n) {
@@ -174,9 +215,11 @@
       session.streak++;
       if (session.streak > profile.bestStreak) profile.bestStreak = session.streak;
       if (!noCharge) session.charge = Math.min(100, session.charge + n * 7);
+      if (lastAbility !== 'nuke') session.nuke = Math.min(100, (session.nuke || 0) + n * 2.5);
       addScore(pts, new (E().THREE.Vector3)(x, E().terrainHeight(x, z) + 1.5, z));
       missionProgress('combo', session.combo);
       hitMarker(n);
+      learn('hits', { ability: lastAbility, n: n });
     }
     return n;
   }
@@ -221,12 +264,21 @@
       eng.scene.add(sp);
       blasts.push(sp);
     }
-    if (!blastLight) { blastLight = new THREE.PointLight(0xffa040, 0, 26, 2); eng.scene.add(blastLight); }
+    ensureBlastLight();
+    if (!blastLight) return;
     blastLight.position.set(x, y + 2.5, z);
     blastLight.color.setHex(gold ? 0xffcc55 : 0xff9a40);
     blastLight.intensity = Math.max(blastLight.intensity, 5 * power);
     // keep total sprites bounded
     while (blasts.length > (lowFx ? 70 : 160)) recycle(blasts.shift());
+  }
+  // v11.1: create once at init (light count must never change mid-play)
+  function ensureBlastLight() {
+    if (blastLight) return;
+    var eng = E(); if (!eng || !eng.scene || !eng.THREE) return;
+    blastLight = new eng.THREE.PointLight(0xffa040, 0, 26, 2);
+    blastLight.position.set(0, -50, 0);
+    eng.scene.add(blastLight);
   }
   function recycle(sp) { sp.visible = false; if (sp.parent) sp.parent.remove(sp); if (blastPool.length < 200) blastPool.push(sp); }
   function tickBlasts(dt) {
@@ -250,12 +302,17 @@
     }
   }
 
-  function boom(x, z, power, isGold) {
+  function boom(x, z, power, isGold, craterMode) {
     var eng = E();
     if (!eng || !eng.effects) return;
     var col = isGold ? 0xffc94a : friendlyColor();
-    eng.effects.createExplosion(x, z, col, power, !!isGold);
+    // v12: player strikes leave full craters (EMP / flare should wrap their boom in withMode('scorch'))
+    var CR = LB.craters;
+    if (CR && CR.withMode) CR.withMode(craterMode || 'player', function () { eng.effects.createExplosion(x, z, col, power, !!isGold); });
+    else eng.effects.createExplosion(x, z, col, power, !!isGold);
     try { spawnBlast(x, z, power, isGold); } catch (e) { /* FX are optional */ }
+    if (LB.theaters && LB.theaters.onStrike) try { LB.theaters.onStrike(x, z, power); } catch (_) {}   // v12: ships / airbases
+    if (LB.damage && LB.damage.blast) try { LB.damage.blast(x, z, power, { debrisMul: craterMode === 'scorch' ? 1 : power >= 2 ? 6 : 3 }); } catch (_) {}
     var cam = eng.camera.position;
     var dx = cam.x - x, dz = cam.z - z;
     var dist = Math.min(1, Math.sqrt(dx * dx + dz * dz) / 110);
@@ -323,6 +380,162 @@
     }
   }
 
+  // v11.1: pause-aware timer — strike volleys freeze while the game is paused instead of firing into a paused scene.
+  function later(fn, ms) {
+    setTimeout(function tick() {
+      if (!started) return;                       // session ended / watch mode → drop the volley
+      if (E().isPaused()) { setTimeout(tick, 120); return; }
+      fn();
+    }, ms);
+  }
+  function inFlare(x, z, now) {
+    for (var i = flareZones.length - 1; i >= 0; i--) {
+      var f = flareZones[i];
+      if (now > f.until) { flareZones.splice(i, 1); continue; }
+      var dx = x - f.x, dz = z - f.z;
+      if (dx * dx + dz * dz <= f.r * f.r) return true;
+    }
+    return false;
+  }
+
+  function strikeCluster(x, z) {
+    var r = ABILITIES.cluster.radius, any = 0, pending = 5;
+    for (var i = 0; i < 5; i++) {
+      (function (k) {
+        later(function () {
+          var tx = x + (Math.random() * 2 - 1) * r * 0.7, tz = z + (Math.random() * 2 - 1) * r * 0.7;
+          boom(tx, tz, 0.7);
+          any += resolveHits(tx, tz, r * 0.55, 0.8);
+          if (--pending === 0 && !any) breakCombo();
+        }, k * 180);
+      })(i);
+    }
+  }
+
+  // v12: EMP / flare leave a light scorch, never a crater
+  function scorchBoom(x, z, power, gold) { boom(x, z, power, gold, 'scorch'); }
+  function strikeEmp(x, z) {
+    var eng = E();
+    eng.flash(0.03);
+    scorchBoom(x, z, 1.1, false);   // light scorch only, no crater
+    // Armor disrupt (game-only): armor (type 1) units score double. Market data / armies untouched.
+    var n = resolveHits(x, z, ABILITIES.emp.radius, 1.0, false, { 1: 2 });
+    if (!n) breakCombo();
+    else floatScreen('ARMOR DISRUPTED', pointer.x, pointer.y - 26, 'info');
+  }
+
+  function strikeFlare(x, z) {
+    flareZones.push({ x: x, z: z, r: ABILITIES.flare.radius, until: performance.now() + FLARE_MS });
+    scorchBoom(x, z, 0.6, true);
+    resolveHits(x, z, ABILITIES.flare.radius, 0.5);   // light poke; no combo break on miss — it's a setup tool
+    toast('RECON FLARE', 'Zone lit ' + (FLARE_MS / 1000) + 's — hits score +50%', 'info', 1400);
+  }
+
+  // ---------------- v11.3 heavy weapons (game FX only; player strikes, never market data) ----------------
+  function HX() { return LB.heavyFx || null; }
+  function strikeMoab(x, z) {
+    var fx = HX(), side = -enemySide(), eng = E();
+    toast('MOAB', 'Player strike · game FX only', 'gold', 1400);
+    var drop = function () {
+      boom(x, z, 3.4, false);
+      eng.addShake(0.6); eng.flash(0.08);
+      resolveHits(x, z, ABILITIES.moab.radius, 2.4, false, HEAVY_MULT);
+      if (fx) fx.mushroom(x, z, 1.3, 5);
+      for (var i = 0; i < 6; i++) (function (k) { later(function () { var a = k / 6 * Math.PI * 2; boom(x + Math.cos(a) * 4.5, z + Math.sin(a) * 4.5, 1.1); }, 120 + k * 60); })(i);
+    };
+    if (fx) fx.flyby({ kind: 'bomber', color: friendlyColor(), x0: x + side * 60, z0: z - 6, x1: x - side * 60, z1: z + 6, y: 18, dur: 3.2, scale: 2.2,
+      onStep: function (t, px, pz, f) { if (!f.dropped && t >= 0.5) { f.dropped = true; later(drop, 650); } } });
+    else drop();
+  }
+  function strikeCbomb(x, z) {
+    var fx = HX(), side = -enemySide(), R = ABILITIES.cbomb.radius, any = 0;
+    var split = function () {
+      var n = fx && fx.getStats().cap < 100 ? 10 : 18, pending = n;
+      for (var i = 0; i < n; i++) (function (k) {
+        later(function () {
+          var a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * R;
+          var tx = x + Math.cos(a) * r, tz = z + Math.sin(a) * r;
+          boom(tx, tz, 0.6);
+          any += resolveHits(tx, tz, 1.7, 1.0, false, HEAVY_MULT);
+          if (--pending === 0 && !any) breakCombo();
+        }, 200 + k * 55);
+      })(i);
+    };
+    if (fx) fx.flyby({ kind: 'bomber', color: friendlyColor(), x0: x + side * 55, z0: z + 8, x1: x - side * 55, z1: z - 8, y: 15, dur: 2.8, scale: 1.9,
+      onStep: function (t, px, pz, f) { if (!f.dropped && t >= 0.48) { f.dropped = true; later(split, 400); } } });
+    else split();
+  }
+  function strikeNapalm(x, z) {
+    var fx = HX(), side = -enemySide(), L = 6;
+    var line = { x0: x, z0: z - L, x1: x, z1: z + L };
+    var ignite = function () {
+      for (var i = 0; i <= 4; i++) scorchBoom(x + (Math.random() - 0.5), z - L + i * L / 2, 0.7, false);
+      resolveHits(x, z, L, 0.9, false, HEAVY_MULT);
+      var acc = 0;
+      if (fx) fx.zone({ kind: 'fire', line: line, r: 1.6, dur: 6, onTick: function (t, dt) {
+        acc += dt; if (acc < 0.5) return; acc = 0;
+        for (var k = 0; k < 3; k++) resolveHits(x + (Math.random() - 0.5), z - L + Math.random() * 2 * L, ABILITIES.napalm.radius, 0.45, false, HEAVY_MULT);
+      } });
+    };
+    if (fx) fx.flyby({ kind: 'jet', color: friendlyColor(), x0: x - 2, z0: z - 50, x1: x + 2, z1: z + 50, y: 7, dur: 1.8, scale: 1.6,
+      onStep: function (t, px, pz, f) { if (!f.dropped && t >= 0.42) { f.dropped = true; ignite(); } } });
+    else ignite();
+  }
+  function strikeGas(x, z) {
+    var fx = HX(), R = ABILITIES.gas.radius;
+    scorchBoom(x, z, 0.45, false);   // canister pop — stain only, no crater
+    var acc = 0;
+    var tickGas = function (t, dt) {
+      acc += dt; if (acc < 0.5) return; acc = 0;
+      resolveHits(x, z, R, 0.35, false, HEAVY_MULT);
+      // panic: enemy units inside drift away from the cloud (cosmetic; they ease back to their market slot)
+      var army = enemyArmy(), now = performance.now();
+      for (var i = 0; i < army.length; i++) {
+        var u = army[i]; if (!u || !u.userData || u.userData.type === 3 || u.userData.type === 4) continue;
+        var dx = u.position.x - x, dz = u.position.z - z, d2 = dx * dx + dz * dz;
+        if (d2 > R * R) continue;
+        var d = Math.sqrt(d2) || 1;
+        u.userData.panicUntil = now + 2500; u.userData.slowUntil = now + 2500;
+        u.position.x += dx / d * 0.35; u.position.z += dz / d * 0.35;
+      }
+    };
+    if (fx) fx.zone({ kind: 'gas', x: x, z: z, r: R, dur: 8, onTick: tickGas });
+    toast('GAS BOMB', 'Units inside panic and fall back · cartoon FX', 'info', 1400);
+  }
+  function strikeA10(x, z) {
+    var fx = HX(), side = -enemySide(), L = 9, ang = Math.random() * 0.6 - 0.3;
+    var dx = Math.cos(ang) * side * -1, dz = Math.sin(ang);
+    var any = 0, lastK = -1;
+    var run = function (t, px, pz) {
+      if (t < 0.3 || t > 0.7) return;
+      var k = Math.floor((t - 0.3) / 0.4 * 12);
+      if (k === lastK) return; lastK = k;
+      var gx = x - dx * L + dx * 2 * L * k / 12, gz = z - dz * L + dz * 2 * L * k / 12;
+      if (fx) fx.tracers(px, pz, gx, gz, 4, 2);
+      if (k % 2 === 0) scorchBoom(gx, gz, 0.45, false);
+      else if (fx) fx.puff({ kind: 'dust', x: gx, y: E().terrainHeight(gx, gz) + 0.3, z: gz, vy: 1.2, size: 0.9, grow: 1.2, life: 1, color: 0x7d6f5c, opacity: 0.5 });
+      any += resolveHits(gx, gz, ABILITIES.a10.radius, 0.8, false, HEAVY_MULT);
+    };
+    if (fx) fx.flyby({ kind: 'a10', color: friendlyColor(), x0: x - dx * 55, z0: z - dz * 55, x1: x + dx * 55, z1: z + dz * 55, y: 5, dur: 2.6, scale: 1.7,
+      onStep: function (t, px, pz) { run(t, px - dx * 6, pz - dz * 6); }, onEnd: function () { if (!any) breakCombo(); } });
+    else for (var i = 0; i < 12; i++) run(0.3 + i / 30, x, z);
+    toast('A-10', 'BRRRRRT', 'info', 1100);
+  }
+  function strikeNuke(x, z) {
+    session.nuke = 0;
+    var onImpact = function () {
+      var eng = E();
+      boom(x, z, 4.5, true);
+      eng.addShake(0.6);
+      resolveHits(x, z, ABILITIES.nuke.radius, 3.2, true, { 0: 2, 1: 2, 2: 2 });
+      if (LB.craters && LB.craters.impact) try { LB.craters.withMode('player', function () { LB.craters.impact(x, z, 4); }); } catch (_) {}
+      for (var i = 0; i < 10; i++) (function (k) { later(function () { var a = k / 10 * Math.PI * 2, r = 7; boom(x + Math.cos(a) * r, z + Math.sin(a) * r, 1.3, true); resolveHits(x + Math.cos(a) * r, z + Math.sin(a) * r, 3, 1.2, true); }, 150 + k * 50); })(i);
+      learn('nuke', {});
+    };
+    if (LB.cutscene && LB.cutscene.playNuke && !LB.cutscene.isActive()) LB.cutscene.playNuke({ x: x, z: z, side: -enemySide(), onImpact: onImpact });
+    else onImpact();
+  }
+
   function breakCombo() {
     if (session.combo > 0) floatScreen('MISS', pointer.x, pointer.y, 'miss');
     session.combo = 0;
@@ -333,19 +546,34 @@
   function fireAt(ability, p) {
     if (!p) return;
     var a = ABILITIES[ability];
-    if (ability === 'moon' ? session.charge < 100 : cds[ability] > 0) { if (sfx()) sfx().ui('deny'); return; }
-    if (E().isPaused()) return;
+    if (ability === 'moon' ? session.charge < 100 : ability === 'nuke' ? (session.nuke || 0) < 100 : cds[ability] > 0) { if (sfx()) sfx().ui('deny'); return; }
+    if (E().isPaused() || (LB.cutscene && LB.cutscene.isActive())) return;
     session.strikes++;
+    lastAbility = ability;
+    if (LB.voice && LB.voice.event) try { LB.voice.event(ability === 'nuke' ? 'nuke' : 'strike', -enemySide()); } catch (_) {}   // v12.0.10 radio
+    learn('strike', { ability: ability, x: p.x, z: p.z });
+    if (ability === 'moon') learn('moon', {});
     if (ability === 'arty') strikeArty(p.x, p.z);
     else if (ability === 'air') strikeAir(p.x, p.z);
+    else if (ability === 'cluster') strikeCluster(p.x, p.z);
+    else if (ability === 'emp') strikeEmp(p.x, p.z);
+    else if (ability === 'flare') strikeFlare(p.x, p.z);
+    else if (ability === 'moab') strikeMoab(p.x, p.z);
+    else if (ability === 'cbomb') strikeCbomb(p.x, p.z);
+    else if (ability === 'napalm') strikeNapalm(p.x, p.z);
+    else if (ability === 'gas') strikeGas(p.x, p.z);
+    else if (ability === 'a10') strikeA10(p.x, p.z);
+    else if (ability === 'nuke') strikeNuke(p.x, p.z);
     else strikeMoon(p.x, p.z);
     if (a.cd) cds[ability] = a.cd;
-    if (!(global.matchMedia && matchMedia('(pointer: fine)').matches) || ability === 'moon') disarm();
+    if (!(global.matchMedia && matchMedia('(pointer: fine)').matches) || ability === 'moon' || a.heavy) disarm();
     renderAbilities();
   }
 
   function arm(ability) {
     if (!started) return;
+    if (ability === 'nuke' && (session.nuke || 0) < 100) { if (sfx()) sfx().ui('deny'); pulseBtn(ability); return; }
+    if (ABILITIES[ability] && ABILITIES[ability].heavy) setHeavy(true);
     if (ability === 'moon' && session.charge < 100) { if (sfx()) sfx().ui('deny'); pulseBtn(ability); return; }
     if (ability !== 'moon' && cds[ability] > 0) { if (sfx()) sfx().ui('deny'); pulseBtn(ability); return; }
     armed = armed === ability ? null : ability;
@@ -380,9 +608,10 @@
     var dir = call.dir;
     var entry = call.entry;
     call = null;
-    if (!eng.isPriceLive()) { toast('CALL VOID', 'Price feed dropped — no score', 'info'); renderCall(); return; }
+    if (!eng.isPriceLive()) { learn('call:result', { void: true }); toast('CALL VOID', 'Price feed dropped — no score', 'info'); renderCall(); return; }
     if (move === 0) { toast('FLAT — PUSH', 'No move in 30s. No score.', 'info'); renderCall(); return; }
     var right = (move > 0 && dir > 0) || (move < 0 && dir < 0);
+    learn('call:result', { right: right, dir: dir });
     var pct = (move / entry) * 100;
     if (right) {
       var g = addScore(150 + Math.round(Math.min(5, Math.abs(pct) * 20) * 40), null, true);
@@ -401,13 +630,16 @@
     if (!started || !session) return;
     var paused = E() && E().isPaused();
     if (!paused) tickBlasts(dt);
+    if (!paused && LB.heavyFx) try { LB.heavyFx.update(dt); } catch (_) {}
+    if (!paused && LB.damage) try { LB.damage.update(dt); } catch (_) {}
+    var cut = LB.cutscene && LB.cutscene.isActive();
     if (!paused) {
       for (var k in cds) if (cds[k] > 0) cds[k] = Math.max(0, cds[k] - dt);
       if (session.comboT > 0) {
         session.comboT -= dt;
         if (session.comboT <= 0) { session.combo = 0; renderStats(); }
       }
-      if (mission) {
+      if (mission && !cut) {
         mission.left -= dt;
         if (mission.left <= 0) failMission();
       }
@@ -478,7 +710,9 @@
       '<div class="cmd-mission" id="cmdMission"><div class="cmd-mission-head"><span class="tag">ORDERS · LV <b id="cmdLevel">1</b></span><span class="cmd-timer" id="cmdTimer">0s</span></div>' +
         '<div class="cmd-mission-text" id="cmdMissionText">—</div><div class="cmd-progress"><i id="cmdMissionBar"></i></div></div>' +
       '<div class="cmd-bar" id="cmdBar">' +
-        abilityBtn('arty') + abilityBtn('air') + abilityBtn('moon') +
+        ABILITY_ORDER.map(abilityBtn).join('') +
+        '<button class="cmd-heavy-toggle" id="cmdHeavyToggle" title="Heavy weapons (`)" aria-expanded="false">HEAVY <kbd>`</kbd></button>' +
+        '<div class="cmd-heavy" id="cmdHeavy">' + HEAVY_ORDER.map(abilityBtn).join('') + '</div>' +
         '<div class="cmd-call" id="cmdCall">' +
           '<div class="cmd-call-label">Call the Front <span class="qual live" id="cmdCallTruth">LIVE</span></div>' +
           '<div class="cmd-call-btns"><button id="cmdLong" class="long">▲ Long</button><button id="cmdShort" class="short">▼ Short</button></div>' +
@@ -524,6 +758,7 @@
     });
     doc.getElementById('cmdLong').addEventListener('click', function () { startCall(1); });
     doc.getElementById('cmdShort').addEventListener('click', function () { startCall(-1); });
+    doc.getElementById('cmdHeavyToggle').addEventListener('click', function (e) { e.stopPropagation(); setHeavy(!doc.body.classList.contains('cmd-heavy-open')); });
     el.cmdMute.addEventListener('click', function () { if (sfx()) { sfx().toggleMute(); renderMute(); } });
     el.cmdPause.addEventListener('click', function () { togglePause(); });
     overlay.querySelectorAll('[data-side]').forEach(function (b) {
@@ -545,6 +780,10 @@
       '<span class="cmd-ab-name">' + a.name + '</span><kbd>' + a.key + '</kbd><span class="cmd-ab-cd"></span></button>';
   }
 
+  function setHeavy(on) {
+    doc.body.classList.toggle('cmd-heavy-open', !!on);
+    var b = doc.getElementById('cmdHeavyToggle'); if (b) b.setAttribute('aria-expanded', on ? 'true' : 'false');
+  }
   function renderSide() {
     el.overlay.querySelectorAll('[data-side]').forEach(function (b) { b.classList.toggle('active', b.getAttribute('data-side') === profile.side); });
     doc.body.setAttribute('data-cmd-side', profile.side);
@@ -569,7 +808,8 @@
       var id = b.getAttribute('data-ability');
       var a = ABILITIES[id];
       var frac, label = '';
-      if (id === 'moon') { frac = session.charge / 100; label = session.charge >= 100 ? 'READY' : Math.floor(session.charge) + '%'; }
+      if (id === 'nuke') { frac = (session.nuke || 0) / 100; label = frac >= 1 ? 'READY' : Math.floor(session.nuke || 0) + '%'; }
+      else if (id === 'moon') { frac = session.charge / 100; label = session.charge >= 100 ? 'READY' : Math.floor(session.charge) + '%'; }
       else { frac = a.cd ? 1 - cds[id] / a.cd : 1; label = cds[id] > 0 ? Math.ceil(cds[id]) + 's' : ''; }
       b.style.setProperty('--cd', (frac * 360).toFixed(1) + 'deg');
       b.classList.toggle('ready', frac >= 1);
@@ -662,6 +902,8 @@
     if (sfx()) sfx().ui();
   }
   function watchMode() {
+    if (started && mission) learn('mission:abandon', { id: mission.id });
+    if (LB.ragdoll && LB.ragdoll.clear) LB.ragdoll.clear();
     hideOverlay();
     started = false;
     disarm();
@@ -698,12 +940,22 @@
     }, true);
     global.addEventListener('contextmenu', function (e) { if (armed && e.target === canvas) { e.preventDefault(); disarm(); } });
     global.addEventListener('keydown', function (e) {
-      if (e.target && /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+      if (e.target && (/INPUT|TEXTAREA|SELECT/.test(e.target.tagName) || e.target.isContentEditable)) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       var c = e.code;
       if (c === 'Digit1' || c === 'Numpad1') arm('arty');
       else if (c === 'Digit2' || c === 'Numpad2') arm('air');
       else if (c === 'Digit3' || c === 'Numpad3') arm('moon');
+      else if (c === 'Digit4' || c === 'Numpad4') arm('cluster');
+      else if (c === 'Digit5' || c === 'Numpad5') arm('emp');
+      else if (c === 'Digit6' || c === 'Numpad6') arm('flare');
+      else if (c === 'Digit7' || c === 'Numpad7') arm('moab');
+      else if (c === 'Digit8' || c === 'Numpad8') arm('cbomb');
+      else if (c === 'Digit9' || c === 'Numpad9') arm('napalm');
+      else if (c === 'Digit0' || c === 'Numpad0') arm('gas');
+      else if (c === 'Minus' || c === 'NumpadSubtract') arm('a10');
+      else if (c === 'Equal' || c === 'NumpadAdd') arm('nuke');
+      else if (c === 'Backquote') setHeavy(!doc.body.classList.contains('cmd-heavy-open'));
       else if (c === 'KeyP' && !e.shiftKey) togglePause();
       else if (c === 'Escape') { if (armed) disarm(); else if (started || E().isPaused()) togglePause(); }
       else if (c === 'KeyM') { if (sfx()) { sfx().toggleMute(); renderMute(); } }
@@ -722,6 +974,7 @@
     } catch (_) {}
     buildHud();
     buildReticle();
+    ensureBlastLight();
     bindInput();
     newSession();
     var params = new URLSearchParams(location.search);
@@ -739,7 +992,15 @@
     init: init, tick: tick, arm: arm, deploy: deploy, togglePause: togglePause,
     getState: function () { return { started: started, session: session, profile: profile, mission: mission, call: call, armed: armed, cds: cds }; },
     // test hook: fire an ability at world x/z (used by headless verification)
-    debugFire: function (ability, x, z) { fireAt(ability, { x: x, z: z }); }
+    debugFire: function (ability, x, z) { fireAt(ability, { x: x, z: z }); },
+    // v11.1 loading-screen warm-up: light exists before first compile; one fire + one smoke
+    // sprite are put in the scene so their shader programs compile behind the loader.
+    warm: function () {
+      ensureBlastLight();
+      var eng = E(), out = [];
+      ['fire', 'smoke'].forEach(function (k) { var sp = blastSprite(k); sp.position.set(0, -40, 0); sp.visible = true; eng.scene.add(sp); out.push(sp); });
+      return function () { out.forEach(recycle); };
+    }
   };
 
   function boot() {

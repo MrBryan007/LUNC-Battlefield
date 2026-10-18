@@ -220,9 +220,38 @@
       ? LUNCBattle.postfx.init({ THREE, renderer })
       : null;
     function drawFrame() {
+      // v11.3: medics run after the sim step so their position overrides win this frame
+      if (window.LUNCBattle && LUNCBattle.medics) { try { LUNCBattle.medics.update(); } catch (e) { if (!drawFrame._mdErr) { drawFrame._mdErr = 1; console.warn('[medics]', e); } } }
       // v11: realistic unit skin layer (visual only) — sync instanced models to unit transforms
       if (window.LUNCBattle && LUNCBattle.v11 && LUNCBattle.v11.update) {
         try { LUNCBattle.v11.update(); } catch (e) { if (!drawFrame._v11Err) { drawFrame._v11Err = 1; console.warn('[v11]', e); } }
+      }
+      if (window.LUNCBattle && LUNCBattle.craters && LUNCBattle.craters.update) {
+        try { LUNCBattle.craters.update(); } catch (e) { if (!drawFrame._crErr) { drawFrame._crErr = 1; console.warn('[craters]', e); } }
+      }
+      // v12 (starter): GLB skins for structures + aircraft (visual only, procedural fallback)
+      if (window.LUNCBattle && LUNCBattle.v12 && LUNCBattle.v12.update) {
+        try { LUNCBattle.v12.update(); } catch (e) { if (!drawFrame._v12Err) { drawFrame._v12Err = 1; console.warn('[v12]', e); } }
+      }
+      // v12: theaters of war (wide world, naval + air theaters, fly camera); visual sim only
+      if (window.LUNCBattle && LUNCBattle.theaters && LUNCBattle.theaters.update) {
+        try { LUNCBattle.theaters.update(); } catch (e) { if (!drawFrame._thErr) { drawFrame._thErr = 1; console.warn('[theaters]', e); } }
+        if (LUNCBattle.v12extras) { try { LUNCBattle.v12extras.update(); } catch (e) { if (!drawFrame._exErr) { drawFrame._exErr = 1; console.warn('[v12-extras]', e); } } }
+        if (LUNCBattle.uav) { try { LUNCBattle.uav.update(); } catch (e) { if (!drawFrame._uavErr) { drawFrame._uavErr = 1; console.warn('[uav]', e); } } }
+        if (LUNCBattle.supply) { try { LUNCBattle.supply.update(); } catch (e) { if (!drawFrame._supErr) { drawFrame._supErr = 1; console.warn('[supply]', e); } } }
+        if (LUNCBattle.economy) { try { LUNCBattle.economy.update(); } catch (e) { if (!drawFrame._ecoErr) { drawFrame._ecoErr = 1; console.warn('[economy]', e); } } }
+        if (LUNCBattle.tech) { try { LUNCBattle.tech.update(); } catch (e) { if (!drawFrame._techErr) { drawFrame._techErr = 1; console.warn('[tech]', e); } } }
+        if (LUNCBattle.forts) { try { LUNCBattle.forts.update(); } catch (e) { if (!drawFrame._fortErr) { drawFrame._fortErr = 1; console.warn('[forts]', e); } } }
+        if (LUNCBattle.lines) { try { LUNCBattle.lines.update(); } catch (e) { if (!drawFrame._lnErr) { drawFrame._lnErr = 1; console.warn('[lines]', e); } } }
+        if (LUNCBattle.squads) { try { LUNCBattle.squads.update(); } catch (e) { if (!drawFrame._sqErr) { drawFrame._sqErr = 1; console.warn('[squads]', e); } } }
+        if (LUNCBattle.soundscape) { try { LUNCBattle.soundscape.update(); } catch (e) { if (!drawFrame._sndErr) { drawFrame._sndErr = 1; console.warn('[soundscape]', e); } } }
+        if (LUNCBattle.fow) { try { LUNCBattle.fow.update(); } catch (e) { if (!drawFrame._fowErr) { drawFrame._fowErr = 1; console.warn('[fow]', e); } } }
+        if (LUNCBattle.voice) { try { LUNCBattle.voice.update(); } catch (e) { if (!drawFrame._vErr) { drawFrame._vErr = 1; console.warn('[voice]', e); } } }
+        if (LUNCBattle.baseInvasion) { try { LUNCBattle.baseInvasion.update(); } catch (e) { if (!drawFrame._invErr) { drawFrame._invErr = 1; console.warn('[invasion]', e); } } }
+      }
+      // v11.3: Mini Nuke cinematic owns the camera while active (runs even while paused)
+      if (window.LUNCBattle && LUNCBattle.cutscene && LUNCBattle.cutscene.isActive()) {
+        try { LUNCBattle.cutscene.update(); } catch (e) { console.warn('[cutscene]', e); LUNCBattle.cutscene.skip(); }
       }
       if (postfx && postfx.isActive()) postfx.render(scene, camera);
       else renderer.render(scene, camera);
@@ -444,20 +473,44 @@
       );
     }
 
-    function rebuildUnits() {
-      disposeArmy(bulls); disposeArmy(bears);
+    // v11.1: counts() is the unchanged market-driven army-size math, hoisted so the
+    // diffed path and the full (token-switch) path share it byte-for-byte.
+    // v11.3: ground budget by tier (ULTRA/HIGH 500 · MEDIUM 250 · LOW/mobile 110; ?units=N override).
+    // The MARKET still decides the split: each side's share = its order-book wall / (buy + sell walls).
+    const unitsOverride = (function () { const v = parseInt(new URLSearchParams(location.search).get('units'), 10); return v > 0 ? Math.min(2000, v) : 0; })();
+    function groundBudget() {
+      if (unitsOverride) return unitsOverride;
+      let t = 'HIGH'; try { t = LUNCBattle.quality.getEffectiveName(); } catch (_) {}
+      const wide = !(LUNCBattle.config.layout && LUNCBattle.config.layout.wide === false);
+      // v12.0.11 wide front: ULTRA 1400 · HIGH 1100 · MEDIUM 500 · LOW/mobile 160 (?wide=0 → v11.3 budgets)
+      if (innerWidth < 760 || t === 'LOW') return wide ? 160 : 110;
+      if (t === 'MEDIUM') return wide ? 500 : 250;
+      return wide ? (t === 'ULTRA' ? 1400 : 1100) : 500;
+    }
+    function armyCounts(wall) {
       const mobile=innerWidth<760;
-      // v9.4.4 denser armies (LOD keeps perf sane)
-      const maxInf=mobile?28:52, maxArmor=mobile?9:18, maxArt=mobile?5:9;
       const maxHeli=mobile?2:4, maxJet=mobile?1:3;
-      const counts = wall => ({
-        inf: Math.min(maxInf, Math.max(14,Math.round(14+wall*5.2))),
-        armor: Math.min(maxArmor,Math.max(4,Math.round(3+wall*1.85))),
-        art: Math.min(maxArt,Math.max(2,Math.round(2+wall*.95))),
+      const tot = Math.max(1e-6, (+buyWall||0) + (+sellWall||0));
+      const share = Math.min(0.8, Math.max(0.2, (+wall||0) / tot || 0.5));
+      const n = Math.max(24, Math.round(groundBudget() * share));
+      return {
+        inf: Math.round(n*0.66),
+        armor: Math.max(4, Math.round(n*0.22)),
+        art: Math.max(2, Math.round(n*0.12)),
         heli: Math.min(maxHeli, Math.max(mobile?1:2, Math.round((mobile?1:2)+wall*0.35))),
         jet: Math.min(maxJet, Math.max(mobile?1:1, Math.round((mobile?1:1)+wall*0.28)))
-      });
-      const bc=counts(buyWall), rc=counts(sellWall);
+      };
+    }
+    let lastArmyKey = '';
+    const armyStats = { full: 0, diffs: 0, skips: 0, changed: 0 };
+    function armyKey(bc, rc) {
+      return [bc.inf,bc.armor,bc.art,bc.heli,bc.jet,rc.inf,rc.armor,rc.art,rc.heli,rc.jet,
+        sceneIncludes('ground')&&!cFlags.groundOff?1:0, sceneIncludes('air')&&!cFlags.airOff?1:0].join(',');
+    }
+    // Full rebuild: startup, token switch (colors change), forced GLTF swap.
+    function rebuildUnits() {
+      disposeArmy(bulls); disposeArmy(bears);
+      const bc=armyCounts(buyWall), rc=armyCounts(sellWall);
       if (unitsApi && sceneIncludes('ground') && !cFlags.groundOff) {
         unitsApi.spawnFormation(-1, tokens[current].color, bc, bulls);
         unitsApi.spawnFormation(1, 0xe4675f, rc, bears);
@@ -466,7 +519,24 @@
         unitsApi.spawnAirWing(-1, tokens[current].color, bc, bulls);
         unitsApi.spawnAirWing(1, 0xe4675f, rc, bears);
       }
+      lastArmyKey = armyKey(bc, rc);
+      armyStats.full++;
       lastRebuild=Date.now();
+    }
+    // v11.1: periodic path. No teardown; only the delta is added/removed, and
+    // nothing at all happens unless the market-driven counts actually changed.
+    function syncArmyCounts() {
+      const bc=armyCounts(buyWall), rc=armyCounts(sellWall);
+      const key = armyKey(bc, rc);
+      lastRebuild=Date.now();
+      if (key === lastArmyKey) { armyStats.skips++; return 0; }
+      if (!unitsApi || !unitsApi.updateArmy) { rebuildUnits(); return -1; }
+      const opts = { ground: sceneIncludes('ground') && !cFlags.groundOff, air: !!unitsApi.spawnAirWing && sceneIncludes('air') && !cFlags.airOff };
+      let n = unitsApi.updateArmy(-1, tokens[current].color, bc, bulls, opts);
+      n += unitsApi.updateArmy(1, 0xe4675f, rc, bears, opts);
+      lastArmyKey = key;
+      armyStats.diffs++; armyStats.changed += n;
+      return n;
     }
     rebuildUnits();
 
@@ -513,7 +583,7 @@
           getFrontlineX: function () {
             return priceTerritoryApi ? priceTerritoryApi.getFrontlineX() : targetX;
           },
-          getWorldBounds: { minX: -70, maxX: 70, minZ: -45, maxZ: 45 }
+          getWorldBounds: ((LUNCBattle.config.layout && LUNCBattle.config.layout.wide) ? { minX: -130, maxX: 130, minZ: -62, maxZ: 62 } : { minX: -70, maxX: 70, minZ: -45, maxZ: 45 })
         })
       : null;
     if (!cameraCtrl) console.error('[LUNCBattle] camera.js failed to load');
@@ -522,7 +592,7 @@
       ? LUNCBattle.minimap.createApi({
           mobile: mobileGfx,
           drawHz: (LUNCBattle.quality && LUNCBattle.quality.getEffectivePreset) ? LUNCBattle.quality.getEffectivePreset().minimapHz : 10,
-          worldBounds: { minX: -70, maxX: 70, minZ: -45, maxZ: 45 },
+          worldBounds: ((LUNCBattle.config.layout && LUNCBattle.config.layout.wide) ? { minX: -130, maxX: 130, minZ: -62, maxZ: 62 } : { minX: -70, maxX: 70, minZ: -45, maxZ: 45 }),
           getFrontlineX: function () {
             return priceTerritoryApi ? priceTerritoryApi.getFrontlineX() : targetX;
           },
@@ -690,7 +760,10 @@
       fetchLlama(); fetchGecko(); fetchMarketContext(); updateStatusUI();
     }
     document.querySelectorAll('.token-btn').forEach(btn=>btn.addEventListener('click',()=>setToken(btn.dataset.token)));
-    setInterval(()=>$('utc').textContent='UTC '+new Date().toISOString().slice(11,19),1000);
+    // v11.1: clock text updated from the frame loop (see animate) instead of its own timer
+    let utcLastSec = -1;
+    function tickUtcClock() { const sec = Math.floor(Date.now() / 1000); if (sec !== utcLastSec) { utcLastSec = sec; $('utc').textContent='UTC '+new Date().toISOString().slice(11,19); } }
+    setInterval(function () { if (document.hidden) tickUtcClock(); }, 1000);
 
     // -------------------- Data layer --------------------
     let spotWs=null, futWs=null, reconnectTimer=null, reconnectAttempts=0, geckoTimer=null;
@@ -746,10 +819,13 @@
             LUNCBattle.ui.setPriceChange(coin.usd_24h_change, LUNCBattle.DataTruth.LIVE);
           }
         }
-        // Estimated walls only when no live book — clearly ESTIMATED, never labeled Binance
+        // Estimated walls only when no live book — clearly ESTIMATED, never labeled Binance.
+        // Deterministic: same volume + price always yields the same walls (no Math.random).
         if(depthSource!==SRC.BINANCE && depthSource!==SRC.API) {
           const vol=coin.usd_24h_vol||5e6, base=Math.max(.7,Math.min(5,vol/3.5e6));
-          buyWall=base*(.92+Math.random()*.18); sellWall=base*(.90+Math.random()*.2);
+          const seed = Math.abs(Math.sin((vol || 1) * 0.000001 + (price || 1) * 1000));
+          buyWall=base*(0.92 + seed * 0.18);
+          sellWall=base*(0.90 + (1 - seed) * 0.20);
           depthVendorLabel = 'Estimated (CoinGecko vol proxy)';
         }
         updateStatusUI(); return true;
@@ -890,6 +966,32 @@
     }
 
     /** Merge depth20 snapshot into a deeper local book without wiping far levels. */
+    // ---- v11.1 book-apply throttle (application rate only; values unchanged) ----
+    const BOOK_APPLY_MS = 125; // 8 Hz
+    let bookPendingMid = 0, bookPending = false, bookLastApply = 0, bookTimer = 0, statusPending = false;
+    const bookStats = { msgs: 0, applies: 0 };
+    function bookMid() {
+      let hb = -Infinity, la = Infinity, nb = 0, na = 0;
+      for (const k in localBids) { const v = +k; if (v > hb) hb = v; nb++; }
+      for (const k in localAsks) { const v = +k; if (v < la) la = v; na++; }
+      return (nb && na) ? (hb + la) / 2 : 0;
+    }
+    function flushBook() {
+      bookTimer = 0;
+      if (bookPending) {
+        bookPending = false; bookLastApply = performance.now(); bookStats.applies++;
+        applyLiveBook(bookPendingMid, 'binance', 'Binance');
+      }
+      if (statusPending) { statusPending = false; updateStatusUI(); }
+    }
+    function scheduleBookFlush() {
+      if (bookTimer) return;
+      const wait = Math.max(0, BOOK_APPLY_MS - (performance.now() - bookLastApply));
+      bookTimer = setTimeout(flushBook, wait);
+    }
+    function queueBookApply(mid) { bookStats.msgs++; bookPendingMid = mid; bookPending = true; scheduleBookFlush(); }
+    function queueStatusUI() { statusPending = true; scheduleBookFlush(); }
+
     function mergeDepth20IntoLocal(bids, asks) {
       if (!bids.length || !asks.length) return;
       const bidPrices = bids.map(l => +l[0]).filter(p => p > 0);
@@ -954,11 +1056,15 @@
               } else {
                 mergeDepth20IntoLocal(msg.bids, msg.asks);
               }
-              const midPx = price > 0 ? price : ((Object.keys(localBids).length && Object.keys(localAsks).length) ? (Math.max(...Object.keys(localBids).map(Number))+Math.min(...Object.keys(localAsks).map(Number)))/2 : 0);
-              applyLiveBook(midPx || price, 'binance', 'Binance');
+              // v11.1: book state is still merged on EVERY message (identical book). Only the
+              // pure, stateless applyLiveBook() + DOM status refresh are coalesced to <=8 Hz;
+              // the flush uses the exact mid captured from the newest message, so the final
+              // LIVE values equal what the unthrottled code would have shown.
+              const midPx = price > 0 ? price : bookMid();
+              queueBookApply(midPx || price);
               lastDepthTs=Date.now(); depthSource=SRC.BINANCE; depthVendorLabel='Binance';
             }
-            updateStatusUI();
+            queueStatusUI();
           } catch(_) {}
         };
         spotWs.onclose=()=>{
@@ -1221,7 +1327,7 @@
         });
       }
 
-      if(Date.now()-lastRebuild>7000 && Math.random()<.17) rebuildUnits();
+      if(Date.now()-lastRebuild>7000) syncArmyCounts(); // v11.1: diffed, no timer teardown
       if(!isLive&&t.hasBurns&&Math.random()<.055){
         pushFeed('Simulated burn flare · not a chain event','burn');
         if (effectsApi && effectsApi.playBurnFX) {
@@ -1244,7 +1350,15 @@
         playBurn();
       }
     }
-    setInterval(updateBattleLogic,760);
+    // v11.1: logic tick is driven from the rAF loop (frame-aligned, same 760 ms cadence).
+    // A watchdog interval keeps it running when rAF is suspended (background tab).
+    let logicAcc = 0, logicLastRun = performance.now();
+    function runBattleLogic() { logicLastRun = performance.now(); updateBattleLogic(); }
+    function stepBattleLogic(wallDtSec) {
+      logicAcc += Math.min(wallDtSec, 1) * 1000;
+      if (logicAcc >= 760) { logicAcc = Math.min(logicAcc - 760, 760); runBattleLogic(); }
+    }
+    setInterval(function () { if (performance.now() - logicLastRun > 1600) { logicAcc = 0; runBattleLogic(); } }, 800);
 
     // -------------------- v9.4.11 jet attack choreography --------------------
     let jetRunSeq = 1;
@@ -1873,9 +1987,12 @@
     const _ray = new THREE.Raycaster();
     const _ndc = new THREE.Vector2();
     LUNCBattle.engine = {
-      THREE: THREE, scene: scene, camera: camera, renderer: renderer, mobile: mobileGfx,
+      THREE: THREE, scene: scene, camera: camera, renderer: renderer, mobile: mobileGfx, controls: controls,
       terrainHeight: terrainHeight,
       getArmies: function () { return { bulls: bulls, bears: bears }; },
+      getBookStats: function () { return Object.assign({}, bookStats); },
+      getArmyStats: function () { return Object.assign({ key: lastArmyKey }, armyStats); },
+      armyCounts: armyCounts,
       getFrontlineX: function () { return priceTerritoryApi ? priceTerritoryApi.getFrontlineX() : targetX; },
       getPrice: function () { return price; },
       getToken: function () { return current; },
@@ -1908,10 +2025,19 @@
         const p = v.clone().project(camera);
         return { x: (p.x * 0.5 + 0.5) * innerWidth, y: (-p.y * 0.5 + 0.5) * innerHeight, behind: p.z > 1 };
       },
-      postfxState: function () { return postfx ? postfx.getState() : null; }
+      postfxState: function () { return postfx ? postfx.getState() : null; },
+      // v11.3: cutscene camera save/restore
+      getCameraTarget: function () { return controls.target.clone(); },
+      setCameraTarget: function (v) { controls.target.copy(v); controls.update(); }
     };
     if (LUNCBattle.v11 && LUNCBattle.v11.init) {
       try { LUNCBattle.v11.init(LUNCBattle.engine); } catch (e) { console.warn('[v11] init', e); }
+    }
+    if (LUNCBattle.craters && LUNCBattle.craters.init && ground) {
+      try { LUNCBattle.craters.init({ THREE, scene, ground }); } catch (e) { console.warn('[craters] init', e); }
+    }
+    if (LUNCBattle.v12 && LUNCBattle.v12.init) {
+      try { LUNCBattle.v12.init(LUNCBattle.engine); } catch (e) { console.warn('[v12] init', e); }
     }
 
     // -------------------- Animation --------------------
@@ -1951,6 +2077,7 @@
         wallDtSec = Math.max(0, (wallNowMs - animate._lastWallMs) / 1000);
       }
       animate._lastWallMs = wallNowMs;
+      try { stepBattleLogic(wallDtSec); tickUtcClock(); } catch (e) { if (!animate._logicErr) { animate._logicErr = 1; console.warn('[logic]', e); } }
       // Drain THREE.Clock so getDelta stays consistent if used elsewhere; do not feed it to PERF.
       clock.getDelta();
       const dt = Math.min(0.04, wallDtSec > 0 ? wallDtSec : 0.0167);
@@ -2000,6 +2127,8 @@
       }
 
       const now=performance.now()*.001;
+      // v12.0.14 realism pass 2 (armies) hooks — null with ?realism=0
+      const ARMY_RZ = (window.LUNCBattle && LUNCBattle.armyRealism && LUNCBattle.armyRealism.postTick) ? LUNCBattle.armyRealism : null;
       function tickAirCombat(u, side, dt, now) {
         const ud = u.userData;
         const type = ud.type | 0;
@@ -2042,6 +2171,12 @@
             ? u.userData.home.depth
             : (7.8 + rank * 6.2);
           let desired=targetX+side*depth;
+          // v11.2-ai: optional autonomous steering (cosmetic; applied BEFORE the frontline clamp)
+          if (window.LUNCBattle && LUNCBattle.ai && LUNCBattle.ai.steer) {
+            if (u.userData.rdDown) u.userData.shot = Math.max(u.userData.shot || 0, 1);
+            const ai = LUNCBattle.ai.steer(u, side, targetX, dt);
+            if (ai) { desired += ai.dx; u.position.z += (ai.z - u.position.z) * Math.min(1, dt * ai.rate * 0.6); }
+          }
           // Keep staging: bulls west / bears east; infantry may only slightly overrun frontline
           const maxOver = type===0 ? 2.4 : (type===1 ? 1.15 : 0.35);
           if (side < 0) desired = Math.min(desired, targetX - 0.85 + maxOver);
@@ -2054,7 +2189,9 @@
           else rate = contested ? 0.12 : 0.28; // arty mostly holds rear
           // Near desired + contested → idle more (slow crawl)
           if (contested && Math.abs(dx) < 1.2) rate *= 0.25;
-          const step = dx * Math.min(1, dt * rate);
+          let step = dx * Math.min(1, dt * rate);
+          // v12.0.14 realism (cosmetic): vehicles accelerate/brake toward the SAME desired X (front math untouched)
+          if (ARMY_RZ) step = ARMY_RZ.limitStep(u, type, step, dx, dt);
           const prevX = u.position.x;
           u.position.x += step;
           const speed = Math.abs(step) / Math.max(dt, 1e-4);
@@ -2073,7 +2210,9 @@
           }
           // v8.3: apply rootBob after tickUnit so infantry bob is same-frame
           u.position.y = terrainHeight(u.position.x, u.position.z) + (u.userData.rootBob || 0);
+          if (ARMY_RZ && type !== 0) ARMY_RZ.postTick(u, type, side, dt, now, targetX);
         });
+        if (ARMY_RZ) ARMY_RZ.separate(arr, dt);
       }
       function runUnits() {
         // Ground units only timed as "units"; air branch timed separately below.
@@ -2089,6 +2228,12 @@
               ? u.userData.home.depth
               : (7.8 + rank * 6.2);
             let desired = targetX + side * depth;
+            // v11.2-ai: optional autonomous steering (cosmetic; applied BEFORE the frontline clamp)
+            if (window.LUNCBattle && LUNCBattle.ai && LUNCBattle.ai.steer) {
+              if (u.userData.rdDown) u.userData.shot = Math.max(u.userData.shot || 0, 1);
+              const ai = LUNCBattle.ai.steer(u, side, targetX, dt);
+              if (ai) { desired += ai.dx; u.position.z += (ai.z - u.position.z) * Math.min(1, dt * ai.rate * 0.6); }
+            }
             const maxOver = type === 0 ? 2.4 : (type === 1 ? 1.15 : 0.35);
             if (side < 0) desired = Math.min(desired, targetX - 0.85 + maxOver);
             else desired = Math.max(desired, targetX + 0.85 - maxOver);
@@ -2098,7 +2243,8 @@
             else if (type === 1) rate = urgent ? 0.95 : contested ? 0.35 : 0.7;
             else rate = contested ? 0.12 : 0.28;
             if (contested && Math.abs(dx) < 1.2) rate *= 0.25;
-            const step = dx * Math.min(1, dt * rate);
+            let step = dx * Math.min(1, dt * rate);
+            if (ARMY_RZ) step = ARMY_RZ.limitStep(u, type, step, dx, dt);
             const prevX = u.position.x;
             u.position.x += step;
             u.userData.speed = Math.abs(step) / Math.max(dt, 1e-4);
@@ -2113,7 +2259,9 @@
               });
             }
             u.position.y = terrainHeight(u.position.x, u.position.z) + (u.userData.rootBob || 0);
+            if (ARMY_RZ && type !== 0) ARMY_RZ.postTick(u, type, side, dt, now, targetX);
           });
+          if (ARMY_RZ) ARMY_RZ.separate(arr, dt);
         }
         moveGround(bulls, -1); moveGround(bears, 1);
       }

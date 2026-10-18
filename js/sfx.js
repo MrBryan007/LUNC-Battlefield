@@ -20,7 +20,7 @@
     comp = ctx.createDynamicsCompressor();
     comp.threshold.value = -18; comp.knee.value = 12; comp.ratio.value = 4;
     master = ctx.createGain();
-    master.gain.value = muted ? 0 : 0.7;
+    master.gain.value = muted ? 0 : (typeof volume === 'number' ? volume : 0.7);
     comp.connect(master); master.connect(ctx.destination);
     var len = ctx.sampleRate * 2;
     noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate);
@@ -66,6 +66,7 @@
   /** power ~0.5–3, dist 0..1 (0 = at camera) */
   function explosion(power, dist) {
     if (!ctx || muted) return;
+    intensity = Math.min(1, intensity + 0.05 * (power || 1));
     var now = performance.now();
     if (now - lastBoom < 70) return;
     lastBoom = now;
@@ -140,7 +141,7 @@
   function setMuted(m) {
     muted = !!m;
     try { localStorage.setItem(KEY, muted ? '1' : '0'); } catch (_) {}
-    if (master && ctx) master.gain.setTargetAtTime(muted ? 0 : 0.7, ctx.currentTime, 0.05);
+    if (master && ctx) master.gain.setTargetAtTime(muted ? 0 : volume, ctx.currentTime, 0.05);
     try { global.dispatchEvent(new CustomEvent('lunc-mute-change', { detail: { muted: muted } })); } catch (_) {}
   }
   function setPaused(p) {
@@ -153,8 +154,112 @@
     global.addEventListener(ev, unlock, { passive: true });
   });
 
+  // v12: volume slider + basic adaptive music (low drone pad whose level follows combat intensity)
+  var volume = 0.7; try { var vv = parseFloat(localStorage.getItem('luncBattle.volume')); if (vv >= 0 && vv <= 1) volume = vv; } catch (_) {}
+  function setVolume(v) { volume = Math.max(0, Math.min(1, +v || 0)); try { localStorage.setItem('luncBattle.volume', String(volume)); } catch (_) {} if (master && !muted) master.gain.value = volume; }
+  var music = null, intensity = 0;
+  function musicOn() {
+    if (music || !ensure()) return;
+    var g = ctx.createGain(); g.gain.value = 0; g.connect(comp);
+    var f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 420; f.connect(g);
+    [55, 82.4, 110.3].forEach(function (hz, i) { var o = ctx.createOscillator(); o.type = i === 2 ? 'triangle' : 'sawtooth'; o.frequency.value = hz; o.detune.value = (i - 1) * 6; o.connect(f); o.start(); });
+    music = { g: g, f: f };
+  }
+  function combat(amount) { intensity = Math.min(1, intensity + (amount || 0.1)); }
+  setInterval(function () {
+    intensity *= 0.94;
+    if (!music) { if (ctx) musicOn(); return; }
+    var target = muted ? 0 : 0.018 + intensity * 0.05;
+    music.g.gain.setTargetAtTime(target, ctx.currentTime, 0.8);
+    music.f.frequency.setTargetAtTime(380 + intensity * 900, ctx.currentTime, 0.8);
+  }, 500);
+
+  // v12.0.7: ambience beds (wind / surf / rain), Doppler jet pass, radio blip variant
+  var beds = null;
+  function bedsOn() {
+    if (beds || !ctx) return beds;
+    try {
+      beds = {};
+      [['wind', 'bandpass', 420, 0.5], ['surf', 'lowpass', 520, 0.6], ['rain', 'highpass', 3200, 0.4]].forEach(function (b) {
+        var src = ctx.createBufferSource(); src.buffer = noiseBuf; src.loop = true; src.playbackRate.value = b[0] === 'rain' ? 1.3 : 0.7;
+        var f = ctx.createBiquadFilter(); f.type = b[1]; f.frequency.value = b[2]; f.Q.value = b[3];
+        var g = ctx.createGain(); g.gain.value = 0;
+        src.connect(f); f.connect(g); g.connect(comp); src.start(0, Math.random() * 1.5);
+        beds[b[0]] = { g: g, f: f };
+      });
+      var lfo = ctx.createOscillator(); lfo.frequency.value = 0.11; var lg = ctx.createGain(); lg.gain.value = 140; lfo.connect(lg); lg.connect(beds.wind.f.frequency); lfo.start();   // gusts
+      var lfo2 = ctx.createOscillator(); lfo2.frequency.value = 0.09; var lg2 = ctx.createGain(); lg2.gain.value = 260; lfo2.connect(lg2); lg2.connect(beds.surf.f.frequency); lfo2.start();   // waves
+    } catch (_) { beds = null; }
+    return beds;
+  }
+  function setBeds(lv) {   // levels 0..1
+    if (!ctx || !bedsOn()) return;
+    var k = muted ? 0 : 1, t = ctx.currentTime;
+    if (lv.wind != null) beds.wind.g.gain.setTargetAtTime(0.06 * lv.wind * k, t, 0.6);
+    if (lv.surf != null) beds.surf.g.gain.setTargetAtTime(0.09 * lv.surf * k, t, 0.6);
+    if (lv.rain != null) beds.rain.g.gain.setTargetAtTime(0.035 * lv.rain * k, t, 0.6);
+  }
+  /** Doppler jet pass. pan −1..1 (start side), att 0..1 loudness, dur seconds */
+  function jetPass(pan, att, dur) {
+    if (!ctx || muted || !voice(3000)) return;
+    dur = dur || 2.2; att = Math.max(0.05, Math.min(1, att == null ? 1 : att));
+    var t = ctx.currentTime, src = ctx.createBufferSource(); src.buffer = noiseBuf;
+    var f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 0.9;
+    f.frequency.setValueAtTime(900, t); f.frequency.exponentialRampToValueAtTime(3200, t + dur * 0.45); f.frequency.exponentialRampToValueAtTime(260, t + dur);   // approach high, recede low
+    var g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.22 * att, t + dur * 0.45); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    var o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.setValueAtTime(240, t); o.frequency.exponentialRampToValueAtTime(330, t + dur * 0.45); o.frequency.exponentialRampToValueAtTime(150, t + dur);   // engine whine, Doppler drop
+    var og = ctx.createGain(); og.gain.setValueAtTime(0.0001, t); og.gain.exponentialRampToValueAtTime(0.03 * att, t + dur * 0.45); og.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    var out = g;
+    if (ctx.createStereoPanner) { var p = ctx.createStereoPanner(); p.pan.setValueAtTime(Math.max(-1, Math.min(1, pan || 0)), t); p.pan.linearRampToValueAtTime(-Math.max(-1, Math.min(1, pan || 0)), t + dur); g.connect(p); og.connect(p); p.connect(comp); }
+    else { g.connect(comp); og.connect(comp); }
+    src.connect(f); f.connect(g); o.connect(og);
+    src.start(t, Math.random()); src.stop(t + dur + 0.05); o.start(t); o.stop(t + dur + 0.05);
+    intensity = Math.min(1, intensity + 0.04);
+  }
+  function blip(side) {
+    if (!ctx || muted) return;
+    var base = side < 0 ? 1350 : side > 0 ? 1050 : 1200;
+    noise(0.1, 'bandpass', 2200, 5, 0.035, 0.002);
+    tone(base, base * 0.92, 0.05, 'square', 0.018, ctx.currentTime + 0.1); tone(base * 1.25, 0, 0.04, 'square', 0.014, ctx.currentTime + 0.17);
+  }
+
+  /** Air-raid / base-under-attack siren. Respects mute, volume, pause and iOS unlock (via ensure). */
+  function siren() {
+    if (!ensure() || muted) return;
+    if (!voice(1800)) return;
+    intensity = Math.min(1, intensity + 0.12);
+    var t0 = ctx.currentTime;
+    // Rising/falling saw sweep through compressor/master so mute & volume apply
+    var o = ctx.createOscillator(); o.type = 'sawtooth';
+    o.frequency.setValueAtTime(380, t0);
+    o.frequency.linearRampToValueAtTime(720, t0 + 0.55);
+    o.frequency.linearRampToValueAtTime(400, t0 + 1.1);
+    o.frequency.linearRampToValueAtTime(680, t0 + 1.55);
+    var g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(0.09, t0 + 0.04);
+    g.gain.exponentialRampToValueAtTime(0.06, t0 + 1.2);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.7);
+    var f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 900; f.Q.value = 0.7;
+    o.connect(f); f.connect(g); g.connect(comp);
+    o.start(t0); o.stop(t0 + 1.75);
+    // Second harmonic for urgency
+    var o2 = ctx.createOscillator(); o2.type = 'square';
+    o2.frequency.setValueAtTime(190, t0);
+    o2.frequency.linearRampToValueAtTime(360, t0 + 0.55);
+    o2.frequency.linearRampToValueAtTime(200, t0 + 1.55);
+    var g2 = ctx.createGain();
+    g2.gain.setValueAtTime(0.0001, t0);
+    g2.gain.exponentialRampToValueAtTime(0.035, t0 + 0.05);
+    g2.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.7);
+    o2.connect(g2); g2.connect(comp);
+    o2.start(t0); o2.stop(t0 + 1.75);
+  }
+
   LB.sfx = {
-    explosion: explosion, gunfire: gunfire, jet: jet, ui: ui, success: success, fail: fail, rank: rank, radio: radio,
+    setBeds: setBeds, jetPass: jetPass, blip: blip, audio: function () { return ctx ? { ctx: ctx, comp: comp, beds: !!beds } : null; },
+    setVolume: setVolume, getVolume: function () { return volume; }, combat: combat, getIntensity: function () { return intensity; },
+    explosion: explosion, gunfire: gunfire, jet: jet, ui: ui, success: success, fail: fail, rank: rank, radio: radio, siren: siren,
     setMuted: setMuted, isMuted: function () { return muted; }, toggleMute: function () { setMuted(!muted); return muted; },
     setPaused: setPaused, ready: function () { return !!ctx; }
   };
