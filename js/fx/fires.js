@@ -88,6 +88,16 @@
     var arr = sites.map(function (s) { s.d = Math.hypot(s.x - T.x, s.z - T.z); return s; }).sort(function (a, b) { return a.d - b.d; });
     var near = cap().near; for (var i = 0; i < arr.length; i++) arr[i].rank = i < near ? i : 99;
   }
+  // fires keep their own live-sprite ledger so they never hold more than ~45 % of the shared heavyFx pool
+  var live = [];
+  function share(F) {
+    var now = performance.now(), j = 0;
+    for (var i = 0; i < live.length; i++) if (live[i] > now) live[j++] = live[i];
+    live.length = j;
+    var c = 160; try { c = F.getStats().cap || c; } catch (_) {}
+    return live.length < c * 0.45;
+  }
+  function P(F, o) { if (!share(F)) { stats.skipped++; return null; } var sp = F.puff(o); if (sp) { live.push(performance.now() + (o.life || 1.5) * 1000 + 300); stats.emitted++; } return sp; }
   function emit(S, dt, F, budgetOk, steam) {
     if (S.d > 160) return;
     var full = S.rank < 99 && S.d < 110, mult = full ? 1 : 0.25;
@@ -98,31 +108,28 @@
       if (full) {
         S.fT -= dt;
         if (S.fT <= 0) {
-          S.fT = 1 / (5 + 6 * h * r);
+          S.fT = 1 / (3.5 + 4 * h * Math.min(2, r));
           var a = Math.random() * 6.28, rr = Math.sqrt(Math.random()) * r * 0.7;
-          F.puff({ kind: 'fire', x: x + Math.cos(a) * rr, y: y + 0.25, z: z + Math.sin(a) * rr, vy: 1.2 + h * 1.4, vx: wind.x * 0.2, vz: wind.z * 0.2,
-            size: (0.55 + Math.random() * 0.5) * r * (0.55 + 0.6 * h), grow: 0.3, life: 0.55 + Math.random() * 0.35, color: Math.random() < 0.5 ? 0xff7a1a : 0xffb347, opacity: 0.85 * Math.min(1, 0.4 + h), flicker: true });
-          stats.emitted++;
+          P(F, { kind: 'fire', x: x + Math.cos(a) * rr, y: y + 0.25, z: z + Math.sin(a) * rr, vy: 1.2 + h * 1.4, vx: wind.x * 0.2, vz: wind.z * 0.2,
+            size: (0.85 + Math.random() * 0.6) * r * (0.6 + 0.6 * h), grow: 0.35, life: 0.6 + Math.random() * 0.35, color: Math.random() < 0.5 ? 0xff7a1a : 0xffb347, opacity: 0.85 * Math.min(1, 0.4 + h), flicker: true });
         }
       }
       S.sT -= dt;
       if (S.sT <= 0) {
-        S.sT = 1 / ((1.8 + 2.2 * h) * Math.max(0.7, r) * mult);
+        S.sT = 1 / ((0.9 + 1.1 * h) * Math.max(0.7, Math.min(2, r)) * mult);
         var col = steam ? 0xa9a8a3 : lerpHex(0x3a352f, 0x6f6b64, 1 - h);
-        F.puff({ kind: 'smoke', x: x + rnd(-0.4, 0.4) * r, y: y + 1 + h * 0.6, z: z + rnd(-0.4, 0.4) * r, vy: 1.5 + h * 1.2, vx: wind.x * (0.9 + Math.random() * 0.5), vz: wind.z * (0.9 + Math.random() * 0.5),
-          size: (1 + 0.5 * h) * r, grow: 1.9, life: 3.6 + Math.random() * 1.6, color: col, opacity: (steam ? 0.32 : 0.42) * (0.6 + 0.4 * h), drag: 0.985 });
-        stats.emitted++;
+        P(F, { kind: 'smoke', x: x + rnd(-0.4, 0.4) * r, y: y + 1 + h * 0.6, z: z + rnd(-0.4, 0.4) * r, vy: 1.5 + h * 1.2, vx: wind.x * (0.9 + Math.random() * 0.5), vz: wind.z * (0.9 + Math.random() * 0.5),
+          size: (1.5 + 0.7 * h) * r, grow: 2.6, life: 6 + Math.random() * 2.5, color: col, opacity: (steam ? 0.34 : 0.5) * (0.6 + 0.4 * h), drag: 0.988 });
       }
     } else {   // smoulder
       var u = Math.min(1, S.t / S.smT), k = 1 - u;
       S.sT -= dt;
       if (S.sT <= 0 && k > 0.04) {
-        S.sT = 1 / ((0.5 + 1.3 * k) * Math.max(0.7, r) * mult);
-        F.puff({ kind: 'smoke', x: x + rnd(-0.3, 0.3) * r, y: y + 0.6, z: z + rnd(-0.3, 0.3) * r, vy: 0.9 + k * 0.6, vx: wind.x * 1.1, vz: wind.z * 1.1,
-          size: (0.6 + 0.5 * k) * r, grow: 1.6, life: 3.4 + Math.random() * 1.4, color: steam ? 0xb4b3ae : 0x7c7870, opacity: 0.08 + 0.26 * k, drag: 0.985 });
-        stats.emitted++;
+        S.sT = 1 / ((0.35 + 0.8 * k) * Math.max(0.7, Math.min(2, r)) * mult);
+        P(F, { kind: 'smoke', x: x + rnd(-0.3, 0.3) * r, y: y + 0.6, z: z + rnd(-0.3, 0.3) * r, vy: 0.9 + k * 0.6, vx: wind.x * 1.1, vz: wind.z * 1.1,
+          size: (0.9 + 0.7 * k) * r, grow: 2.1, life: 5 + Math.random() * 2, color: steam ? 0xb4b3ae : 0x7c7870, opacity: 0.08 + 0.26 * k, drag: 0.985 });
       }
-      if (full && k > 0.45) { S.eT -= dt; if (S.eT <= 0) { S.eT = rnd(0.8, 2.2); F.puff({ kind: 'fire', x: x + rnd(-0.5, 0.5) * r, y: y + 0.12, z: z + rnd(-0.5, 0.5) * r, vy: 0.4, size: 0.22 * r, grow: 0.2, life: 0.5, color: 0xff6a1a, opacity: 0.8 * k, flicker: true }); } }
+      if (full && k > 0.45) { S.eT -= dt; if (S.eT <= 0) { S.eT = rnd(0.8, 2.2); P(F, { kind: 'fire', x: x + rnd(-0.5, 0.5) * r, y: y + 0.12, z: z + rnd(-0.5, 0.5) * r, vy: 0.4, size: 0.22 * r, grow: 0.2, life: 0.5, color: 0xff6a1a, opacity: 0.8 * k, flicker: true }); } }
     }
   }
   function step(dt) {
@@ -169,7 +176,7 @@
     list: function () { return sites.map(function (s) { return { x: +s.x.toFixed(1), z: +s.z.toFixed(1), r: +s.r.toFixed(2), ph: s.ph, t: +s.t.toFixed(1), burnT: +s.burnT.toFixed(0), smT: +s.smT.toFixed(0), src: s.src, rank: s.rank }; }); },
     wind: function () { return { x: +wind.x.toFixed(2), z: +wind.z.toFixed(2), speed: +Math.hypot(wind.x, wind.z).toFixed(2) }; },
     getStats: function () { return Object.assign({ sites: sites.length, cap: cap().sites }, stats); },
-    clear: function () { sites.length = 0; },
+    clear: function () { sites.length = 0; live.length = 0; },
     _step: function (sec) { for (var t = 0; t < sec; t += 0.1) step(0.1); return sites.length; }
   };
 })(window);
