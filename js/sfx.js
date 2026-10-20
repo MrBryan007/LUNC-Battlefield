@@ -223,6 +223,15 @@
     tone(base, base * 0.92, 0.05, 'square', 0.018, ctx.currentTime + 0.1); tone(base * 1.25, 0, 0.04, 'square', 0.014, ctx.currentTime + 0.17);
   }
 
+  /** v12.0.20 active sonar ping: a clean ~1.5 kHz tone with a long ring-out and a fainter echo, by camera distance. */
+  function sonar(dist) {
+    if (!ctx || muted) return;
+    var k = Math.max(0, 1 - (dist || 0) / 260); if (k <= 0.02) return;
+    var t = ctx.currentTime;
+    tone(1510, 1480, 1.1, 'sine', 0.05 * k, t); tone(3020, 2990, 0.5, 'sine', 0.008 * k, t);
+    tone(1500, 1470, 0.9, 'sine', 0.018 * k, t + 0.55);
+  }
+
   /** Air-raid / base-under-attack siren. Respects mute, volume, pause and iOS unlock (via ensure). */
   function siren() {
     if (!ensure() || muted) return;
@@ -259,7 +268,7 @@
   LB.sfx = {
     setBeds: setBeds, jetPass: jetPass, blip: blip, audio: function () { return ctx ? { ctx: ctx, comp: comp, beds: !!beds } : null; },
     setVolume: setVolume, getVolume: function () { return volume; }, combat: combat, getIntensity: function () { return intensity; },
-    explosion: explosion, gunfire: gunfire, jet: jet, ui: ui, success: success, fail: fail, rank: rank, radio: radio, siren: siren,
+    explosion: explosion, gunfire: gunfire, jet: jet, ui: ui, success: success, fail: fail, rank: rank, radio: radio, siren: siren, sonar: sonar,
     setMuted: setMuted, isMuted: function () { return muted; }, toggleMute: function () { setMuted(!muted); return muted; },
     setPaused: setPaused, ready: function () { return !!ctx; }
   };

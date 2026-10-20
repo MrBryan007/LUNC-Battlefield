@@ -241,6 +241,7 @@
         try { LUNCBattle.theaters.update(); } catch (e) { if (!drawFrame._thErr) { drawFrame._thErr = 1; console.warn('[theaters]', e); } }
         if (LUNCBattle.v12extras) { try { LUNCBattle.v12extras.update(); } catch (e) { if (!drawFrame._exErr) { drawFrame._exErr = 1; console.warn('[v12-extras]', e); } } }
         if (LUNCBattle.uav) { try { LUNCBattle.uav.update(); } catch (e) { if (!drawFrame._uavErr) { drawFrame._uavErr = 1; console.warn('[uav]', e); } } }
+        if (LUNCBattle.asw) { try { LUNCBattle.asw.update(); } catch (e) { if (!drawFrame._aswErr) { drawFrame._aswErr = 1; console.warn('[asw]', e); } } }
         if (LUNCBattle.supply) { try { LUNCBattle.supply.update(); } catch (e) { if (!drawFrame._supErr) { drawFrame._supErr = 1; console.warn('[supply]', e); } } }
         if (LUNCBattle.economy) { try { LUNCBattle.economy.update(); } catch (e) { if (!drawFrame._ecoErr) { drawFrame._ecoErr = 1; console.warn('[economy]', e); } } }
         if (LUNCBattle.tech) { try { LUNCBattle.tech.update(); } catch (e) { if (!drawFrame._techErr) { drawFrame._techErr = 1; console.warn('[tech]', e); } } }

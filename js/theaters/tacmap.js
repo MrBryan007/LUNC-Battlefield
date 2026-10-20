@@ -42,6 +42,9 @@
     if (kind === 'air') {
       if (own) { c.moveTo(x - s, y + s * 0.45); c.lineTo(x - s, y - s * 0.05); c.arc(x, y - s * 0.05, s, Math.PI, 0); c.lineTo(x + s, y + s * 0.45); }
       else { c.moveTo(x - s, y + s * 0.4); c.lineTo(x - s * 0.15, y - s * 0.95); c.lineTo(x + s * 0.15, y - s * 0.95); c.lineTo(x + s, y + s * 0.4); }
+    } else if (kind === 'sub') {   // v12.0.20 subsurface: open-top frames
+      if (own) { c.moveTo(x - s, y - s * 0.35); c.arc(x, y - s * 0.35, s, Math.PI, 0, true); }
+      else { c.moveTo(x - s, y - s * 0.3); c.lineTo(x, y + s * 0.85); c.lineTo(x + s, y - s * 0.3); }
     } else if (kind === 'sea') {
       if (own) c.arc(x, y, s * 0.82, 0, Math.PI * 2);
       else { c.moveTo(x, y - s); c.lineTo(x + s, y); c.lineTo(x, y + s); c.lineTo(x - s, y); c.closePath(); }
@@ -186,6 +189,21 @@
         if (big) label(c, 'SPOT', spx, spz - sr - 7, 9, 'rgba(255,140,120,' + sa.toFixed(2) + ')');
       }
     }
+    // v12.0.20 submarines (own always; enemy only while held as a sonar contact, at the estimated position) + ping rings
+    if (LB.asw && LB.asw.isEnabled && LB.asw.isEnabled()) {
+      var sbl = LB.asw.list(), cn = LB.asw.contact(own);
+      for (var sb = 0; sb < sbl.length; sb++) {
+        var SB = sbl[sb]; if (SB.st === 'dead') continue;
+        var oS = SB.side === own, px3 = SB.x, pz3 = SB.z, weak = false;
+        if (!oS) { if (!cn) continue; px3 = cn.x; pz3 = cn.z; weak = !cn.firm; }
+        var sx3 = X(px3), sz3 = Z(pz3), ss3 = gs * 1.1; sideColNow = sideCol(SB.side);
+        if (weak) c.setLineDash([2, 2]);
+        frame(c, sx3, sz3, ss3, oS, 'sub', SB.side); c.setLineDash([]);
+        if (big) label(c, 'SSN', sx3, sz3 - ss3 * 0.2, Math.max(6, ss3 * 0.7), '#f2f6f3');
+        n++;
+      }
+      if (big) { var pgs = LB.asw.pings(); for (var pq = 0; pq < pgs.length; pq++) { var PG = pgs[pq]; c.strokeStyle = 'rgba(160,232,255,' + (0.7 * (1 - PG.k)).toFixed(2) + ')'; c.lineWidth = 1.2; c.beginPath(); c.arc(X(PG.x), Z(PG.z), Math.max(2, PG.r * sx), 0, 6.283); c.stroke(); } }
+    }
     // fog of war: dim unseen ground + last-known ghosts
     if (fowOn) {
       var step = big ? 10 : 4; c.fillStyle = 'rgba(4,6,10,.5)';
@@ -233,7 +251,7 @@
       '<button type="button" data-tm="legend" title="Legend">?</button><button type="button" data-tm="sheet" title="Map sheet (theaters, war systems)">☰</button><button type="button" data-tm="close" title="Close (Esc)">✕</button></div>' +
       '<div class="tac-body"><canvas id="tacCanvas"></canvas><div class="tac-legend" hidden>' +
       '<div><i class="lg rect"></i>Own forces (rectangle) · <i class="lg dia"></i>Enemy (diamond)</div>' +
-      '<div>✕ infantry · ⬭ armor · ● artillery · ⋈ helicopter · ⌒ air track (line = heading) · ○ CV/BB/DD ships</div>' +
+      '<div>✕ infantry · ⬭ armor · ● artillery · ⋈ helicopter · ⌒ air track (line = heading) · ○ CV/BB/DD ships · ◡ SSN submarine (dashed = weak sonar contact)</div>' +
       '<div>• •• ••• | || ||| unit-count echelon (on-screen units, not real strength) · HQ / AB / SUP installations</div>' +
       '<div><span style="color:#ffd36a">◗◗ FLOT</span>: the front line set by the market price · rings: supply drops / pings</div>' +
       '<div>Tap / click: fly the camera there · long-press / right-click: drop a ping · N: open/close · Esc: close</div></div>' +

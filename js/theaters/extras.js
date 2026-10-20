@@ -107,7 +107,7 @@
     if (e.isPaused()) return;
     var F = fx();
     for (var i = 0; i < drones.length; i++) { var d = drones[i]; if (d.ctl) continue; d.a += dt * 0.25; d.g.position.set(d.cx + Math.cos(d.a) * d.r, d.y, d.cz + Math.sin(d.a) * d.r); d.g.rotation.y = -d.a; }
-    for (var s = 0; s < subs.length; s++) tickSub(subs[s], dt, F); tickTorps(dt, F);
+    for (var s = 0; s < subs.length; s++) if (!subs[s].ctl) tickSub(subs[s], dt, F); tickTorps(dt, F);   // v12.0.20: asw.js drives ctl subs
     for (var k = 0; k < silos.length; k++) tickSilo(silos[k], dt, F);
     for (var q = icbms.length - 1; q >= 0; q--) tickIcbm(icbms[q], dt, F, q);
     cyberT -= dt; if (cyberT <= 0) { cyberT = rnd(35, 70); cyber(); }
@@ -217,7 +217,7 @@
     function seen(x, z) { if (!fow) return true; if (LB.fow && LB.fow.isActive && LB.fow.isActive()) return LB.fow.visible(x, z); if (LB.supply && LB.supply.revealed && LB.supply.revealed(x, z)) return true; if (side < 0 ? x < -10 : x > 10) return true; for (var i = 0; i < jt.length; i++) { var j = jt[i]; if (j.side === side && j.g.visible && Math.hypot(j.x - x, j.z - z) < 60) return true; } for (var k = 0; k < drones.length; k++) { var d = drones[k]; if (d.side === side && Math.hypot(d.g.position.x - x, d.g.position.z - z) < 50) return true; } return false; }
     for (var i = 0; i < sh.length; i++) if (sh[i].side !== side) sh[i].g.visible = seen(sh[i].x, sh[i].z);
     for (var j = 0; j < jt.length; j++) if (jt[j].side !== side && jt[j].st !== 'dead') jt[j].g.visible = seen(jt[j].x, jt[j].z);
-    for (var s = 0; s < subs.length; s++) if (subs[s].side !== side) subs[s].g.visible = !fow || subs[s].st !== 'deep';
+    for (var s = 0; s < subs.length; s++) if (subs[s].side !== side && !subs[s].ctl) subs[s].g.visible = !fow || subs[s].st !== 'deep';
   }
 
   LB.v12extras = { update: update, getOptions: function () { return Object.assign({}, opt); }, getStats: function () { return Object.assign({}, stats); },
@@ -226,6 +226,7 @@
     ambushTest: function () { var S = subs[0]; if (!S) return false; S.st = 'deep'; S.t = 0.01; return true; },   // v12.0.5 test hook: next frame surfaces + fires
     _fow: function () { tickFow(); },   // test hook
     _droneList: function () { return drones; },   // v12.0.17: js/theaters/uav.js takes these over
+    _subList: function () { return subs; },   // v12.0.20: js/theaters/asw.js takes these over
     _drones: function () { return drones.filter(function (d) { return !d.dead && d.g.visible; }).map(function (d) { return { side: d.side, x: d.g.position.x, z: d.g.position.z }; }); },
     _subs: function () { return subs.map(function (S) { return { st: S.st, t: +S.t.toFixed(2), x: Math.round(S.x), z: Math.round(S.z), side: S.side }; }); },
     _stepNaval: function (sec) { var F = fx(); for (var t = 0; t < sec; t += 0.1) { for (var s = 0; s < subs.length; s++) tickSub(subs[s], 0.1, F); tickTorps(0.1, F); } },   // test hook
