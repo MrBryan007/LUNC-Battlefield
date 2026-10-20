@@ -25,7 +25,7 @@
   var CALLS = { '-1': 'Ridge Runner', '1': 'Granite' };
   var THREE = null, ready = false, last = 0, root = null, el = {}, uiT = 0, visT = 0, intelT = 10, aiFireT = { '-1': rnd(50, 80), '1': rnd(50, 80) };
   var teams = [], tracers = [], shells = [], op = {}, summit = { x: 0, z: 0, y: 0 }, paths = {};
-  var cap = 0, owner = 0, contested = false, cmd = { rein: 0, fire: 0 }, sayT = {};
+  var cap = 0, owner = 0, contested = false, cmd = { rein: 0, fire: 0 }, sayT = {}, lastCmdFire = -1e9;
   var stats = { shots: 0, hits: 0, kia: 0, captures: 0, retreats: 0, waves: 0, intel: 0, fireMissions: 0, rein: 0, last: '' };
   function rnd(a, b) { return a + Math.random() * (b - a); }
   function clamp(v, a, b) { return v < a ? a : v > b ? b : v; }
@@ -87,14 +87,14 @@
     var lo = low(), sw = lo ? 60 : 110, sd = lo ? 16 : 30;
     var g = new THREE.PlaneGeometry(HALF_W * 2, Z0 - Z1, sw, sd); g.rotateX(-Math.PI / 2);
     var pos = g.attributes.position, colors = new Float32Array(pos.count * 3);
-    var cG = col(0x55663a), cS = col(0x6c6b45), cR = col(0x6e6a60), cP = col(0x948f83), cD = col(0x7c6a4c), c = new THREE.Color();
+    var cG = col(0x46572f), cS = col(0x5a5a39), cR = col(0x57534a), cP = col(0x726d62), cD = col(0x5e4f38), c = new THREE.Color();
     for (var i = 0; i < pos.count; i++) {
       var x = pos.getX(i), z = pos.getZ(i) + (Z0 + Z1) / 2, h = ridgeH(x, z), sl = slope(x, z);
       pos.setZ(i, z); pos.setY(i, SKIRT + h);
       c.copy(cG).lerp(cS, sstep(3, 11, h));
       c.lerp(cR, Math.max(sstep(0.75, 1.25, sl), sstep(13, 19, h) * 0.8));
       c.lerp(cP, sstep(20, 25, h) * 0.85);
-      var dt = Math.min(distToPath(paths['-1'], x, z), distToPath(paths['1'], x, z)); c.lerp(cD, (1 - sstep(0.8, 2.0, dt)) * 0.8);
+      var dt = Math.min(distToPath(paths['-1'], x, z), distToPath(paths['1'], x, z)); c.lerp(cD, (1 - sstep(0.9, 2.2, dt)) * 0.85);
       var n = 0.93 + 0.14 * (0.5 + 0.5 * Math.sin(x * 2.3 + z * 1.7) * Math.sin(z * 2.9 - x * 0.7));
       colors[i * 3] = c.r * n; colors[i * 3 + 1] = c.g * n; colors[i * 3 + 2] = c.b * n;
     }
@@ -142,7 +142,7 @@
     for (var j = 0; j <= N; j++) {
       var b = j / N * 6.2832;
       [RING_R - 0.45, RING_R].forEach(function (r, q) { var x = Math.sin(b) * r, z = Math.cos(b) * r, o = (j * 2 + q) * 3; rp[o] = x; rp[o + 1] = groundY(summit.x + x, summit.z + z) + 0.22; rp[o + 2] = z; });
-      if (j < N) idx.push(j * 2, j * 2 + 1, j * 2 + 2, j * 2 + 1, j * 2 + 3, j * 2 + 2);
+      if (j < N && j % 3 !== 2) idx.push(j * 2, j * 2 + 1, j * 2 + 2, j * 2 + 1, j * 2 + 3, j * 2 + 2);   // dashed, so it reads as a zone marker
     }
     var rg = new THREE.BufferGeometry(); rg.setAttribute('position', new THREE.BufferAttribute(rp, 3)); rg.setIndex(idx);
     op.ringM = new THREE.MeshBasicMaterial({ color: 0xe8e4d8, transparent: true, opacity: 0.55, depthWrite: false, side: THREE.DoubleSide });
@@ -171,6 +171,8 @@
     summit.x = 0; summit.z = crestZ(0); summit.y = groundY(0, summit.z);
     paths['-1'] = makePath(-1); paths['1'] = makePath(1);
     buildTerrain(); buildOp();
+    // the v12.0 horizon cones (js/theaters/extras.js) become the far range behind the ridge: sRGB-correct, darker
+    try { E().scene.traverse(function (o) { if (o.isMesh && o.geometry && o.geometry.type === 'ConeGeometry' && o.position.z < -150 && o.material && o.material.color && o.material.color.getHex() === 0x5b6150) { o.material.color.copy(col(0x4b5144)); stats.farCones = (stats.farCones || 0) + 1; } }); } catch (_) {}
     teams = [makeTeam(-1), makeTeam(1)];
     var lm = new THREE.LineBasicMaterial({ color: 0xffd27a, transparent: true, opacity: 0.9 });
     for (var i = 0; i < (low() ? 6 : 12); i++) { var lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3)); var L = new THREE.Line(lg, lm.clone()); L.visible = false; L.frustumCulled = false; root.add(L); tracers.push({ l: L, t: 1 }); }
@@ -243,7 +245,7 @@
         var best = null, bd = RANGE * Math.max(0.5, sm); O.men.forEach(function (N) { if (!N.alive) return; var d = Math.hypot(N.x - M.x, N.z - M.z); if (d < bd) { bd = d; best = N; } });
         M.tgt = best; if (!best) { M.cd = 0.5; return; }
         M.cd = rnd(1.4, 2.2) * (T.st === 'retreat' ? 1.6 : 1); stats.shots++;
-        var p = 0.16 * sm * (M.y - best.y > 2 ? 1.45 : 1) * (inCover(best, O.side) ? 0.55 : 1) * (O.st === 'climb' || O.st === 'retreat' ? 0.85 : 1) * (1 - bd / (RANGE * 1.6));
+        var p = 0.16 * sm * (M.y - best.y > 2 ? 1.35 : 1) * (inCover(best, O.side) ? 0.6 : 1) * (O.st === 'climb' || O.st === 'retreat' ? 0.85 : 1) * (1 - bd / (RANGE * 1.6));
         if (Math.random() < 0.4) tracer(M.x, M.y + 1.15, M.z, best.x + rnd(-0.4, 0.4), best.y + 0.9, best.z + rnd(-0.4, 0.4));
         if (LB.sfx && LB.sfx.gunfire && Math.random() < 0.3) try { LB.sfx.gunfire(camDist(M.x, M.y, M.z)); } catch (_) {}
         if (Math.random() < p) hit(best, O, 1);
@@ -320,7 +322,7 @@
     var own = playerSide();
     [-1, 1].forEach(function (s) {
       var k = String(s); aiFireT[k] -= dt; if (aiFireT[k] > 0) return; aiFireT[k] = rnd(55, 85);
-      if (s === own) return;                                                                 // the Commander's side fires on orders
+      if (s === own && performance.now() - lastCmdFire < 90000) return;                      // your side's mortars wait for your orders, unless you've been away 90 s
       var O = s === teams[0].side ? teams[1] : teams[0];
       if (!O.men.some(inRing)) return;
       if (LB.economy && LB.economy.isEnabled && LB.economy.isEnabled() && !LB.economy.pay(s, COST_FIRE)) return;
@@ -346,7 +348,7 @@
     if (!ready) return note('Ridge not ready', false);
     if (cmd.fire > 0) return note('Fire mission ready in ' + Math.ceil(cmd.fire) + ' s', false);
     if (!payOk(COST_FIRE)) return note('Need ' + COST_FIRE.ammo + ' ammo for a fire mission', false);
-    cmd.fire = FIRE_CD; fireMission(playerSide(), 'cmd');
+    cmd.fire = FIRE_CD; lastCmdFire = performance.now(); fireMission(playerSide(), 'cmd');
     return note('Fire mission on Hill 402: 3 rounds', true);
   }
   function note(txt, ok) { stats.last = txt; if (el.note) el.note.textContent = txt; renderUi(); return { ok: ok, text: txt }; }
