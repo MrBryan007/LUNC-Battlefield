@@ -411,13 +411,15 @@
     airE: { label: 'Air East', x: BASE_X, z: BASE_Z, d: 80, pol: 0.9, az: -0.6 },
     bullHq: { label: 'Bull HQ', x: -HQX(), z: 0, d: 52, pol: 0.95, az: 0.4 },
     bearHq: { label: 'Bear HQ', x: HQX(), z: 0, d: 52, pol: 0.95, az: -0.4 },
+    ridge: { label: 'Ridge', x: 0, z: -98, y: 14, d: 62, pol: 0.95, az: 0.15 },   // v12.0.21 Hill 402
     overview: { label: 'Overview', x: 0, z: 40, d: 310, pol: 0.62, az: 0 }
   };
+  if (qs.get('ridge') === '0') delete VIEWS.ridge;   // v12.0.21: no Ridge quick-jump when the ridge sector is off
   function flyTo(id, dur) {
     var v = VIEWS[id]; if (!v || !E()) return;
     var e = E(), T = e.getCameraTarget();
     _sph.set(v.d, v.pol, v.az);
-    var to = new THREE.Vector3(v.x, 0.5, v.z), pos = new THREE.Vector3().setFromSpherical(_sph).add(to);
+    var to = new THREE.Vector3(v.x, v.y != null ? v.y : 0.5, v.z), pos = new THREE.Vector3().setFromSpherical(_sph).add(to);
     fly = { t: 0, dur: dur || 1.6, fromT: T, toT: to, fromP: e.camera.position.clone(), toP: pos, id: id };
   }
   // v12.0.16 tactical map: fly the camera to any world point, keeping the current view angle

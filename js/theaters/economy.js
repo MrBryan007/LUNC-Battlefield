@@ -118,6 +118,7 @@
   var api = LB.economy = {
     isEnabled: function () { return enabled && ready; }, update: update, spend: spend, can: function (id, s) { return can(s == null ? playerSide() : s, id); },
     pay: function (side, cost) { var st = stock[String(side)]; for (var r in cost) if (st[r] < cost[r]) return false; for (var q in cost) st[q] -= cost[q]; emit(); renderUi(); return true; },   // for tech / structures
+    grant: function (side, res, n) { var st = stock[String(side)]; if (!enabled || !ready || !st || st[res] == null) return false; st[res] = Math.min(CAP, st[res] + (n || 1)); emit(); renderUi(); return true; },   // v12.0.21 ridge OP income
     getStock: function (s) { return Object.assign({}, stock[String(s == null ? playerSide() : s)]); },
     getState: function () { return { stock: JSON.parse(JSON.stringify(stock)), earned: JSON.parse(JSON.stringify(earned)), rate: JSON.parse(JSON.stringify(lastRate)), stats: Object.assign({}, stats) }; },
     onChange: function (f) { listeners.push(f); }, ACTIONS: ACTIONS, playerSide: playerSide,

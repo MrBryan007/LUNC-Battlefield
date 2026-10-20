@@ -117,6 +117,25 @@
     });
     if (LB.lines && LB.lines.depots) LB.lines.depots().forEach(function (d) { var px = X(d.x), pz = Z(d.z), ss = s * 0.7; sideColNow = sideCol(d.side); frame(c, px, pz, ss, d.side === own, 'inst', d.side); if (big) label(c, d.hp > 0 ? 'SUP' : 'SUP✕', px, pz, Math.max(6, ss * 0.9), d.hp > 0 ? '#f2f6f3' : '#ffb4a8'); n++; });
     if (big && LB.forts && LB.forts.list) LB.forts.list().forEach(function (f) { var px = X(f.x), pz = Z(f.z); c.fillStyle = sideCol(f.side); c.beginPath(); c.moveTo(px, pz - 3); c.lineTo(px + 3, pz + 2.5); c.lineTo(px - 3, pz + 2.5); c.closePath(); c.fill(); n++; });
+    // v12.0.21 ridge sector: crest line, Hill 402 OP (holder's colour) and the mountain teams
+    if (LB.ridge && LB.ridge.isEnabled && LB.ridge.isEnabled()) {
+      var rc = LB.ridge.crest(), rs = LB.ridge.state(), rsm = LB.ridge.summit(), fowR = LB.fow && LB.fow.isActive && LB.fow.isActive();
+      c.strokeStyle = 'rgba(176,150,104,.85)'; c.lineWidth = big ? 2 : 1.2; c.beginPath();
+      rc.forEach(function (p, i) { if (i) c.lineTo(X(p.x), Z(p.z)); else c.moveTo(X(p.x), Z(p.z)); }); c.stroke();
+      if (big) { c.strokeStyle = 'rgba(176,150,104,.35)'; c.lineWidth = 1; c.beginPath(); rc.forEach(function (p, i) { var zz = Z(p.z + 9); if (i) c.lineTo(X(p.x), zz); else c.moveTo(X(p.x), zz); }); c.stroke(); }
+      var ox = X(rsm.x), oz = Z(rsm.z), os = s * (big ? 1.2 : 1);
+      c.fillStyle = rs.contested ? '#ffd36a' : rs.owner ? sideCol(rs.owner) : '#e8e4d8'; c.strokeStyle = '#11140f'; c.lineWidth = 1;
+      c.beginPath(); c.moveTo(ox, oz - os); c.lineTo(ox + os * 0.95, oz + os * 0.7); c.lineTo(ox - os * 0.95, oz + os * 0.7); c.closePath(); c.fill(); c.stroke();
+      c.fillStyle = '#11140f'; c.beginPath(); c.arc(ox, oz + os * 0.15, Math.max(1, os * 0.22), 0, 6.2832); c.fill();
+      if (big || W >= 120) label(c, rs.contested ? 'HILL 402 ⚔' : 'HILL 402', ox, oz - os * 1.7, Math.max(6, os * 0.8), '#f2f6f3');
+      rs.teams.forEach(function (T) {
+        if (T.st === 'staging' || T.x == null) return;
+        if (T.side !== own && fowR && !T.visible) return;
+        var tx = X(T.x), tz = Z(T.z), ts = s * 0.75; sideColNow = sideCol(T.side); frame(c, tx, tz, ts, T.side === own, 'land', T.side);
+        c.beginPath(); c.moveTo(tx - ts * 0.7, tz - ts * 0.5); c.lineTo(tx + ts * 0.7, tz + ts * 0.5); c.moveTo(tx + ts * 0.7, tz - ts * 0.5); c.lineTo(tx - ts * 0.7, tz + ts * 0.5); c.stroke(); n++;   // infantry ✕
+      });
+      n++;
+    }
     // ground units, aggregated per cell → one symbol per (side, type)
     var fowOn = LB.fow && LB.fow.isActive && LB.fow.isActive();
     var cell = Math.max(8, (big ? 26 : 36) / Math.max(0.3, sc)), agg = {};
