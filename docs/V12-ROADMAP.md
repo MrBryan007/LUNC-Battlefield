@@ -12,12 +12,12 @@ Solid:
 
 **BASIC in v12.0** (to be deepened in v12.1):
 - **UAV drones**: orbit only; they don't spot or strike (they give vision only when fog of war is on). *Deepened in v12.0.17.*
-- **Submarines**: one per side, surfacing to periscope depth with a torpedo ambush on the nearest enemy ship. No sonar and no ASW.
+- **Submarines**: one per side, surfacing to periscope depth with a torpedo ambush on the nearest enemy ship. No sonar and no ASW. *Deepened in v12.0.20.*
 - **ICBM silos**: an occasional *inert test launch* arcing into the ocean. Cosmetic only, with no damage.
 - **Cyber layer**: a periodic screen-glitch pulse and a radio message (SIMULATED). No gameplay effect. *Deepened in v12.0.18.*
 - **Weather**: Clear / Rain / Fog toggle (rain particles and a shorter fog range). Weather doesn't affect combat. *Affects combat since v12.0.18.*
 - **Day/night**: optional 4-minute light cycle (sun and hemi intensity plus a night tint).
-- **Extra sector**: a northern ridge of scenery mountains. Not playable terrain.
+- **Extra sector**: a northern ridge of scenery mountains. Not playable terrain. *Playable since v12.0.21 (Hill 402).*
 - **Sound/music**: the existing WebAudio SFX and ambience, a volume slider, and an adaptive drone pad that follows combat intensity. No jet Doppler yet.
 - **Minimap**: an always-on world inset (front, bases, ships, jets, camera wedge); tap it to open Map. No expand mode.
 - **Fog of war**: Spectator full vision is **ON by default**. When it's off, enemy ships, jets and subs outside friendly territory or out of UAV/jet range are hidden, with an edge-darkening overlay. There's no per-cell grid.
@@ -71,7 +71,7 @@ Remaining in v12.1:
 - **Sound design and music:** WebAudio SFX scaled by size, jet Doppler, gunfire, radio blips, ambient wind/ocean/rain, adaptive music layers, mute, a volume slider, iOS unlock-on-tap and distance attenuation.
 - ~~**Tactical minimap:** always-on inset with an expand toggle, unit dots and pings.~~ Shipped v12.0.16 (`js/theaters/tacmap.js`, `?tacmap=0`): APP-6-style symbols, FLOT, expand mode with grid, legend, fly-to and pings. Still open: drawing orders/arrows on the map, and squad selection from the map.
 - **Fog of war:** a per-faction visibility grid, reveals from UAVs, flares and radar, ghosted last-known enemies, shader darkening (cheap on LOW), and vision reduced by weather, night and cyber. Spectator full-vision toggle.
-- Deepen the basic v12.0 items: ~~drone spotting/strikes~~ (shipped v12.0.17, `js/theaters/uav.js`, `?uav=0`: tasked orbits, sensor spotting with SPOT markers, two missiles per sortie, RTB/rearm, AA shoot-downs, Commander tasking with `U`), ~~sub sonar/ASW~~ (shipped v12.0.20, `js/theaters/asw.js`, `?asw=0`: procedural attack subs that patrol, stalk, fire from periscope depth and evade; passive + active sonar contacts; ASROC and depth-charge attacks; noisemakers and torpedo decoys; SSN symbols on the tactical map; Commander Sonar ping and Sub: hunt here with `J`), ~~cyber effects on radar/AA~~ and ~~weather affecting accuracy~~ (shipped v12.0.18, `js/theaters/wx-combat.js`, `?wxcombat=0`: weather/night modifiers on gunnery, AA, IR missiles and direct-fire range; hacks knock out AA, UAV links or comms for 15 s; Counter-hack and Cyber attack in Map → WAR SYSTEMS), and a playable ridge sector.
+- Deepen the basic v12.0 items: ~~drone spotting/strikes~~ (shipped v12.0.17, `js/theaters/uav.js`, `?uav=0`: tasked orbits, sensor spotting with SPOT markers, two missiles per sortie, RTB/rearm, AA shoot-downs, Commander tasking with `U`), ~~sub sonar/ASW~~ (shipped v12.0.20, `js/theaters/asw.js`, `?asw=0`: procedural attack subs that patrol, stalk, fire from periscope depth and evade; passive + active sonar contacts; ASROC and depth-charge attacks; noisemakers and torpedo decoys; SSN symbols on the tactical map; Commander Sonar ping and Sub: hunt here with `J`), ~~cyber effects on radar/AA~~ and ~~weather affecting accuracy~~ (shipped v12.0.18, `js/theaters/wx-combat.js`, `?wxcombat=0`: weather/night modifiers on gunnery, AA, IR missiles and direct-fire range; hacks knock out AA, UAV links or comms for 15 s; Counter-hack and Cyber attack in Map → WAR SYSTEMS), and ~~a playable ridge sector~~ (shipped v12.0.21, `js/theaters/ridge.js`, `?ridge=0`: a real ridge north of the battle with the Hill 402 OP, mountain fire teams that climb, fight and capture, +1 intel / 10 s and OP vision for the holder, Reinforce and Fire mission (`K`) in Map → WAR SYSTEMS, a Ridge quick-jump and tactical-map symbols). With this, every "deepen the basic v12.0 items" entry has shipped.
 
 ## v12.2 Multiplayer
 - **Hot-seat first:** turn handoff or split control, a camera and fog per player, and a pass-the-device screen.

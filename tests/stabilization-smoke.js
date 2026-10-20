@@ -29,7 +29,8 @@ const checks = [
   ['wx-combat wired', index.includes('theaters/wx-combat.js') && engine.includes('LUNCBattle.wxCombat.update()') && read('js/theaters/theaters.js').includes('function WXM(') && read('js/theaters/base-invasion.js').includes('function wxM(')],
   ['fires wired', index.includes('fx/fires.js') && index.indexOf('fx/fires.js') > index.indexOf('fx/craters.js') && engine.includes('LUNCBattle.fires.update()') && read('js/fx/craters.js').includes('new THREE.InstancedBufferAttribute(new Float32Array(CAPS.decals * 3)')],
   ['asw wired', index.includes('theaters/asw.js') && index.indexOf('theaters/asw.js') > index.indexOf('theaters/extras.js') && read('js/theaters/extras.js').includes('_subList') && read('js/theaters/extras.js').includes('!subs[s].ctl') && engine.includes('LUNCBattle.asw.update()') && read('js/sfx.js').includes('sonar: sonar')],
-  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.20')]
+  ['ridge wired', index.includes('theaters/ridge.js') && index.indexOf('theaters/ridge.js') > index.indexOf('theaters/asw.js') && engine.includes('LUNCBattle.ridge.update()') && read('js/theaters/economy.js').includes('grant: function') && read('js/theaters/fow.js').includes('LB.ridge.visionFor') && read('js/theaters/theaters.js').includes("ridge: { label: 'Ridge'") && read('js/theaters/tacmap.js').includes('LB.ridge.crest()')],
+  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.21')]
 ];
 
 let failed = 0;

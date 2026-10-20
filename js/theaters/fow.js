@@ -58,6 +58,7 @@
     if (LB.v12extras && LB.v12extras._drones) LB.v12extras._drones().forEach(function (d) { if (d.side === side) stamp(d.x, d.z, 50 * k); });
     if (LB.forts && LB.forts.list) LB.forts.list().forEach(function (f) { if (f.side === side) stamp(f.x, f.z, 26 * k); });
     if (LB.lines && LB.lines.depots) LB.lines.depots().forEach(function (d) { if (d.side === side && d.hp > 0) stamp(d.x, d.z, 20 * k); });
+    if (LB.ridge && LB.ridge.visionFor) LB.ridge.visionFor(side).forEach(function (v) { stamp(v.x, v.z, v.r * k); });   // v12.0.21 Hill 402 OP + ridge team
     if (LB.supply && LB.supply.revealed) for (j = 0; j < NZ; j += 1) for (i = 0; i < NX; i += 1) { var c = j * NX + i; if (!vis[c] && LB.supply.revealed(B.minX + (i + 0.5) * CELL, B.minZ + (j + 0.5) * CELL)) vis[c] = 1; }
     var n = 0, d = tex.image.data;
     for (i = 0; i < vis.length; i++) { if (vis[i]) { n++; seenEver[i] = 1; } d[i * 4] = 6; d[i * 4 + 1] = 9; d[i * 4 + 2] = 14; d[i * 4 + 3] = vis[i] ? 0 : seenEver[i] ? 120 : 165; }
