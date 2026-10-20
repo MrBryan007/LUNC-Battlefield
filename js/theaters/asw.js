@@ -54,7 +54,7 @@
     if (!GEO) {
       GEO = { hull: new THREE.CylinderGeometry(0.62, 0.62, 6.4, 14), bow: new THREE.SphereGeometry(0.62, 14, 10, 0, 6.2832, 0, Math.PI / 2),
         stern: new THREE.ConeGeometry(0.62, 2.6, 14), box: new THREE.BoxGeometry(1, 1, 1), shroud: new THREE.CylinderGeometry(0.3, 0.26, 0.42, 12, 1, true),
-        mast: new THREE.CylinderGeometry(0.05, 0.05, 1.3, 6), torp: new THREE.CylinderGeometry(0.11, 0.11, 1.5, 8), ring: new THREE.RingGeometry(0.92, 1, 48),
+        mast: new THREE.CylinderGeometry(0.05, 0.05, 1.3, 6), torp: new THREE.CylinderGeometry(0.11, 0.11, 1.5, 8), ring: new THREE.RingGeometry(0.86, 1, 48),
         slick: new THREE.CircleGeometry(1, 20), decoy: new THREE.SphereGeometry(0.18, 6, 4) };
       GEO.hull.rotateX(Math.PI / 2); GEO.bow.rotateX(Math.PI / 2); GEO.stern.rotateX(-Math.PI / 2); GEO.shroud.rotateX(Math.PI / 2); GEO.torp.rotateX(Math.PI / 2);
       GEO.ring.rotateX(-Math.PI / 2); GEO.slick.rotateX(-Math.PI / 2);
@@ -177,6 +177,7 @@
   function noisemaker(B) {
     if (B.decoyCd > 0) return false;
     B.decoyCd = 40; stats.decoys++;
+    var F = fx(); if (F) for (var i = 0; i < (low() ? 2 : 5); i++) F.puff({ kind: 'dust', x: B.x - Math.sin(B.hd) * 3 + rnd(-1, 1), y: 0.05, z: B.z - Math.cos(B.hd) * 3 + rnd(-1, 1), size: 0.5, grow: 1.6, life: 2.2, color: 0xeef6f8, opacity: 0.5 });   // noisemaker fizz
     var c = contacts[String(-B.side)]; if (c) { c.q *= 0.45; c.x += rnd(-12, 12); c.z += rnd(-12, 12); }
     radio(B.side, B.cs, B.cs + ', launching noisemaker. Going deep.', null, 'nm' + B.side, 10000);
     return true;
@@ -253,11 +254,11 @@
   function bearing(from, to) { var b = Math.round((Math.atan2(to.x - from.x, -(to.z - from.z)) * 180 / Math.PI + 360) % 360); return ('00' + b).slice(-3); }
 
   // ------------------------------------------------------------------ sonar
-  function hear(side, x, z, dq) {   // side = the listening side; adds to its contact on the enemy sub
+  function hear(side, x, z, dq, cap) {   // side = the listening side; adds to its contact on the enemy sub (cap: passive-only ceiling)
     var k = String(side), c = contacts[k], now = performance.now();
     if (!c || c.q <= 0.02) { c = contacts[k] = { q: 0, x: x, z: z, t: now, firm: false, said: 0 }; stats.contacts++; }
     var err = (1 - Math.min(1, c.q + dq)) * 9;
-    c.x += (x + rnd(-err, err) - c.x) * 0.6; c.z += (z + rnd(-err, err) - c.z) * 0.6; c.q = Math.min(1, c.q + dq); c.t = now;
+    c.x += (x + rnd(-err, err) - c.x) * 0.6; c.z += (z + rnd(-err, err) - c.z) * 0.6; c.q = Math.max(c.q, Math.min(cap == null ? 1 : cap, c.q + dq)); c.t = now;
     if (!c.firm && c.q > 0.6) { c.firm = true; radio(side, SONAR[k] + ' sonar', 'Conn, sonar: contact classified submarine, grid ' + grid(c.x, c.z) + '. Firm.', null, 'firm' + k, 15000); }
     else if (c.q < 0.6 && now - c.said > 25000) { c.said = now; radio(side, SONAR[k] + ' sonar', 'Conn, sonar: new contact, submerged, possible submarine, grid ' + grid(c.x, c.z) + '.', null, 'new' + k, 20000); }
   }
@@ -266,18 +267,21 @@
     subs.forEach(function (B) {
       if (B.st === 'dead' || B.st === 'sunk') return;
       var lis = -B.side, k = String(lis), noise = clamp(B.v / V.evade, 0.25, 1), heard = 0;
+      // passive sonar alone only gives a bearing-and-rough-range track (q ≤ 0.55, below "firm") on a quiet boat; it takes
+      // an active ping (or a noisy, sprinting / surfaced / periscope-depth boat) to firm it up into a fire-control solution
+      var cap = (noise > 0.7 || B.y > -2 || B.st === 'blow') ? 1 : 0.55;
       all.forEach(function (s) {
         if (s.side !== lis || s.st !== 'sail') return;
         var d = Math.hypot(s.x - B.x, s.z - B.z), k2 = s.kind === 'destroyer' ? 1 : 0.55;
         var R = (14 + 28 * noise) * sm * k2; if (B.y > -2) R = Math.max(R, 45 * em);   // a raised mast is seen on radar / by lookouts
         if (B.st === 'blow') R = 80;
-        if (d < R) heard = Math.max(heard, 0.12 + 0.28 * (1 - d / R));
+        if (d < R) heard = Math.max(heard, 0.05 + 0.15 * (1 - d / R));   // a contact builds over several seconds of listening
         // active sonar: a destroyer holding a weak contact goes active
         if (s.kind === 'destroyer' && (s._pingCd = (s._pingCd || rnd(2, 8)) - 1) <= 0) {
-          var c = contacts[k]; if (c && c.q > 0.15 && c.q < 0.7 && Math.hypot(s.x - c.x, s.z - c.z) < PING_R + 10) { ping(s); s._pingCd = rnd(12, 20); }
+          var c = contacts[k]; if (c && c.q > 0.12 && c.q < 0.6 && Math.hypot(s.x - c.x, s.z - c.z) < PING_R + 10) { ping(s); s._pingCd = rnd(12, 20); }
         }
       });
-      if (heard > 0) hear(lis, B.x, B.z, heard);
+      if (heard > 0) hear(lis, B.x, B.z, heard, cap);
     });
     ['-1', '1'].forEach(function (k) { var c = contacts[k]; if (!c) return; if (performance.now() - c.t > 1500) c.q = Math.max(0, c.q - 0.07); if (c.q < 0.45) c.firm = false; if (c.q <= 0.02) contacts[k] = null; });
     aswTick();
@@ -285,12 +289,12 @@
   function ping(s) {
     stats.pings++;
     var R = null; for (var i = 0; i < rings.length; i++) if (rings[i].t >= 1.8) { R = rings[i]; break; }
-    if (R) { R.t = 0; R.x = s.x; R.z = s.z; R.side = s.side; R.m.position.set(s.x, 0.18, s.z); R.m.visible = true; R.m.material.color.setHex(s.side < 0 ? 0x9ff0c8 : 0xffc2b8); }
+    if (R) { R.t = 0; R.x = s.x; R.z = s.z; R.side = s.side; R.m.position.set(s.x, 0.42, s.z); R.m.visible = true; R.m.material.color.setHex(s.side < 0 ? 0x9ff0c8 : 0xffc2b8); }
     if (LB.sfx && LB.sfx.sonar) try { LB.sfx.sonar(camDist(s.x, s.z)); } catch (_) {}
     subs.forEach(function (B) {
       if (B.side === s.side || B.st === 'dead' || B.st === 'sunk') return;
       var d = Math.hypot(B.x - s.x, B.z - s.z);
-      if (d < PING_R * sonarMult()) { hear(s.side, B.x, B.z, 1); B.pinged = 4; radio(B.side, B.cs, B.cs + ', we\'ve been pinged. Active sonar, close aboard.', null, 'pg' + B.side, 15000); }
+      var PR = PING_R * sonarMult(); if (d < PR) { hear(s.side, B.x, B.z, 0.35 + 0.45 * (1 - d / PR)); B.pinged = 4; radio(B.side, B.cs, B.cs + ', we\'ve been pinged. Active sonar, close aboard.', null, 'pg' + B.side, 15000); }
     });
   }
   function aswTick() {   // destroyers with a firm contact attack it
@@ -332,10 +336,16 @@
           if (k >= 1) { W.ph = 'run'; W.t = 0; W.x = W.x1; W.z = W.z1; W.hd = Math.random() * 6.28; try { TH().splash(W.x, W.z, 0.6); } catch (_) {} }
         } else {   // lightweight torpedo search: acquire within 16 m, then home for up to 8 s
           var B = enemySubOf(W.side), alive = B && B.st !== 'dead' && B.st !== 'sunk', d = alive ? Math.hypot(B.x - W.x, B.z - W.z) : 1e9;
-          if (alive && d < 16) W.hd = wrap(W.hd + clamp(wrap(Math.atan2(B.x - W.x, B.z - W.z) - W.hd), -2 * dt, 2 * dt)); else W.hd += dt * 0.9;   // circle search
+          if (alive && d < 16 && !W.acq) {   // the target hears the seeker go active: noisemaker, and the seeker may chase it
+            W.acq = true;
+            if (noisemaker(B) && Math.random() < 0.5) { W.decoy = { x: B.x - Math.sin(B.hd) * 6 + rnd(-3, 3), z: B.z - Math.cos(B.hd) * 6 + rnd(-3, 3) }; stats.aswSeduced = (stats.aswSeduced || 0) + 1; }
+            if (B.st === 'patrol' || B.st === 'stalk') { setSt(B, 'evade', rnd(10, 16)); B.tgt = nearestTarget(B, B.x, B.z, 80); }
+          }
+          if (W.decoy) { var dx = W.decoy.x - W.x, dz = W.decoy.z - W.z; W.hd = wrap(W.hd + clamp(wrap(Math.atan2(dx, dz) - W.hd), -2 * dt, 2 * dt)); if (Math.hypot(dx, dz) < 2) { uwBlast(W.x, W.z, 0.6); stats.aswMiss = (stats.aswMiss || 0) + 1; dropW(i); continue; } }
+          else if (alive && d < 16) W.hd = wrap(W.hd + clamp(wrap(Math.atan2(B.x - W.x, B.z - W.z) - W.hd), -2 * dt, 2 * dt)); else W.hd += dt * 0.9;   // circle search
           W.x += Math.sin(W.hd) * 14 * dt; W.z += Math.cos(W.hd) * 14 * dt; W.m.position.set(W.x, -1, W.z); W.m.rotation.set(0, W.hd, 0);
-          if (alive && d < 2.2) { uwBlast(W.x, W.z, 1); damage(B, rnd(45, 65), 'asroc'); dropW(i); continue; }
-          if (W.t > 8) { dropW(i); continue; }
+          if (alive && !W.decoy && d < 2.2) { uwBlast(W.x, W.z, 1); damage(B, rnd(30, 45), 'asroc'); dropW(i); continue; }
+          if (W.t > 8) { stats.aswMiss = (stats.aswMiss || 0) + 1; dropW(i); continue; }
         }
       } else if (W.k === 'dc' && W.t >= W.dur) {
         uwBlast(W.x, W.z, 0.8);
@@ -424,7 +434,7 @@
   function renderUi() {
     if (!el.status) return;
     var side = playerSide(), B = ownSub(), c = contacts[String(side)], e = contacts[String(-side)];
-    var h = B ? '<div><b>' + B.cs + '</b> · ' + ST[B.st] + (B.st === 'dead' ? ' · ' + Math.ceil(B.t) + ' s' : ' · hull ' + Math.round(B.hp) + '% · ' + B.torps + ' torpedoes') + (B.hunt ? ' · YOUR ORDERS' : '') + '</div>' : '';
+    var h = B ? '<div><b>' + B.cs + '</b> · ' + ST[B.st] + (B.st === 'dead' ? ' · ' + Math.ceil(B.t) + ' s' : ' · hull ' + Math.ceil(B.hp) + '% · ' + B.torps + ' torpedoes') + (B.hunt ? ' · YOUR ORDERS' : '') + '</div>' : '';
     h += '<div>Sonar: ' + (c ? (c.firm ? 'FIRM' : 'WEAK') + ' contact, grid ' + grid(c.x, c.z) + ' (' + Math.round(c.q * 100) + '%)' : 'no contact') + (e && e.q > 0.4 ? ' · enemy is tracking your boat' : '') + '</div>';
     h += '<div>Torpedoes ' + stats.torps + ' (hits ' + stats.torpHits + ') · pings ' + stats.pings + ' · ASW attacks ' + (stats.asroc + stats.dc) + ' · subs sunk ' + stats.kills + '</div>';
     el.status.innerHTML = h;
@@ -460,6 +470,7 @@
     // test hooks
     _step: function (sec) { if (!ready) return false; for (var t = 0; t < sec; t += 0.05) step(0.05); renderUi(); return true; },
     _place: function (i, x, z, st, y) { var B = subs[i || 0]; if (!B) return false; B.x = x; B.z = z; if (y != null) B.y = y; if (st) setSt(B, st, st === 'attack' ? 0.2 : 0); if (st === 'patrol') B.t = 99; B.v = st === 'evade' ? V.evade : V.patrol; pose(B); return true; },
+    _clearContacts: function () { contacts['-1'] = null; contacts['1'] = null; torps.slice().forEach(function () { kill(0, false, 'test'); }); return true; },
     _subs: function () { return subs; }, _damage: function (i, n) { var B = subs[i || 0]; if (!B) return false; damage(B, n, 'test'); return B.st; },
     _fire: function (i) { var B = subs[i || 0]; if (!B) return false; var t = nearestTarget(B, B.x, B.z); return fireTorp(B, t); },
     _resetCd: function () { cmd.ping = 0; cmd.hunt = 0; ships().forEach(function (s) { s._aswCd = -1; s._pingCd = -1; }); }
