@@ -28,7 +28,8 @@ const checks = [
   ['uav wired', index.includes('theaters/uav.js') && index.indexOf('theaters/uav.js') > index.indexOf('theaters/extras.js') && read('js/theaters/extras.js').includes('_droneList') && engine.includes('LUNCBattle.uav.update()')],
   ['wx-combat wired', index.includes('theaters/wx-combat.js') && engine.includes('LUNCBattle.wxCombat.update()') && read('js/theaters/theaters.js').includes('function WXM(') && read('js/theaters/base-invasion.js').includes('function wxM(')],
   ['fires wired', index.includes('fx/fires.js') && index.indexOf('fx/fires.js') > index.indexOf('fx/craters.js') && engine.includes('LUNCBattle.fires.update()') && read('js/fx/craters.js').includes('new THREE.InstancedBufferAttribute(new Float32Array(CAPS.decals * 3)')],
-  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.19')]
+  ['asw wired', index.includes('theaters/asw.js') && index.indexOf('theaters/asw.js') > index.indexOf('theaters/extras.js') && read('js/theaters/extras.js').includes('_subList') && read('js/theaters/extras.js').includes('!subs[s].ctl') && engine.includes('LUNCBattle.asw.update()') && read('js/sfx.js').includes('sonar: sonar')],
+  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.20')]
 ];
 
 let failed = 0;
