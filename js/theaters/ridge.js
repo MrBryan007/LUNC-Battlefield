@@ -422,6 +422,7 @@
     getStats: function () { return Object.assign({ owner: owner, cap: +cap.toFixed(2), shells: shells.length }, stats); },
     // test hooks
     _step: function (sec) { if (!ready) return false; for (var t = 0; t < sec; t += 0.05) step(0.05); renderUi(); return true; },
+    _aiT: function (t) { aiFireT['-1'] = t; aiFireT['1'] = t; return true; },
     _teams: function () { return teams; }, _resetCd: function () { cmd.rein = 0; cmd.fire = 0; aiFireT['-1'] = 999; aiFireT['1'] = 999; },
     _set: function (o, c) { owner = o; cap = c != null ? c : o; if (op.flagM) op.flagM.color.copy(col(owner < 0 ? 0x2f9a66 : owner > 0 ? 0xb4473f : 0xd9d6cc)); return true; },
     _hold: function (side) { var T = side === teams[0].side ? teams[0] : teams[1]; if (T.st === 'staging') respawnTeam(T); T.d = T.P.len; T.st = 'hold'; T.men.forEach(function (M) { M.placed = false; }); return true; },

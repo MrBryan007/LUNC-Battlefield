@@ -88,8 +88,8 @@
   // Single source of truth for current release metadata.
   // Historical comments and changelog entries are left untouched.
   const BUILD = Object.freeze({
-    version: 'v12.0.20',
-    codename: 'Submarine warfare',
+    version: 'v12.0.21',
+    codename: 'Ridge sector: Hill 402',
     date: '2026-10-20'
   });
 

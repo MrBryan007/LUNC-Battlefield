@@ -414,6 +414,7 @@
     ridge: { label: 'Ridge', x: 0, z: -98, y: 14, d: 62, pol: 0.95, az: 0.15 },   // v12.0.21 Hill 402
     overview: { label: 'Overview', x: 0, z: 40, d: 310, pol: 0.62, az: 0 }
   };
+  if (qs.get('ridge') === '0') delete VIEWS.ridge;   // v12.0.21: no Ridge quick-jump when the ridge sector is off
   function flyTo(id, dur) {
     var v = VIEWS[id]; if (!v || !E()) return;
     var e = E(), T = e.getCameraTarget();
