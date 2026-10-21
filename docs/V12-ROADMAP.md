@@ -79,4 +79,4 @@ Remaining in v12.1:
 - **Risks:** NAT traversal fails on some networks (symmetric NAT) without a TURN server, and free TURN is scarce. A host-authoritative model still lets the host cheat, and clients can't be trusted. Latency or jitter calls for command delay and buffering. GitHub Pages has no backend, so we can't offer matchmaking or anti-cheat.
 
 ## v12.3
-- Mission editor. Achievements and unlocks. A replay system (command log plus RNG seed, played back deterministically).
+- Mission editor. ~~Achievements and unlocks~~ (part 1 shipped v12.0.24, `js/ui/achievements.js`, `?ach=0`: 19 achievements saved on the device, unlock toasts, a service-record rank from Recruit to General in the Cmd sheet; still open: cosmetic unlocks tied to rank). A replay system (command log plus RNG seed, played back deterministically).

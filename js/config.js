@@ -88,8 +88,8 @@
   // Single source of truth for current release metadata.
   // Historical comments and changelog entries are left untouched.
   const BUILD = Object.freeze({
-    version: 'v12.0.23',
-    codename: 'Squad firefights: line of sight and casualties',
+    version: 'v12.0.24',
+    codename: 'Achievements and service record',
     date: '2026-10-21'
   });
 
