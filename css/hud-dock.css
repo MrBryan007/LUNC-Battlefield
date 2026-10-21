@@ -288,9 +288,17 @@ body[data-ui] .tac-expand, body.cutscene .tac-expand, body[data-ui] .tac-map, bo
 .tac-legend .lg.dia { width: 8px; height: 8px; border-color: #ff7b72; transform: rotate(45deg); margin: 0 6px 0 4px; }
 .tac-foot { position: absolute; left: 10px; bottom: 6px; font: 10.5px Inter, system-ui, sans-serif; color: #c9b98f; pointer-events: none; }
 .tac-open-btn { display: block; width: 100%; margin: 0 0 8px; height: 34px; color: #f0e2b8; border-color: rgba(215,181,109,.4); }
+.tac-orders { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 6px 10px; border-bottom: 1px solid rgba(255,255,255,.08); background: rgba(215,181,109,.06); }   /* v12.0.22 */
+.tac-orders[hidden] { display: none; }
+.tac-orders .tac-ob-l { font: 700 9.5px Rajdhani, Inter, sans-serif; letter-spacing: 1.2px; color: #9fb0a5; margin-left: 4px; }
+.tac-orders button { height: 30px; min-width: 44px; padding: 0 10px; border-radius: 7px; border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.05); color: #e8efe9; font: 600 12px Inter, system-ui, sans-serif; cursor: pointer; }
+.tac-orders button small { display: block; font-size: 8.5px; opacity: .7; margin-top: -2px; }
+.tac-orders button.on { background: rgba(255,211,106,.2); border-color: rgba(255,211,106,.6); color: #fff1c9; }
+.tac-map.orders .tac-body canvas { cursor: pointer; }
 @media (max-width: 720px) {
   .tac-map { left: 4px; right: 4px; top: calc(env(safe-area-inset-top, 0px) + 46px); bottom: calc(env(safe-area-inset-bottom, 0px) + 66px); }
   .tac-head { gap: 6px; padding: 6px 8px; } .tac-head .tac-flot { order: 9; width: 100%; }
+  .tac-orders { gap: 4px; padding: 5px 6px; } .tac-orders .tac-ob-l { display: none; } .tac-orders button { height: 34px; min-width: 0; padding: 0 8px; font-size: 11.5px; flex: 1 1 22%; } .tac-orders button small { display: none; }
 }
 
 /* v12.0.18 weather & cyber (js/theaters/wx-combat.js): jammed tactical-map inset */

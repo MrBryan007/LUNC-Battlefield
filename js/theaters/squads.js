@@ -74,6 +74,22 @@
     radio(S.side, sideName(S.side) + ' ' + S.name.toUpperCase() + ': "' + ({ hold: 'Holding position.', move: 'Moving.', flank: 'Flanking — swinging wide.', cover: 'Moving to cover.' })[kind] + '" (SIMULATED · game FX)');
     renderUi(); return true;
   }
+  var route = null, routeT = 0;
+  function routeLine(S) {   // v12.0.22: the selected squad's route drawn on the ground, following the terrain (4 Hz)
+    var now = performance.now(); if (now - routeT < 250 && route) return; routeT = now;
+    if (!route) {
+      var g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(160 * 3), 3));
+      route = new THREE.Line(g, new THREE.LineDashedMaterial({ color: 0xffd36a, dashSize: 1.2, gapSize: 0.7, transparent: true, opacity: 0.9, depthWrite: false }));
+      route.frustumCulled = false; route.renderOrder = 4; route.name = 'squad-route'; root.add(route);
+    }
+    var pts = [{ x: S.x, z: S.z }].concat(S.path), a = route.geometry.attributes.position, n = 0;
+    for (var i = 1; i < pts.length && n < 159; i++) {
+      var p0 = pts[i - 1], p1 = pts[i], L = Math.hypot(p1.x - p0.x, p1.z - p0.z), steps = Math.max(1, Math.ceil(L / 2));
+      for (var k = (i === 1 ? 0 : 1); k <= steps && n < 160; k++) { var t = k / steps, x = p0.x + (p1.x - p0.x) * t, z = p0.z + (p1.z - p0.z) * t; a.setXYZ(n++, x, H(x, z) + 0.3, z); }
+    }
+    a.needsUpdate = true; route.geometry.setDrawRange(0, n); route.computeLineDistances(); route.visible = n > 1;
+  }
+  function hideRoute() { if (route) route.visible = false; }
   function enemyTarget(S) {
     var best = null, bd = RANGE * RANGE;
     squads.forEach(function (o) { if (o.side === S.side) return; var d = (o.x - S.x) * (o.x - S.x) + (o.z - S.z) * (o.z - S.z); if (d < bd) { bd = d; best = { x: o.x, z: o.z, sq: o }; } });
@@ -101,9 +117,11 @@
         M.g.rotation.y = S.hd || 0; M.g.scale.y = S.cover ? 0.7 : 1;   // crouched in cover
       }
       S.ring.visible = S === sel; if (S === sel) S.ring.position.set(S.x, H(S.x, S.z) + 0.1, S.z);
+      if (S === sel) routeLine(S);
       var last = S.path[S.path.length - 1]; S.wp.visible = S.side === me && !!last && (S === sel || S.mode === 'flank');
       if (last) S.wp.position.set(last.x, H(last.x, last.z) + 1.8 + Math.sin(performance.now() / 300) * 0.25, last.z);
     }
+    if (!sel || !sel.path.length) hideRoute();
     aiT -= dt; if (aiT <= 0) { aiT = 14 + Math.random() * 12; var ai = squads.filter(function (s) { return s.side !== me; }), S2 = ai[(Math.random() * ai.length) | 0], r = Math.random(), fx = frontX();
       if (S2) { if (r < 0.3) order(S2, 'flank'); else if (r < 0.5 && nearestCover(S2)) order(S2, 'cover'); else if (r < 0.8) order(S2, 'move', fx + S2.side * (8 + Math.random() * 16), -40 + Math.random() * 80); else order(S2, 'hold'); } }
     uiT -= dt; if (uiT <= 0) { uiT = 0.4; renderUi(); }
@@ -158,6 +176,12 @@
     select: function (i) { var mine = squads.filter(function (s) { return s.side === playerSide(); }); sel = mine[i] || null; renderUi(); return !!sel; },
     order: function (kind, x, z, i) { var mine = squads.filter(function (s) { return s.side === playerSide(); }), S = i != null ? mine[i] : sel; return S ? order(S, kind, x, z) : false; },
     armMove: function () { if (sel) { moveArmed = true; renderUi(); } },
+    // v12.0.22 tactical-map command: selection + routes for drawing (own routes only; enemy orders are never exposed)
+    selected: function () { var mine = squads.filter(function (s) { return s.side === playerSide(); }); return sel ? mine.indexOf(sel) : -1; },
+    routes: function () {
+      var me = playerSide(), k = 0;
+      return squads.map(function (S) { var own = S.side === me; return { side: S.side, name: S.name, i: own ? k++ : -1, own: own, x: S.x, z: S.z, mode: S.mode, cover: S.cover, sup: +S.sup.toFixed(2), sel: S === sel, visible: S.g.visible, path: own ? S.path.map(function (p) { return { x: p.x, z: p.z }; }) : [] }; });
+    },
     list: function () { return squads.map(function (s) { return { side: s.side, name: s.name, x: +s.x.toFixed(1), z: +s.z.toFixed(1), mode: s.mode, cover: s.cover, sup: +s.sup.toFixed(2), path: s.path.length }; }); },
     getStats: function () { return Object.assign({}, stats); },
     _step: function (sec) { if (!ready) return; for (var t = 0; t < sec; t += 0.1) step(0.1); }
