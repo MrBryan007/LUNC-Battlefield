@@ -309,3 +309,33 @@ body[data-ui] .tac-expand, body.cutscene .tac-expand, body[data-ui] .tac-map, bo
 @keyframes jamScan { 0% { background-position: 0 0; } 100% { background-position: 0 6px; } }
 body.comms-jammed #worldInset { filter: grayscale(.8) contrast(.7) blur(.6px); }
 body[data-ui] .jam-overlay, body.cutscene .jam-overlay { display: none !important; }
+
+/* v12.0.24 achievements + service record */
+.ach-toast { position: fixed; left: 50%; top: 62px; transform: translate(-50%, -16px); z-index: 60; display: none; align-items: center; gap: 10px; min-width: 240px; max-width: min(92vw, 380px); padding: 9px 14px 9px 10px; border-radius: 10px; background: rgba(12,16,13,.92); border: 1px solid rgba(255,211,106,.55); box-shadow: 0 6px 24px rgba(0,0,0,.45), 0 0 0 1px rgba(255,211,106,.12) inset; color: #eef3ef; font: 500 12px Inter, system-ui, sans-serif; opacity: 0; transition: opacity .3s, transform .3s; pointer-events: none; }
+.ach-toast.on { display: flex; opacity: 1; transform: translate(-50%, 0); }
+.ach-toast.out { opacity: 0; transform: translate(-50%, -10px); }
+.ach-toast > i { font-style: normal; font-size: 22px; width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; background: rgba(255,211,106,.16); color: #ffd36a; flex: none; }
+.ach-toast small { display: block; font: 700 9px Rajdhani, Inter, sans-serif; letter-spacing: 1.4px; color: #ffd36a; }
+.ach-toast b { display: block; font-size: 14px; color: #fff; }
+.ach-toast span { display: block; font-size: 11px; color: #b9c6bd; }
+.ach-toast em { font-style: normal; color: #ffd36a; font-weight: 700; }
+body.cutscene .ach-toast { display: none; }
+.ach-rank { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: center; margin: 6px 0 8px; }
+.ach-rank b { font: 700 15px Rajdhani, Inter, sans-serif; letter-spacing: .8px; color: #ffd36a; }
+.ach-rank > span { font-size: 11px; color: #9fb0a5; }
+.ach-rank .ach-bar { grid-column: 1 / -1; height: 5px; border-radius: 3px; background: rgba(255,255,255,.08); overflow: hidden; }
+.ach-rank .ach-bar span { display: block; height: 100%; background: linear-gradient(90deg, #d7b56d, #ffd36a); }
+.ach-rank small { grid-column: 1 / -1; font-size: 10px; color: #8d9a92; }
+.ach-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px; }
+.ach-item { display: flex; gap: 7px; padding: 6px 7px; border-radius: 8px; border: 1px solid rgba(255,255,255,.07); background: rgba(255,255,255,.025); opacity: .62; }
+.ach-item.on { opacity: 1; border-color: rgba(255,211,106,.4); background: rgba(255,211,106,.07); }
+.ach-item > i { font-style: normal; font-size: 15px; width: 24px; height: 24px; flex: none; display: grid; place-items: center; border-radius: 50%; background: rgba(255,255,255,.06); color: #9fb0a5; }
+.ach-item.on > i { background: rgba(255,211,106,.18); color: #ffd36a; }
+.ach-item b { display: block; font-size: 11.5px; color: #eef3ef; }
+.ach-item span { display: block; font-size: 10px; color: #9fb0a5; line-height: 1.25; }
+.ach-item small { display: block; font-size: 9.5px; color: #8d9a92; margin-top: 2px; }
+.ach-item .ach-pg { display: block; height: 3px; margin-top: 4px; border-radius: 2px; background: rgba(255,255,255,.08); overflow: hidden; }
+.ach-item .ach-pg span { display: block; height: 100%; background: #7cf0a8; }
+.ach-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
+.ach-foot button { flex: none; height: 28px; padding: 0 10px; border-radius: 7px; border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.05); color: #e8efe9; font: 600 11px Inter, sans-serif; cursor: pointer; }
+@media (max-width: 760px) { .ach-toast { top: 56px; } .ach-list { grid-template-columns: 1fr 1fr; } }
