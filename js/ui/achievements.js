@@ -56,7 +56,7 @@
     el.toast.innerHTML = '<i>' + q.d.icon + '</i><div><small>ACHIEVEMENT UNLOCKED</small><b>' + esc(q.d.name) + '</b><span>' + esc(q.d.desc) + (q.promo ? ' · Promoted to <em>' + q.promo + '</em>' : '') + '</span></div>';
     el.toast.classList.remove('out'); el.toast.classList.add('on');
     if (LB.sfx) try { (q.promo && LB.sfx.rank ? LB.sfx.rank : LB.sfx.success)(); } catch (_) {}
-    setTimeout(function () { el.toast.classList.add('out'); setTimeout(function () { el.toast.classList.remove('on', 'out'); showing = false; pump(); }, 400); }, 3600);
+    setTimeout(function () { el.toast.classList.add('out'); setTimeout(function () { el.toast.classList.remove('on', 'out'); showing = false; pump(); }, 400); }, queue.length ? 2200 : 3600);   // shorter when several unlock at once
   }
   function tick() {
     var e = LB.engine; if (!e) return;
