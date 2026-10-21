@@ -353,6 +353,7 @@
     var bar = big.querySelector('#tacOrders'), b = big.querySelector('#tacOrdersBtn'); if (bar) bar.hidden = !state.orders; if (b) b.classList.toggle('on', state.orders);
     big.classList.toggle('orders', state.orders);
     if (state.orders && SQ() && SQ().selected() < 0) SQ().select(0);
+    if (state.orders && state.view === 'world' && global.innerWidth < 760) { state.view = 'front'; big.querySelectorAll('[data-tv]').forEach(function (x) { x.classList.toggle('on', x.getAttribute('data-tv') === 'front'); }); }   // phones: squads are too small to tap on the world view
     foot(state.orders ? (SQ() ? sqName() + ' selected — tap the map to move it there, or tap another squad' : '') : 'Tap: fly the camera there');
     syncOrders(); drawBig(true); return state.orders;
   }
@@ -361,7 +362,7 @@
     big.querySelectorAll('[data-sq]').forEach(function (x) { x.classList.toggle('on', +x.getAttribute('data-sq') === i); });
   }
   function orderTap(w, cv) {
-    var S = SQ(), B = bounds(state.view), r = cv.getBoundingClientRect(), wpp = (B.maxX - B.minX) / Math.max(1, r.width), hitR = 16 * wpp, best = -1, bd = hitR;
+    var S = SQ(), B = bounds(state.view), r = cv.getBoundingClientRect(), wpp = (B.maxX - B.minX) / Math.max(1, r.width), hitR = (S.selected() < 0 ? 18 : 11) * wpp, best = -1, bd = hitR;   // tighter once a squad is picked, so a move tap near another squad isn't read as a re-select
     S.routes().forEach(function (q) { if (!q.own) return; var d = Math.hypot(q.x - w.x, q.z - w.z); if (d < bd) { bd = d; best = q.i; } });
     if (best >= 0) { S.select(best); foot(sqName() + ' selected — tap the map to move it there'); syncOrders(); drawBig(true); return 'select'; }
     if (S.selected() < 0) { foot('Pick a squad first'); return 'none'; }
