@@ -117,7 +117,7 @@
     var up = T.men.filter(function (m) { return m.alive; }); if (!up.length) return;
     var M = up[(Math.random() * up.length) | 0]; M.hp--; stats.hits++;
     if (M.hp > 0) return;
-    M.alive = false; M.fall = 0; M.t = 0; T.lost++; S.kills++; stats.kia++;
+    M.alive = false; M.fall = 0; M.t = 0; T.lost++; if (S) S.kills++; else stats.fortKills = (stats.fortKills || 0) + 1; stats.kia++;
     var n = aliveN(T), me = playerSide();
     if (n === 0) {
       T.dead = true; T.respawn = RESPAWN_S; T.path = []; T.mode = 'hold'; T.cover = false; stats.wiped++; if (T === sel) sel = null;
@@ -238,6 +238,9 @@
     },
     list: function () { return squads.map(function (s) { return { side: s.side, name: s.name, x: +s.x.toFixed(1), z: +s.z.toFixed(1), mode: s.mode, cover: s.cover, sup: +s.sup.toFixed(2), path: s.path.length, alive: aliveN(s), n: s.n, dead: s.dead, respawn: +Math.max(0, s.respawn).toFixed(1), fb: s.fb, noLos: s.noLos, kills: s.kills, lost: s.lost }; }); },
     getStats: function () { return Object.assign({}, stats); },
+    // v12.0.25: for fort turrets / bunkers — enemy squads of `side` they could shoot at, and a hit on one of them
+    targetsFor: function (side) { var o = []; squads.forEach(function (S, k) { if (S.side !== side && !S.dead) o.push({ k: k, x: S.x, z: S.z, cover: S.cover, side: S.side }); }); return o; },
+    woundAt: function (k) { var T = squads[k]; if (!T || T.dead || !LOS()) return false; wound(T, null); return true; },
     _place: function (k, x, z) { var S = squads[k]; if (!S) return false; S.x = S.tx = x; S.z = S.tz = z; S.path = []; S.mode = 'hold'; return true; },
     _hitChance: function (a, b) { var S = squads[a], T = squads[b]; return S && T ? hitChance(S, T, Math.hypot(S.x - T.x, S.z - T.z)) : 0; },
     _step: function (sec) { if (!ready) return; for (var t = 0; t < sec; t += 0.1) step(0.1); }

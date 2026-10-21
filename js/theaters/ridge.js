@@ -242,7 +242,7 @@
       var O = enemyOf(T); if (T.st === 'staging' || O.st === 'staging') return;
       T.men.forEach(function (M) {
         if (!M.alive) return; M.cd -= dt; if (M.cd > 0) return;
-        var best = null, bd = RANGE * Math.max(0.5, sm); O.men.forEach(function (N) { if (!N.alive) return; var d = Math.hypot(N.x - M.x, N.z - M.z); if (d < bd) { bd = d; best = N; } });
+        var best = null, bd = RANGE * Math.max(0.5, sm), L = LB.los && LB.los.isEnabled && LB.los.isEnabled() ? LB.los : null; O.men.forEach(function (N) { if (!N.alive) return; var d = Math.hypot(N.x - M.x, N.z - M.z); if (d >= bd) return; if (L && !L.clear(M.x, M.z, N.x, N.z, 1.6, inCover(N, O.side) ? 0.7 : 1.1)) { stats.noLos = (stats.noLos || 0) + 1; return; } bd = d; best = N; });   // v12.0.25 line of sight over the crest
         M.tgt = best; if (!best) { M.cd = 0.5; return; }
         M.cd = rnd(1.4, 2.2) * (T.st === 'retreat' ? 1.6 : 1); stats.shots++;
         var p = 0.16 * sm * (M.y - best.y > 2 ? 1.35 : 1) * (inCover(best, O.side) ? 0.6 : 1) * (O.st === 'climb' || O.st === 'retreat' ? 0.85 : 1) * (1 - bd / (RANGE * 1.6));
