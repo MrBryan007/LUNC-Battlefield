@@ -246,6 +246,33 @@
     var T = e.getCameraTarget(), cp = e.camera.position, w = Math.max(big ? 8 : 4, cp.distanceTo(T) * 0.6 * sx), ang = Math.atan2((T.z - cp.z) * sz, (T.x - cp.x) * sx);
     c.strokeStyle = 'rgba(255,255,255,.9)'; c.lineWidth = 1; c.beginPath(); c.moveTo(X(cp.x), Z(cp.z));
     c.lineTo(X(T.x) + Math.cos(ang + Math.PI / 2) * w, Z(T.z) + Math.sin(ang + Math.PI / 2) * w); c.lineTo(X(T.x) - Math.cos(ang + Math.PI / 2) * w, Z(T.z) - Math.sin(ang + Math.PI / 2) * w); c.closePath(); c.stroke();
+    // drawn last so squads and their orders sit on top of everything else
+    // v12.0.22 squads: own always (with order routes), enemy only where fog of war can see; selected = yellow halo
+    if (LB.squads && LB.squads.isEnabled && LB.squads.isEnabled() && LB.squads.routes) {
+      var fowS = LB.fow && LB.fow.isActive && LB.fow.isActive(), rts = LB.squads.routes(), ss4 = s * (big ? 1.0 : 0.75);
+      rts.forEach(function (q) {
+        if (!q.own || !q.path.length) return;
+        var pts = [{ x: q.x, z: q.z }].concat(q.path);
+        c.save(); c.strokeStyle = q.sel ? '#ffd36a' : sideCol(q.side); c.globalAlpha = q.sel ? 0.95 : 0.7; c.lineWidth = big ? (q.sel ? 2.2 : 1.6) : 1;
+        c.setLineDash(q.mode === 'flank' ? [6, 4] : q.mode === 'cover' ? [1.5, 3] : []);
+        c.beginPath(); pts.forEach(function (p, i) { if (i) c.lineTo(X(p.x), Z(p.z)); else c.moveTo(X(p.x), Z(p.z)); }); c.stroke(); c.setLineDash([]);
+        var a = pts[pts.length - 2], bq = pts[pts.length - 1], ang = Math.atan2(Z(bq.z) - Z(a.z), X(bq.x) - X(a.x)), ah = big ? 7 : 4, ex = X(bq.x), ez = Z(bq.z);
+        if (q.mode === 'cover') { c.strokeRect(ex - ah * 0.5, ez - ah * 0.5, ah, ah); }
+        else { c.fillStyle = c.strokeStyle; c.beginPath(); c.moveTo(ex, ez); c.lineTo(ex - ah * Math.cos(ang - 0.45), ez - ah * Math.sin(ang - 0.45)); c.lineTo(ex - ah * Math.cos(ang + 0.45), ez - ah * Math.sin(ang + 0.45)); c.closePath(); c.fill(); }
+        c.restore();
+      });
+      rts.forEach(function (q) {
+        if (!q.own && ((fowS && !q.visible) || !big)) return;   // enemy squads: big map only, and only where you can see them
+        var qx = X(q.x), qz = Z(q.z);
+        c.fillStyle = 'rgba(8,12,10,.72)'; c.beginPath(); c.arc(qx, qz, ss4 * 1.75, 0, 6.2832); c.fill();   // backing so squads read over the army clutter
+        if (q.sel) { c.strokeStyle = '#ffd36a'; c.lineWidth = big ? 2.4 : 1.4; c.beginPath(); c.arc(qx, qz, ss4 * 2.0, 0, 6.2832); c.stroke(); }
+        sideColNow = sideCol(q.side); frame(c, qx, qz, ss4, q.own, 'land', q.side);
+        c.beginPath(); c.moveTo(qx - ss4 * 0.7, qz - ss4 * 0.5); c.lineTo(qx + ss4 * 0.7, qz + ss4 * 0.5); c.moveTo(qx + ss4 * 0.7, qz - ss4 * 0.5); c.lineTo(qx - ss4 * 0.7, qz + ss4 * 0.5); c.stroke();
+        if (big) { label(c, q.own ? q.name.charAt(0) : 'SQ', qx + ss4 * 2.3, qz - ss4 * 1.1, Math.max(9, ss4 * 1.4), q.sel ? '#ffd36a' : '#f2f6f3'); if (q.own && (q.cover || q.sup > 0.5)) label(c, q.cover ? 'COVER' : 'SUPP', qx, qz + ss4 * 1.9, Math.max(6, ss4 * 0.7), '#c9b98f'); }
+        n++;
+      });
+      if (big && state.dest && performance.now() - state.dest.t < 4000) { var dk = 1 - (performance.now() - state.dest.t) / 4000, dx = X(state.dest.x), dz = Z(state.dest.z); c.strokeStyle = 'rgba(255,211,106,' + dk.toFixed(2) + ')'; c.lineWidth = 1.5; c.beginPath(); c.arc(dx, dz, 6 + (1 - dk) * 8, 0, 6.2832); c.moveTo(dx - 4, dz); c.lineTo(dx + 4, dz); c.moveTo(dx, dz - 4); c.lineTo(dx, dz + 4); c.stroke(); }
+    }
     state.symbols = n; state.lastMs = +(performance.now() - t0).toFixed(2); state.drawn++;
     return n;
   }
@@ -267,13 +294,17 @@
     var wrap = doc.createElement('div'); wrap.id = 'tacMap'; wrap.className = 'tac-map'; wrap.hidden = true;
     wrap.innerHTML = '<div class="tac-head"><b>TACTICAL MAP</b> <span class="qual sim">POSITIONS SIMULATED</span> <span class="tac-flot" id="tacFlot"></span>' +
       '<span class="tac-sp"></span><div class="tac-seg"><button type="button" data-tv="world" class="on">World</button><button type="button" data-tv="front">Front</button></div>' +
+      '<button type="button" data-tm="orders" id="tacOrdersBtn" title="Orders mode: tap one of your squads, then tap the map to send it">⚑ Orders</button>' +
       '<button type="button" data-tm="legend" title="Legend">?</button><button type="button" data-tm="sheet" title="Map sheet (theaters, war systems)">☰</button><button type="button" data-tm="close" title="Close (Esc)">✕</button></div>' +
+      '<div class="tac-orders" id="tacOrders" hidden><span class="tac-ob-l">SQUAD</span><button type="button" data-sq="0">A · Alpha</button><button type="button" data-sq="1">B · Bravo</button><button type="button" data-sq="2">C · Charlie</button>' +
+      '<span class="tac-ob-l">ORDER</span><button type="button" data-so="move" class="on">Move<small>tap map</small></button><button type="button" data-so="flank">Flank</button><button type="button" data-so="hold">Hold</button><button type="button" data-so="cover">Cover</button></div>' +
       '<div class="tac-body"><canvas id="tacCanvas"></canvas><div class="tac-legend" hidden>' +
       '<div><i class="lg rect"></i>Own forces (rectangle) · <i class="lg dia"></i>Enemy (diamond)</div>' +
       '<div>✕ infantry · ⬭ armor · ● artillery · ⋈ helicopter · ⌒ air track (line = heading) · ○ CV/BB/DD ships · ◡ SSN submarine (dashed = weak sonar contact)</div>' +
       '<div>• •• ••• | || ||| unit-count echelon (on-screen units, not real strength) · HQ / AB / SUP installations</div>' +
       '<div><span style="color:#ffd36a">◗◗ FLOT</span>: the front line set by the market price · rings: supply drops / pings</div>' +
-      '<div>Tap / click: fly the camera there · long-press / right-click: drop a ping · N: open/close · Esc: close</div></div>' +
+      '<div>Tap / click: fly the camera there · long-press / right-click: drop a ping · N: open/close · Esc: close</div>' +
+      '<div>⚑ Orders mode: tap one of your squads (A / B / C), then tap the map to send it there. Your orders: solid = move, dashed = flank, dotted = to cover. Enemy orders are never shown.</div></div>' +
       '<div class="tac-foot" id="tacFoot"></div></div>';
     doc.body.appendChild(wrap); big = wrap;
     if (global.innerWidth < 760) { state.view = 'front'; wrap.querySelectorAll('[data-tv]').forEach(function (x) { x.classList.toggle('on', x.getAttribute('data-tv') === 'front'); }); }   // phones: denser default
@@ -284,6 +315,15 @@
       if (tv) { state.view = tv; wrap.querySelectorAll('[data-tv]').forEach(function (x) { x.classList.toggle('on', x === b); }); drawBig(true); }
       else if (tm === 'close') setOpen(false);
       else if (tm === 'legend') { state.legend = !state.legend; wrap.querySelector('.tac-legend').hidden = !state.legend; }
+      else if (tm === 'orders') setOrders(!state.orders);
+      else if (b.hasAttribute('data-sq')) { if (SQ() && SQ().select(+b.getAttribute('data-sq'))) foot(sqName() + ' selected — tap the map to move it there'); syncOrders(); drawBig(true); }
+      else if (b.hasAttribute('data-so')) {
+        var so = b.getAttribute('data-so');
+        if (!SQ() || SQ().selected() < 0) { foot('Pick a squad first'); return; }
+        if (so === 'move') foot(sqName() + ': tap the map to move');
+        else if (SQ().order(so)) foot(sqName() + ': ' + so.toUpperCase()); else foot(sqName() + ': ' + (so === 'cover' ? 'no friendly cover nearby' : 'order refused'));
+        syncOrders(); drawBig(true);
+      }
       else if (tm === 'sheet') { setOpen(false); if (LB.dock && LB.dock.open) LB.dock.open('map'); }
     });
     function worldAt(ev) {
@@ -299,9 +339,38 @@
     cv.addEventListener('pointermove', function (ev) { if (pressAt && Math.hypot(ev.clientX - pressAt.x, ev.clientY - pressAt.y) > 10) { clearTimeout(pressT); pressAt = null; } });
     cv.addEventListener('pointerup', function (ev) {
       if (!pressAt) return; clearTimeout(pressT); var w = pressAt.w; pressAt = null;
+      if (state.orders && SQ()) { orderTap(w, cv); return; }
       flyTo(w.x, w.z);
     });
     cv.addEventListener('pointercancel', function () { clearTimeout(pressT); pressAt = null; });
+  }
+  // v12.0.22 orders mode: tap a squad to select it, tap the map to send the selected squad there
+  function SQ() { return LB.squads && LB.squads.isEnabled && LB.squads.isEnabled() ? LB.squads : null; }
+  function sqName() { var i = SQ() ? SQ().selected() : -1; return ['Alpha', 'Bravo', 'Charlie'][i] || 'Squad'; }
+  function foot(t) { var f = doc.getElementById('tacFoot'); if (f) f.textContent = t; state.lastFoot = t; }
+  function setOrders(v) {
+    state.orders = !!v && !!SQ(); if (!big) return state.orders;
+    var bar = big.querySelector('#tacOrders'), b = big.querySelector('#tacOrdersBtn'); if (bar) bar.hidden = !state.orders; if (b) b.classList.toggle('on', state.orders);
+    big.classList.toggle('orders', state.orders);
+    if (state.orders && SQ() && SQ().selected() < 0) SQ().select(0);
+    if (state.orders && state.view === 'world' && global.innerWidth < 760) { state.view = 'front'; big.querySelectorAll('[data-tv]').forEach(function (x) { x.classList.toggle('on', x.getAttribute('data-tv') === 'front'); }); }   // phones: squads are too small to tap on the world view
+    foot(state.orders ? (SQ() ? sqName() + ' selected — tap the map to move it there, or tap another squad' : '') : 'Tap: fly the camera there');
+    syncOrders(); drawBig(true); return state.orders;
+  }
+  function syncOrders() {
+    if (!big || !SQ()) return; var i = SQ().selected();
+    big.querySelectorAll('[data-sq]').forEach(function (x) { x.classList.toggle('on', +x.getAttribute('data-sq') === i); });
+  }
+  function orderTap(w, cv) {
+    var S = SQ(), B = bounds(state.view), r = cv.getBoundingClientRect(), wpp = (B.maxX - B.minX) / Math.max(1, r.width), hitR = (S.selected() < 0 ? 18 : 11) * wpp, best = -1, bd = hitR;   // tighter once a squad is picked, so a move tap near another squad isn't read as a re-select
+    S.routes().forEach(function (q) { if (!q.own) return; var d = Math.hypot(q.x - w.x, q.z - w.z); if (d < bd) { bd = d; best = q.i; } });
+    if (best >= 0) { S.select(best); foot(sqName() + ' selected — tap the map to move it there'); syncOrders(); drawBig(true); return 'select'; }
+    if (S.selected() < 0) { foot('Pick a squad first'); return 'none'; }
+    if ((TH() && TH().isWater && TH().isWater(w.x, w.z)) || w.z > 56) { foot(sqName() + ': can\'t move into the sea'); if (LB.sfx && LB.sfx.ui) try { LB.sfx.ui('deny'); } catch (_) {} return 'sea'; }
+    var x = Math.max(-200, Math.min(200, w.x)), z = Math.max(-80, Math.min(55, w.z));
+    if (!S.order('move', x, z)) { foot(sqName() + ': order refused'); return 'refused'; }
+    state.dest = { x: x, z: z, t: performance.now() };
+    foot(sqName() + ': MOVE to grid ' + gridRef(x, z)); drawBig(true); return 'move';
   }
   function flyTo(x, z) {
     var th = TH(); if (th && th.flyToPoint) th.flyToPoint(x, z, z > 70 ? 110 : 70);
@@ -381,10 +450,10 @@
   }
 
   LB.tacmap = {
-    version: 'v12.0.16', isEnabled: function () { return enabled; },
+    version: 'v12.0.22', isEnabled: function () { return enabled; },
     drawInset: drawInset, open: function () { return setOpen(true); }, close: function () { return setOpen(false); }, toggle: function () { return setOpen(!state.open); },
     setView: function (v) { state.view = v === 'front' ? 'front' : 'world'; drawBig(true); return state.view; },
-    ping: ping, gridRef: gridRef, render: render,
-    getState: function () { return { enabled: enabled, open: state.open, view: state.view, symbols: state.symbols, drawn: state.drawn, ms: state.lastMs, pings: state.pings.length, beacons: state.beacons.length, insetDpr: state.insetDpr, side: mySide() }; }
+    ping: ping, gridRef: gridRef, render: render, setOrders: function (v) { buildBig(); return setOrders(v); }, orderTap: function (x, z) { buildBig(); return orderTap({ x: x, z: z }, big.querySelector('#tacCanvas')); }, lastFoot: function () { return state.lastFoot || ''; }, toScreen: function (x, z) { if (!big) return null; var cv = big.querySelector('#tacCanvas'), r = cv.getBoundingClientRect(), B = bounds(state.view); return { x: r.left + (x - B.minX) / (B.maxX - B.minX) * r.width, y: r.top + (z - B.minZ) / (B.maxZ - B.minZ) * r.height }; },
+    getState: function () { return { enabled: enabled, open: state.open, orders: !!state.orders, view: state.view, symbols: state.symbols, drawn: state.drawn, ms: state.lastMs, pings: state.pings.length, beacons: state.beacons.length, insetDpr: state.insetDpr, side: mySide() }; }
   };
 })(window);
