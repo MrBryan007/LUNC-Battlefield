@@ -88,9 +88,9 @@
   // Single source of truth for current release metadata.
   // Historical comments and changelog entries are left untouched.
   const BUILD = Object.freeze({
-    version: 'v12.0.22',
-    codename: 'Command from the tactical map',
-    date: '2026-10-20'
+    version: 'v12.0.23',
+    codename: 'Squad firefights: line of sight and casualties',
+    date: '2026-10-21'
   });
 
   const config = {

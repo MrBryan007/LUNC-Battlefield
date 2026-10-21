@@ -251,7 +251,7 @@
     if (LB.squads && LB.squads.isEnabled && LB.squads.isEnabled() && LB.squads.routes) {
       var fowS = LB.fow && LB.fow.isActive && LB.fow.isActive(), rts = LB.squads.routes(), ss4 = s * (big ? 1.0 : 0.75);
       rts.forEach(function (q) {
-        if (!q.own || !q.path.length) return;
+        if (!q.own || !q.path.length || q.dead) return;
         var pts = [{ x: q.x, z: q.z }].concat(q.path);
         c.save(); c.strokeStyle = q.sel ? '#ffd36a' : sideCol(q.side); c.globalAlpha = q.sel ? 0.95 : 0.7; c.lineWidth = big ? (q.sel ? 2.2 : 1.6) : 1;
         c.setLineDash(q.mode === 'flank' ? [6, 4] : q.mode === 'cover' ? [1.5, 3] : []);
@@ -262,13 +262,13 @@
         c.restore();
       });
       rts.forEach(function (q) {
-        if (!q.own && ((fowS && !q.visible) || !big)) return;   // enemy squads: big map only, and only where you can see them
+        if (q.dead) return; if (!q.own && ((fowS && !q.visible) || !big)) return;   // enemy squads: big map only, and only where you can see them
         var qx = X(q.x), qz = Z(q.z);
         c.fillStyle = 'rgba(8,12,10,.72)'; c.beginPath(); c.arc(qx, qz, ss4 * 1.75, 0, 6.2832); c.fill();   // backing so squads read over the army clutter
         if (q.sel) { c.strokeStyle = '#ffd36a'; c.lineWidth = big ? 2.4 : 1.4; c.beginPath(); c.arc(qx, qz, ss4 * 2.0, 0, 6.2832); c.stroke(); }
         sideColNow = sideCol(q.side); frame(c, qx, qz, ss4, q.own, 'land', q.side);
         c.beginPath(); c.moveTo(qx - ss4 * 0.7, qz - ss4 * 0.5); c.lineTo(qx + ss4 * 0.7, qz + ss4 * 0.5); c.moveTo(qx + ss4 * 0.7, qz - ss4 * 0.5); c.lineTo(qx - ss4 * 0.7, qz + ss4 * 0.5); c.stroke();
-        if (big) { label(c, q.own ? q.name.charAt(0) : 'SQ', qx + ss4 * 2.3, qz - ss4 * 1.1, Math.max(9, ss4 * 1.4), q.sel ? '#ffd36a' : '#f2f6f3'); if (q.own && (q.cover || q.sup > 0.5)) label(c, q.cover ? 'COVER' : 'SUPP', qx, qz + ss4 * 1.9, Math.max(6, ss4 * 0.7), '#c9b98f'); }
+        if (big) { label(c, (q.own ? q.name.charAt(0) : 'SQ') + (q.own && q.n && q.alive < q.n ? ' ' + q.alive + '/' + q.n : ''), qx + ss4 * 2.3, qz - ss4 * 1.1, Math.max(9, ss4 * 1.4), q.sel ? '#ffd36a' : '#f2f6f3'); if (q.own && (q.cover || q.sup > 0.5)) label(c, q.cover ? 'COVER' : 'SUPP', qx, qz + ss4 * 1.9, Math.max(6, ss4 * 0.7), '#c9b98f'); }
         n++;
       });
       if (big && state.dest && performance.now() - state.dest.t < 4000) { var dk = 1 - (performance.now() - state.dest.t) / 4000, dx = X(state.dest.x), dz = Z(state.dest.z); c.strokeStyle = 'rgba(255,211,106,' + dk.toFixed(2) + ')'; c.lineWidth = 1.5; c.beginPath(); c.arc(dx, dz, 6 + (1 - dk) * 8, 0, 6.2832); c.moveTo(dx - 4, dz); c.lineTo(dx + 4, dz); c.moveTo(dx, dz - 4); c.lineTo(dx, dz + 4); c.stroke(); }
