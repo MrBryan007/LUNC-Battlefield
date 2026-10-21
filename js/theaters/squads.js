@@ -100,14 +100,14 @@
   function enemyTarget(S) {
     var best = null, bd = RANGE * RANGE;
     var L = LOS(); S.noLos = false;
-    squads.forEach(function (o) { if (o.side === S.side || o.dead) return; var d = (o.x - S.x) * (o.x - S.x) + (o.z - S.z) * (o.z - S.z); if (d >= bd) return; if (L && !L.clear(S.x, S.z, o.x, o.z)) { S.noLos = true; return; } bd = d; best = { x: o.x, z: o.z, sq: o, d: Math.sqrt(d) }; });
+    squads.forEach(function (o) { if (o.side === S.side || o.dead) return; var d = (o.x - S.x) * (o.x - S.x) + (o.z - S.z) * (o.z - S.z); if (d >= bd) return; if (L && !L.clear(S.x, S.z, o.x, o.z, null, o.cover ? 0.7 : 1.1)) { S.noLos = true; return; } bd = d; best = { x: o.x, z: o.z, sq: o, d: Math.sqrt(d) }; });
     if (!best) try { var a = E().getArmies(), arr = S.side < 0 ? a.bears : a.bulls, bu = null; for (var i = 0; i < arr.length; i += 3) { var u = arr[i]; if (!u || !u.position) continue; var dx = u.position.x - S.x, dz = u.position.z - S.z, d = dx * dx + dz * dz; if (d < bd) { bd = d; bu = u; } } if (bu && (!L || L.clear(S.x, S.z, bu.position.x, bu.position.z))) best = { x: bu.position.x, z: bu.position.z }; else if (bu) S.noLos = true; } catch (_) {}
     if (S.noLos && !best) stats.noLos++;
     return best;
   }
   // v12.0.23 hit model: range falloff, high ground, moving shooter, cover, shooter suppression, weather / night
   function hitChance(S, T, d) {
-    var r = d <= 12 ? 0.32 : 0.32 * (1 - (d - 12) / 12 * 0.67), dh = G(S.x, S.z) - G(T.x, T.z);
+    var r = d <= 12 ? 0.26 : 0.26 * (1 - (d - 12) / 12 * 0.67), dh = G(S.x, S.z) - G(T.x, T.z);
     if (dh > 2) r *= 1.25; else if (dh < -2) r *= 0.85;
     if (S.path.length) r *= 0.6; if (T.cover) r *= 0.5; r *= 1 - S.sup * 0.5;
     if (LB.wxCombat && LB.wxCombat.mod) try { r *= LB.wxCombat.mod('gun') * LB.wxCombat.mod('sight'); } catch (_) {}
