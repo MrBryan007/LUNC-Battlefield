@@ -31,7 +31,8 @@ const checks = [
   ['asw wired', index.includes('theaters/asw.js') && index.indexOf('theaters/asw.js') > index.indexOf('theaters/extras.js') && read('js/theaters/extras.js').includes('_subList') && read('js/theaters/extras.js').includes('!subs[s].ctl') && engine.includes('LUNCBattle.asw.update()') && read('js/sfx.js').includes('sonar: sonar')],
   ['ridge wired', index.includes('theaters/ridge.js') && index.indexOf('theaters/ridge.js') > index.indexOf('theaters/asw.js') && engine.includes('LUNCBattle.ridge.update()') && read('js/theaters/economy.js').includes('grant: function') && read('js/theaters/fow.js').includes('LB.ridge.visionFor') && read('js/theaters/theaters.js').includes("ridge: { label: 'Ridge'") && read('js/theaters/tacmap.js').includes('LB.ridge.crest()')],
   ['tacmap orders wired', read('js/theaters/tacmap.js').includes('function orderTap(') && read('js/theaters/tacmap.js').includes('LB.squads.routes()') && read('js/theaters/squads.js').includes('routes: function') && read('js/theaters/squads.js').includes('function routeLine(') && read('css/hud-dock.css').includes('.tac-orders')],
-  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.22')]
+  ['los + casualties wired', read('js/theaters/los.js').includes('function trace(') && index.includes('js/theaters/los.js') && read('js/theaters/squads.js').includes('function hitChance(') && read('js/theaters/squads.js').includes('function wound(')],
+  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.23')]
 ];
 
 let failed = 0;
