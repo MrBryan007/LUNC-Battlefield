@@ -1,12 +1,23 @@
 /* LUNC Battlefield v12.0.24 — v12.3 part 1: achievements and a service record. Game layer.
  * 19 achievements read once a second from counters the other modules already keep (no hooks into them). Unlocks are
  * saved in localStorage ('luncBattle.achievements', id → unlock time). Your service-record title rises with the count.
- * Never touches market data, armies, the front or data-truth labels. ?ach=0 turns it off. */
+ * Never touches market data, armies, the front or data-truth labels. ?ach=0 turns it off.
+ * v12.0.28: 3 fort achievements (22 total, General of the Army at 22) and rank-unlocked camo for your defenses (?cosmetics=0 → off). */
 (function (global) {
   'use strict';
   var LB = global.LUNCBattle = global.LUNCBattle || {}, doc = global.document;
   var qs = new URLSearchParams(global.location.search);
   var enabled = qs.get('ach') !== '0';
+  var COSM = qs.get('cosmetics') !== '0', CKEY = 'luncBattle.cosmetics';   // v12.0.28 rank unlocks; ?cosmetics=0 → off
+  var CAMOS = [   // procedural patterns for your bunkers' and turrets' camo parts (drawn by js/theaters/forts.js)
+    { id: 'std', name: 'Standard', need: 0, rank: 'Recruit', sw: ['#4b5320', '#857a64'] },
+    { id: 'woodland', name: 'Woodland', need: 3, rank: 'Corporal', base: 0x4a5530, spots: [0x2f3a1f, 0x5e4a2c, 0x1c1c18], sw: ['#4a5530', '#2f3a1f', '#5e4a2c', '#1c1c18'] },
+    { id: 'desert', name: 'Desert', need: 5, rank: 'Sergeant', base: 0xb59f78, spots: [0x8c7452, 0xd2c09a, 0x6e5a3e], sw: ['#b59f78', '#8c7452', '#d2c09a', '#6e5a3e'] },
+    { id: 'urban', name: 'Urban', need: 10, rank: 'Captain', base: 0x8a8d8f, spots: [0x5c5f62, 0xb4b6b6, 0x2e3032], sw: ['#8a8d8f', '#5c5f62', '#b4b6b6', '#2e3032'] },
+    { id: 'night', name: 'Night', need: 16, rank: 'Colonel', base: 0x2f3540, spots: [0x1d222a, 0x434a57, 0x151719], sw: ['#2f3540', '#1d222a', '#434a57', '#151719'] },
+    { id: 'tiger', name: 'Tiger stripe', need: 19, rank: 'General', base: 0x5b6a3a, spots: [0x262a1a, 0x7a6a3e], tiger: true, sw: ['#5b6a3a', '#262a1a', '#7a6a3e'] }
+  ];
+  var cosm = loadC();
   var KEY = 'luncBattle.achievements';
   var got = load(), ev = { moon: 0, nuke: 0, combo: 0, night: 0, sec: 0, lastCharge: 0, lastNuke: 0 }, el = {}, ready = false, iv = 0, queue = [], showing = false, uiDirty = true;
   function cs() { try { return LB.commander.getState().session || {}; } catch (_) { return {}; } }
@@ -32,10 +43,26 @@
     { id: 'hack', icon: '⌁', name: 'Hacker', desc: 'Launch a cyber attack', p: function () { return [((st('wxCombat', 'getState').stats) || {}).playerHacks || 0, 1]; } },
     { id: 'supply', icon: '☂', name: 'Special Delivery', desc: 'Call in a supply drop', p: function () { return [st('supply', 'getStats').called || 0, 1]; } },
     { id: 'night', icon: '☽', name: 'Night Owl', desc: 'Fight for a minute at night', p: function () { return [Math.floor(ev.night), 60]; } },
+    { id: 'demo', icon: '⛏', name: 'Demolition', desc: 'Destroy an enemy fort', p: function () { return [(st('forts', 'getStats').lostBy || {})[String(-me())] || 0, 1]; } },   // v12.0.28
+    { id: 'holdline', icon: '⛨', name: 'Hold the Line', desc: 'Repair your forts 3 times', p: function () { return [st('forts', 'getStats').cmdRepairs || 0, 3]; } },
+    { id: 'cbattery', icon: '☄', name: 'Counter-Battery', desc: 'Call mortars on an enemy fort', p: function () { return [st('forts', 'getStats').cmdMissions || 0, 1]; } },
     { id: 'tenmin', icon: '⏱', name: 'Dug In', desc: 'Play 10 minutes in one session', p: function () { return [Math.floor(ev.sec), 600]; } }
   ];
-  var TITLES = [[0, 'Recruit'], [1, 'Private'], [3, 'Corporal'], [5, 'Sergeant'], [7, 'Lieutenant'], [10, 'Captain'], [13, 'Major'], [16, 'Colonel'], [19, 'General']];
+  var TITLES = [[0, 'Recruit'], [1, 'Private'], [3, 'Corporal'], [5, 'Sergeant'], [7, 'Lieutenant'], [10, 'Captain'], [13, 'Major'], [16, 'Colonel'], [19, 'General'], [22, 'General of the Army']];
   function load() { try { var o = JSON.parse(global.localStorage.getItem(KEY) || '{}'); return o && typeof o === 'object' ? o : {}; } catch (_) { return {}; } }
+  function loadC() { try { var o = JSON.parse(global.localStorage.getItem(CKEY) || '{}'); return o && typeof o === 'object' ? o : {}; } catch (_) { return {}; } }
+  function saveC() { try { global.localStorage.setItem(CKEY, JSON.stringify(cosm)); } catch (_) {} }
+  function camoOk(c) { return c && count() >= c.need; }
+  function camoById(id) { return CAMOS.filter(function (c) { return c.id === id; })[0]; }
+  function curCamo() { if (!COSM) return null; var c = camoById(cosm.camo); return camoOk(c) && c.id !== 'std' ? c : null; }   // a reset or lost unlock falls back to Standard
+  function setCamo(id) { var c = camoById(id); if (!COSM || !camoOk(c)) return false; cosm.camo = id; saveC(); uiDirty = true; render(); if (LB.sfx && LB.sfx.ui) try { LB.sfx.ui('arm'); } catch (_) {} return true; }
+  function renderCamo() {
+    if (!el.camo) return; var cur = curCamo(), n = count();
+    el.camo.innerHTML = CAMOS.map(function (c) {
+      var ok = n >= c.need, on = (cur ? cur.id : 'std') === c.id;
+      return '<button type="button" class="ach-camo' + (on ? ' on' : '') + '" data-camo="' + c.id + '"' + (ok ? '' : ' disabled') + ' title="' + esc(c.name) + (ok ? '' : ' · unlocks at ' + c.rank) + '"><i style="background:linear-gradient(135deg,' + c.sw.join(',') + ')"></i><b>' + esc(c.name) + '</b><small>' + (on ? 'In use' : ok ? 'Unlocked' : c.rank) + '</small></button>';
+    }).join('');
+  }
   function save() { try { global.localStorage.setItem(KEY, JSON.stringify(got)); } catch (_) {} }
   function count() { return DEFS.filter(function (d) { return got[d.id]; }).length; }
   function title(n) { var t = TITLES[0][1]; TITLES.forEach(function (x) { if (n >= x[0]) t = x[1]; }); return t; }
@@ -80,9 +107,11 @@
     var p = doc.createElement('div'); p.id = 'achPanel'; p.className = 'supply-panel ach-panel';
     p.innerHTML = '<div class="th-title">SERVICE RECORD · ACHIEVEMENTS <span class="qual sim">GAME LAYER</span></div>' +
       '<div class="ach-rank"><b id="achTitle"></b><span id="achCount"></span><i class="ach-bar"><span id="achBar"></span></i><small id="achNext"></small></div>' +
+      (COSM ? '<div class="ach-unlocks"><small>UNLOCKS · CAMO FOR YOUR BUNKERS AND TURRETS</small><div id="achCamo" class="ach-camos"></div></div>' : '') +
       '<div class="ach-list" id="achList"></div>' +
       '<div class="ach-foot"><span class="th-note">Saved on this device. Achievements only read the game layer, never market data.</span><button type="button" id="achReset">Reset</button></div>';
-    el.p = p; el.list = p.querySelector('#achList');
+    el.p = p; el.list = p.querySelector('#achList'); el.camo = p.querySelector('#achCamo');
+    if (el.camo) el.camo.addEventListener('click', function (e) { var b = e.target.closest('button[data-camo]'); if (b && !b.disabled) setCamo(b.getAttribute('data-camo')); });
     p.querySelector('#achReset').addEventListener('click', function () {
       var b = this; if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = 'Tap again to reset'; setTimeout(function () { b.dataset.armed = ''; b.textContent = 'Reset'; }, 3000); return; }
       got = {}; save(); b.dataset.armed = ''; b.textContent = 'Reset'; uiDirty = true; render();
@@ -101,6 +130,7 @@
     el.p.querySelector('#achCount').textContent = n + ' / ' + DEFS.length;
     el.p.querySelector('#achBar').style.width = Math.round(n / DEFS.length * 100) + '%';
     el.p.querySelector('#achNext').textContent = nt ? 'Next: ' + nt[1] + ' at ' + nt[0] : 'Top rank reached';
+    renderCamo();
     el.list.innerHTML = DEFS.map(function (d) {
       var on = !!got[d.id], p = [0, 1]; try { p = d.p(); } catch (_) {}
       var f = on ? 1 : Math.max(0, Math.min(1, p[0] / p[1]));
@@ -114,10 +144,12 @@
     iv = setInterval(function () { try { tick(); } catch (err) { console.warn('[achievements]', err); } }, 1000);
   }
   LB.achievements = {
-    version: 'v12.0.24', isEnabled: function () { return enabled && ready; },
+    version: 'v12.0.28', isEnabled: function () { return enabled && ready; },
     list: function () { return DEFS.map(function (d) { var p = [0, 1]; try { p = d.p(); } catch (_) {} return { id: d.id, name: d.name, on: !!got[d.id], cur: p[0], goal: p[1] }; }); },
     count: count, title: function () { return title(count()); },
     getState: function () { return { enabled: enabled && ready, count: count(), total: DEFS.length, title: title(count()), ev: Object.assign({}, ev), queued: queue.length, showing: showing }; },
+    cosmetics: function () { var n = count(), cur = curCamo(); return { enabled: COSM, camo: cur ? cur.id : 'std', camos: CAMOS.map(function (c) { return { id: c.id, name: c.name, rank: c.rank, unlocked: n >= c.need }; }) }; },
+    camo: curCamo, setCamo: setCamo,
     reset: function () { got = {}; save(); uiDirty = true; render(); },
     _tick: tick, _unlock: function (id) { var d = DEFS.filter(function (x) { return x.id === id; })[0]; return d ? unlock(d) : false; }
   };

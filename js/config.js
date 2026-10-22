@@ -88,8 +88,8 @@
   // Single source of truth for current release metadata.
   // Historical comments and changelog entries are left untouched.
   const BUILD = Object.freeze({
-    version: 'v12.0.27',
-    codename: 'Forts under fire',
+    version: 'v12.0.28',
+    codename: 'Rank unlocks: camo for your defenses',
     date: '2026-10-22'
   });
 
