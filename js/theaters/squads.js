@@ -101,6 +101,9 @@
     var best = null, bd = RANGE * RANGE;
     var L = LOS(); S.noLos = false;
     squads.forEach(function (o) { if (o.side === S.side || o.dead) return; var d = (o.x - S.x) * (o.x - S.x) + (o.z - S.z) * (o.z - S.z); if (d >= bd) return; if (L && !L.clear(S.x, S.z, o.x, o.z, null, o.cover ? 0.7 : 1.1)) { S.noLos = true; return; } bd = d; best = { x: o.x, z: o.z, sq: o, d: Math.sqrt(d) }; });
+    if (!best && LB.forts && LB.forts.targetsFor && LB.forts.dmgEnabled && LB.forts.dmgEnabled()) try {   // v12.0.27: no enemy squad in sight → suppress an enemy bunker / turret crew
+      LB.forts.targetsFor(S.side).forEach(function (f) { if (f.type === 'wall') return; var d = (f.x - S.x) * (f.x - S.x) + (f.z - S.z) * (f.z - S.z); if (d >= bd) return; if (L && !L.clear(S.x, S.z, f.x, f.z, null, 1.0)) { S.noLos = true; return; } bd = d; best = { x: f.x, z: f.z, fort: f.id, d: Math.sqrt(d) }; });
+    } catch (_) {}
     if (!best) try { var a = E().getArmies(), arr = S.side < 0 ? a.bears : a.bulls, bu = null; for (var i = 0; i < arr.length; i += 3) { var u = arr[i]; if (!u || !u.position) continue; var dx = u.position.x - S.x, dz = u.position.z - S.z, d = dx * dx + dz * dz; if (d < bd) { bd = d; bu = u; } } if (bu && (!L || L.clear(S.x, S.z, bu.position.x, bu.position.z))) best = { x: bu.position.x, z: bu.position.z }; else if (bu) S.noLos = true; } catch (_) {}
     if (S.noLos && !best) stats.noLos++;
     return best;
@@ -154,7 +157,7 @@
       }
       var tg = S.dead ? null : enemyTarget(S);
       S.cd -= dt;
-      if (tg) { S.hd = Math.atan2(tg.x - S.x, tg.z - S.z); if (S.cd <= 0) { var an = aliveN(S); S.cd = (1.2 + Math.random() * 0.8 + S.sup) * (LOS() ? Math.max(1, S.n / Math.max(1, an)) * 0.8 : 1); stats.shots++; if (F && F.tracers && !fogHidden(S.x, S.z)) try { F.tracers(S.x, S.z, tg.x, tg.z, 2, 1.0); } catch (_) {} if (tg.sq) { tg.sq.sup = Math.min(1, tg.sq.sup + (tg.sq.cover ? 0.06 : 0.12)); if (LOS() && Math.random() < hitChance(S, tg.sq, tg.d)) wound(tg.sq, S); } } }
+      if (tg) { S.hd = Math.atan2(tg.x - S.x, tg.z - S.z); if (S.cd <= 0) { var an = aliveN(S); S.cd = (1.2 + Math.random() * 0.8 + S.sup) * (LOS() ? Math.max(1, S.n / Math.max(1, an)) * 0.8 : 1); stats.shots++; if (F && F.tracers && !fogHidden(S.x, S.z)) try { F.tracers(S.x, S.z, tg.x, tg.z, 2, 1.0); } catch (_) {} if (tg.sq) { tg.sq.sup = Math.min(1, tg.sq.sup + (tg.sq.cover ? 0.06 : 0.12)); if (LOS() && Math.random() < hitChance(S, tg.sq, tg.d)) wound(tg.sq, S); } else if (tg.fort && LB.forts.suppress) { LB.forts.suppress(tg.fort, 0.12); stats.fortSup = (stats.fortSup || 0) + 1; } } }
       var hide = S.side !== me && fogHidden(S.x, S.z);
       S.g.visible = !hide;
       for (var m = 0, k = 0; m < S.men.length; m++) {
