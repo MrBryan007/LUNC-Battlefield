@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /* Regenerates build-hours.html from data/build-hours.json (real phase timestamps logged by the daily AI build).
  * Usage: node scripts/build-hours.js                     → regenerate the page
- *        node scripts/build-hours.js add <date> <activity> <startISO> <endISO>  → append a record, then regenerate */
+ *        node scripts/build-hours.js add <date> <activity> <startISO> <endISO> [cycle]  → append a record, then regenerate */
 'use strict';
 var fs = require('fs'), path = require('path');
 var ROOT = path.join(__dirname, '..'), DATA = path.join(ROOT, 'data', 'build-hours.json'), OUT = path.join(ROOT, 'build-hours.html');
@@ -16,7 +16,10 @@ var args = process.argv.slice(2), d = load();
 if (args[0] === 'add') {
   var start = new Date(args[3]), end = new Date(args[4]);
   if (isNaN(start) || isNaN(end) || end < start) { console.error('bad timestamps'); process.exit(1); }
-  d.records.push({ date: args[1], activity: args[2], start: args[3], end: args[4], hours: r2((end - start) / 3600000) });
+  var rec = { date: args[1] };
+  if (args[5]) rec.cycle = +args[5];
+  Object.assign(rec, { activity: args[2], start: args[3], end: args[4], hours: r2((end - start) / 3600000) });
+  d.records.push(rec);
   save(d);
 }
 var byDay = {};

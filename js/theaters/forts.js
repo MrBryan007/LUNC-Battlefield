@@ -106,8 +106,23 @@
       if (f.rise < 1) { f.rise = Math.min(1, f.rise + dt * 1.5); f.g.scale.y = 0.05 + 0.95 * f.rise; }
       var R = TYPES[f.type].range; if (!R) continue;
       f.cd -= dt; if (f.cd > 0) continue; f.cd = f.type === 'turret' ? 1.1 : 1.8;
-      var t = nearestEnemy(f, R); if (!t) continue;
-      var tx = t.position.x, tz = t.position.z;
+      // v12.0.25: line of sight; enemy squads first (they can be hurt), then the market armies (cosmetic as before)
+      var L = LB.los && LB.los.isEnabled && LB.los.isEnabled() ? LB.los : null, eye = f.type === 'turret' ? 1.9 : 1.25, tx, tz, sq = null, hidden = 0;
+      if (L && LB.squads && LB.squads.targetsFor) {
+        var bd = R * R; LB.squads.targetsFor(f.side).forEach(function (q) { var d = (q.x - f.x) * (q.x - f.x) + (q.z - f.z) * (q.z - f.z); if (d >= bd) return; if (!L.clear(f.x, f.z, q.x, q.z, eye, q.cover ? 0.7 : 1.1)) { stats.noLos = (stats.noLos || 0) + 1; hidden++; return; } bd = d; sq = q; sq.d = Math.sqrt(d); });
+      }
+      f.blind = false;
+      if (sq) {
+        tx = sq.x; tz = sq.z;
+        var pc = (f.type === 'turret' ? 0.22 : 0.18) * (1 - sq.d / R * 0.5) * (sq.cover ? 0.5 : 1);
+        if (LB.wxCombat && LB.wxCombat.mod) try { pc *= LB.wxCombat.mod('gun'); } catch (_) {}
+        stats.squadShots = (stats.squadShots || 0) + 1;
+        if (Math.random() < pc && LB.squads.woundAt(sq.k, f.side)) stats.squadHits = (stats.squadHits || 0) + 1;
+      } else {
+        var t = nearestEnemy(f, R); if (!t) { if (hidden) { f.blind = true; f.cd = 0.6; } continue; }
+        tx = t.position.x; tz = t.position.z;
+        if (L && !L.clear(f.x, f.z, tx, tz, eye, 1.1)) { stats.noLos = (stats.noLos || 0) + 1; f.blind = true; f.cd = 0.6; continue; }   // blind: re-check soon, no tracers through walls
+      }
       if (f.g.userData.head) { f.aim = Math.atan2(-(tx - f.x), -(tz - f.z)); f.g.userData.head.rotation.y = f.aim; }
       if (F && F.tracers) try { F.tracers(f.x, f.z, tx, tz, f.type === 'turret' ? 3 : 2, f.type === 'turret' ? 1.6 : 1.2); stats.shots++; } catch (_) {}
     }
@@ -139,7 +154,7 @@
     if (!el.p) return; placeUi();
     var me = playerSide(), ok = unlocked(me);
     TLIST.forEach(function (t) { var b = el.p.querySelector('[data-fort="' + t + '"]'); if (!b) return; b.disabled = !ok || !afford(me, t) || count(me) >= cap(); b.classList.toggle('armed', armed === t); });
-    el.status.textContent = !ok ? 'Locked · research Fortifications in the tech tree' : armed ? 'Placing ' + TYPES[armed].label + ' · tap the field (Esc cancels)' : 'Yours ' + count(me) + '/' + cap() + ' · enemy ' + count(-me) + (stats.last ? ' · ' + stats.last : '');
+    el.status.textContent = !ok ? 'Locked · research Fortifications in the tech tree' : armed ? 'Placing ' + TYPES[armed].label + ' · tap the field (Esc cancels)' : 'Yours ' + count(me) + '/' + cap() + ' · enemy ' + count(-me) + (function () { var b = list.filter(function (f) { return f.side === me && f.blind; }).length; return b ? ' · ' + b + ' NO LOS' : ''; })() + (stats.squadHits ? ' · squad hits ' + stats.squadHits + (LB.squads && LB.squads.getStats ? ' / KIA ' + ((LB.squads.getStats().fortKillsBy || {})[me] || 0) : '') : '') + (stats.last ? ' · ' + stats.last : '');
     doc.body.classList.toggle('fort-placing', !!armed);
   }
   function update() {
@@ -154,7 +169,7 @@
   LB.forts = {
     isEnabled: function () { return enabled && ready; }, update: update, place: place,
     arm: function (t) { armed = TYPES[t] ? t : null; renderUi(); },
-    list: function () { return list.map(function (f) { return { type: f.type, side: f.side, x: f.x, z: f.z }; }); },
+    list: function () { return list.map(function (f) { return { type: f.type, side: f.side, x: f.x, z: f.z, blind: !!f.blind }; }); },
     getStats: function () { return Object.assign({ count: list.length, armed: armed }, stats); },
     TYPES: TYPES, _step: function (sec) { if (!ready) return; for (var t = 0; t < sec; t += 0.1) step(0.1); }
   };
