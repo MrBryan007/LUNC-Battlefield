@@ -33,7 +33,8 @@ const checks = [
   ['tacmap orders wired', read('js/theaters/tacmap.js').includes('function orderTap(') && read('js/theaters/tacmap.js').includes('LB.squads.routes()') && read('js/theaters/squads.js').includes('routes: function') && read('js/theaters/squads.js').includes('function routeLine(') && read('css/hud-dock.css').includes('.tac-orders')],
   ['los + casualties wired', read('js/theaters/los.js').includes('function trace(') && index.includes('js/theaters/los.js') && read('js/theaters/squads.js').includes('function hitChance(') && read('js/theaters/squads.js').includes('function wound(')],
   ['achievements wired', read('js/ui/achievements.js').includes('function unlock(') && index.includes('js/ui/achievements.js') && read('css/hud-dock.css').includes('.ach-toast')],
-  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.24')]
+  ['forts + ridge LOS wired', read('js/theaters/forts.js').includes('LB.squads.woundAt(') && read('js/theaters/squads.js').includes('targetsFor: function') && read('js/theaters/ridge.js').includes('line of sight over the crest')],
+  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.25')]
 ];
 
 let failed = 0;
