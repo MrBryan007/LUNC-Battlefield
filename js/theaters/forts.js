@@ -316,13 +316,15 @@
     for (k = 0; k < c.spots.length; k++) {
       g.fillStyle = hex(c.spots[k]);
       for (i = 0; i < (c.tiger ? 9 : 11); i++) {
-        var x = R() * s, y = R() * s;
-        g.beginPath();
-        if (c.tiger) { g.ellipse(x, y, 26 + R() * 30, 3 + R() * 4, (R() - 0.5) * 0.35, 0, 6.283); }   // horizontal brush strokes
-        else { var r = 7 + R() * 14, n = 7; for (var j = 0; j <= n; j++) { var a = j / n * 6.283, rr = r * (0.6 + R() * 0.6); g[j ? 'lineTo' : 'moveTo'](x + Math.cos(a) * rr * 1.3, y + Math.sin(a) * rr); } }
-        g.fill();
-        // wrap blobs across the edges so the texture tiles
-        if (x < 30 || y < 30) { g.save(); g.translate(x < 30 ? s : 0, y < 30 ? s : 0); g.fill(); g.restore(); }
+        var x = R() * s, y = R() * s, pts = [], ex = [26 + R() * 30, 3 + R() * 4, (R() - 0.5) * 0.35];
+        if (!c.tiger) { var r = 7 + R() * 14; for (var j = 0; j <= 7; j++) { var a = j / 7 * 6.283, rr = r * (0.6 + R() * 0.6); pts.push([Math.cos(a) * rr * 1.3, Math.sin(a) * rr]); } }
+        [[0, 0], [s, 0], [-s, 0], [0, s], [0, -s], [s, s], [-s, -s], [s, -s], [-s, s]].forEach(function (o) {   // draw wrapped copies so the texture tiles
+          var cx = x + o[0], cy = y + o[1]; if (cx < -60 || cx > s + 60 || cy < -40 || cy > s + 40) return;
+          g.beginPath();
+          if (c.tiger) g.ellipse(cx, cy, ex[0], ex[1], ex[2], 0, 6.283);   // horizontal brush strokes
+          else pts.forEach(function (q, j) { g[j ? 'lineTo' : 'moveTo'](cx + q[0], cy + q[1]); });
+          g.fill();
+        });
       }
     }
     var t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(1.5, 1.5); if (THREE.sRGBEncoding != null) t.encoding = THREE.sRGBEncoding;
