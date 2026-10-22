@@ -285,6 +285,7 @@
     }
   }
   function cmdRepair() {
+    if (!DMG) return false;
     var me = playerSide(), f = mostDamaged(me);
     if (repT > 0) { stats.last = 'Engineers busy · ' + Math.ceil(repT) + ' s'; return renderUi(), false; }
     if (!f) { stats.last = 'Nothing to repair'; return renderUi(), false; }
@@ -293,6 +294,7 @@
     radio(me, sideName(me) + ' ENGINEERS: "' + TYPES[f.type].label + ' repaired, back in the fight." (SIMULATED · game FX)'); renderUi(); return true;
   }
   function cmdShell() {   // your mortars on the nearest enemy fort you can see (fog of war)
+    if (!DMG) return false;
     var me = playerSide(), fogOn = LB.fow && LB.fow.isActive && LB.fow.isActive(), b = null, bd = 1e9, fx = frontX();
     if (shellT > 0) { stats.last = 'Mortars reloading · ' + Math.ceil(shellT) + ' s'; return renderUi(), false; }
     list.forEach(function (f) { if (f.side === me || f.dead) return; if (fogOn && !LB.fow.visible(f.x, f.z)) return; var d = Math.abs(f.x - fx) + Math.abs(f.z) * 0.2; if (d < bd) { bd = d; b = f; } });
