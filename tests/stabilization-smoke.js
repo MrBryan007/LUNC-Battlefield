@@ -36,7 +36,8 @@ const checks = [
   ['forts + ridge LOS wired', read('js/theaters/forts.js').includes('LB.squads.woundAt(') && read('js/theaters/squads.js').includes('targetsFor: function') && read('js/theaters/ridge.js').includes('line of sight over the crest')],
   ['fort realism wired', read('js/theaters/forts.js').includes('function meshReal(') && read('js/theaters/forts.js').includes("qs.get('fortfx') !== '0'") && read('js/theaters/forts.js').includes('function onTarget(')],
   ['fort damage wired', read('js/theaters/forts.js').includes('function damageAt(') && read('js/theaters/forts.js').includes("qs.get('fortdmg') !== '0'") && read('js/theaters/squads.js').includes('LB.forts.suppress(')],
-  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.27')]
+  ['rank unlocks wired', read('js/ui/achievements.js').includes('function setCamo(') && read('js/ui/achievements.js').includes("qs.get('cosmetics') !== '0'") && read('js/theaters/forts.js').includes('function applyCamo(') && read('css/hud-dock.css').includes('.ach-camo')],
+  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.28')]
 ];
 
 let failed = 0;
