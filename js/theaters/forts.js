@@ -290,7 +290,7 @@
     if (repT > 0) { stats.last = 'Engineers busy · ' + Math.ceil(repT) + ' s'; return renderUi(), false; }
     if (!f) { stats.last = 'Nothing to repair'; return renderUi(), false; }
     if (!ECO().pay(me, REPAIR_COST)) { stats.last = 'Repair needs 3 fuel'; return renderUi(), false; }
-    repairFort(f); repT = REPAIR_CD; stats.last = TYPES[f.type].label + ' repaired';
+    repairFort(f); repT = REPAIR_CD; stats.cmdRepairs = (stats.cmdRepairs || 0) + 1; stats.last = TYPES[f.type].label + ' repaired';
     radio(me, sideName(me) + ' ENGINEERS: "' + TYPES[f.type].label + ' repaired, back in the fight." (SIMULATED · game FX)'); renderUi(); return true;
   }
   function cmdShell() {   // your mortars on the nearest enemy fort you can see (fog of war)
@@ -304,6 +304,41 @@
   }
   function targetsFor(side) { var o = []; list.forEach(function (f) { if (f.side !== side && !f.dead && f.rise >= 1) o.push({ id: f.id, type: f.type, x: f.x, z: f.z }); }); return o; }
   function suppress(id, amt) { if (!DMG) return false; for (var i = 0; i < list.length; i++) if (list[i].id === id && !list[i].dead) { list[i].sup = Math.min(1, (list[i].sup || 0) + (amt || 0.15)); stats.suppressed = (stats.suppressed || 0) + 1; return true; } return false; }
+
+  // ---- v12.0.28 rank-unlocked camo (js/ui/achievements.js picks it; drawn here on your side's camo material) ----
+  var CAMO_DEF = { '-1': 0x4b5320, '1': 0x857a64 }, camoKey = 'std', camoTex = {};
+  function camoTexture(c) {
+    if (camoTex[c.id]) return camoTex[c.id];
+    var s = 128, cv = doc.createElement('canvas'); cv.width = cv.height = s; var g = cv.getContext('2d'), i, k;
+    var hex = function (n) { return '#' + ('000000' + n.toString(16)).slice(-6); };
+    g.fillStyle = hex(c.base); g.fillRect(0, 0, s, s);
+    var seed = 7; var R = function () { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    for (k = 0; k < c.spots.length; k++) {
+      g.fillStyle = hex(c.spots[k]);
+      for (i = 0; i < (c.tiger ? 9 : 11); i++) {
+        var x = R() * s, y = R() * s;
+        g.beginPath();
+        if (c.tiger) { g.ellipse(x, y, 26 + R() * 30, 3 + R() * 4, (R() - 0.5) * 0.35, 0, 6.283); }   // horizontal brush strokes
+        else { var r = 7 + R() * 14, n = 7; for (var j = 0; j <= n; j++) { var a = j / n * 6.283, rr = r * (0.6 + R() * 0.6); g[j ? 'lineTo' : 'moveTo'](x + Math.cos(a) * rr * 1.3, y + Math.sin(a) * rr); } }
+        g.fill();
+        // wrap blobs across the edges so the texture tiles
+        if (x < 30 || y < 30) { g.save(); g.translate(x < 30 ? s : 0, y < 30 ? s : 0); g.fill(); g.restore(); }
+      }
+    }
+    var t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(1.5, 1.5); if (THREE.sRGBEncoding != null) t.encoding = THREE.sRGBEncoding;
+    camoTex[c.id] = t; return t;
+  }
+  function applyCamo() {
+    if (!REAL || !mat.rCamo) return;
+    var A = LB.achievements, c = A && A.camo ? A.camo() : null, me = playerSide(), key = c ? me + ':' + c.id : 'std';
+    if (key === camoKey) return; camoKey = key;
+    ['-1', '1'].forEach(function (k) { var m = mat.rCamo[k], had = !!m.map; m.map = null; m.color.copy(col(CAMO_DEF[k])); if (had) m.needsUpdate = true; });
+    if (!c) return;
+    var m = mat.rCamo[String(me)];
+    if (low()) { m.color.copy(col(c.base)); return; }   // LOW / phones: the pattern's base colour, no texture
+    m.map = camoTexture(c); m.color.setRGB(1, 1, 1); m.needsUpdate = true;
+    Object.keys(scorchCache).forEach(function (k) { delete scorchCache[k]; });
+  }
   function step(dt) {
     var F = LB.heavyFx;
     for (var i = 0; i < list.length; i++) {
@@ -371,6 +406,7 @@
     TLIST.forEach(function (t) { var b = el.p.querySelector('[data-fort="' + t + '"]'); if (!b) return; b.disabled = !ok || !afford(me, t) || count(me) >= cap(); b.classList.toggle('armed', armed === t); });
     el.status.textContent = !ok ? 'Locked · research Fortifications in the tech tree' : armed ? 'Placing ' + TYPES[armed].label + ' · tap the field (Esc cancels)' : 'Yours ' + count(me) + '/' + cap() + ' · enemy ' + count(-me) + (function () { var b = list.filter(function (f) { return f.side === me && f.blind; }).length; return b ? ' · ' + b + ' NO LOS' : ''; })() + (function () { if (!DMG) return ''; var dmg = list.filter(function (f) { return f.side === me && !f.dead && f.hp < f.maxHp; }).length, lost = (stats.lostBy || {})[String(me)] || 0, kill = (stats.lostBy || {})[String(-me)] || 0; return (dmg ? ' · ' + dmg + ' damaged' : '') + (lost ? ' · lost ' + lost : '') + (kill ? ' · enemy forts destroyed ' + kill : ''); })() + (stats.squadHits ? ' · squad hits ' + stats.squadHits + (LB.squads && LB.squads.getStats ? ' / KIA ' + ((LB.squads.getStats().fortKillsBy || {})[me] || 0) : '') : '') + (stats.last ? ' · ' + stats.last : '');
     if (DMG) { var rb = el.p.querySelector('#fortRepair'), sb = el.p.querySelector('#fortShell'); if (rb) { rb.disabled = repT > 0 || !mostDamaged(me); rb.querySelector('small').textContent = repT > 0 ? 'engineers busy ' + Math.ceil(repT) + ' s' : '3 fuel · most damaged'; } if (sb) { sb.disabled = shellT > 0; sb.querySelector('small').textContent = shellT > 0 ? 'reloading ' + Math.ceil(shellT) + ' s' : '3 ammo · 3 rounds'; } }
+    try { applyCamo(); } catch (_) {}
     doc.body.classList.toggle('fort-placing', !!armed);
   }
   function update() {
@@ -387,7 +423,7 @@
     arm: function (t) { armed = TYPES[t] ? t : null; renderUi(); },
     list: function () { return list.filter(function (f) { return !f.dead; }).map(function (f) { return { id: f.id, type: f.type, side: f.side, x: f.x, z: f.z, blind: !!f.blind, hp: f.hp, maxHp: f.maxHp, sup: +(f.sup || 0).toFixed(2) }; }); },
     wrecks: function () { return list.filter(function (f) { return f.dead; }).map(function (f) { return { id: f.id, type: f.type, side: f.side, x: f.x, z: f.z, t: +f.wreckT.toFixed(1) }; }); },
-    damageAt: function (x, z, p, why) { return damageAt(x, z, p, why); }, targetsFor: targetsFor, suppress: suppress, repair: cmdRepair, shell: cmdShell, dmgEnabled: function () { return DMG; },
+    damageAt: function (x, z, p, why) { return damageAt(x, z, p, why); }, targetsFor: targetsFor, suppress: suppress, repair: cmdRepair, shell: cmdShell, dmgEnabled: function () { return DMG; }, camoApplied: function () { return camoKey; },
     _artT: function (t) { artT = t; return true; }, _cds: function () { repT = 0; shellT = 0; return true; },
     getStats: function () { var o = Object.assign({ count: list.filter(function (f) { return !f.dead; }).length, armed: armed, real: REAL, dmg: DMG, shellsInFlight: shells.length }, stats); if (stats.lostBy) o.lostBy = Object.assign({}, stats.lostBy); return o; },
     _aim: function (i) { var f = list[i]; return f ? { aim: +f.aim.toFixed(3), aimT: f.aimT == null ? null : +f.aimT.toFixed(3), recoil: f.recoil || 0, flash: !!(f.g.userData.flash && f.g.userData.flash.visible) } : null; },
