@@ -95,7 +95,7 @@
   }
   function buildReal() {
     var lowQ = low(), tex = lowQ ? null : concreteTex();
-    mat.rConcrete = new THREE.MeshStandardMaterial({ color: col(lowQ ? 0x7c7a73 : 0xb5b2aa), roughness: 0.93, metalness: 0, map: tex });
+    mat.rConcrete = new THREE.MeshStandardMaterial({ color: col(lowQ ? 0x6a6862 : 0xb5b2aa), roughness: 0.93, metalness: 0, map: tex });
     mat.rSand = new THREE.MeshStandardMaterial({ color: col(0x6b5c40), roughness: 1, metalness: 0 });   // burlap khaki, not peach
     mat.rDark = new THREE.MeshStandardMaterial({ color: col(0x0d0d0c), roughness: 0.9 });
     mat.rMetal = new THREE.MeshStandardMaterial({ color: col(0x2c2f2c), roughness: 0.42, metalness: 0.75 });

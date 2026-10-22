@@ -57,6 +57,7 @@ Ship heave/pitch/roll from the ocean wave function, turning circles at lane ends
 - **Scale:** the carrier is 22 m against a 1.8 m soldier (a real one is about 330 m). Ship and airbase scale is still "toy" relative to the infantry; it needs a dedicated naval scale pass (camera, lanes and sim ranges all scale with it).
 - **Aircraft:** no landing gear or flaps animation, no carrier traps (deck jets RTB to the airbase), and AA kills are still a random roll rather than a fuze/proximity model.
 - **Sea:** no foam on wave crests, shoreline breakers are a pulsing strip, and there are no ship smoke stacks or exhaust.
+- Defenses realism pass shipped v12.0.26 (`?fortfx=0`: weathered concrete, faction camo, sandbag courses, Jersey barriers, turret slew limits, slit arcs, muzzle flash, recoil, delayed distance sound). Still open for forts: damage and destruction, crew figures.
 - Carried over: fires that burn out over minutes, Doppler on more than jets, brevity codes, persistent terrain tracks. (NATO-ish map symbols shipped in v12.0.16.)
 
 ## v12.1 "War Systems"
