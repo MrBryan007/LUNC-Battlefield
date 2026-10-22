@@ -36,7 +36,7 @@ const checks = [
   ['forts + ridge LOS wired', read('js/theaters/forts.js').includes('LB.squads.woundAt(') && read('js/theaters/squads.js').includes('targetsFor: function') && read('js/theaters/ridge.js').includes('line of sight over the crest')],
   ['fort realism wired', read('js/theaters/forts.js').includes('function meshReal(') && read('js/theaters/forts.js').includes("qs.get('fortfx') !== '0'") && read('js/theaters/forts.js').includes('function onTarget(')],
   ['fort damage wired', read('js/theaters/forts.js').includes('function damageAt(') && read('js/theaters/forts.js').includes("qs.get('fortdmg') !== '0'") && read('js/theaters/squads.js').includes('LB.forts.suppress(')],
-  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.26')]
+  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.27')]
 ];
 
 let failed = 0;
