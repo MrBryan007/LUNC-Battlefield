@@ -96,7 +96,7 @@
   function buildReal() {
     var lowQ = low(), tex = lowQ ? null : concreteTex();
     mat.rConcrete = new THREE.MeshStandardMaterial({ color: col(lowQ ? 0x7c7a73 : 0xb5b2aa), roughness: 0.93, metalness: 0, map: tex });
-    mat.rSand = new THREE.MeshStandardMaterial({ color: col(0x8a7650), roughness: 1, metalness: 0 });
+    mat.rSand = new THREE.MeshStandardMaterial({ color: col(0x6b5c40), roughness: 1, metalness: 0 });   // burlap khaki, not peach
     mat.rDark = new THREE.MeshStandardMaterial({ color: col(0x0d0d0c), roughness: 0.9 });
     mat.rMetal = new THREE.MeshStandardMaterial({ color: col(0x2c2f2c), roughness: 0.42, metalness: 0.75 });
     mat.rCamo = { '-1': new THREE.MeshStandardMaterial({ color: col(0x4b5320), roughness: 0.78, metalness: 0.15 }), '1': new THREE.MeshStandardMaterial({ color: col(0x857a64), roughness: 0.78, metalness: 0.15 }) };
@@ -108,7 +108,7 @@
     geo.rPed = new THREE.CylinderGeometry(1.0, 1.35, 1.1, 12); geo.rRing = new THREE.CylinderGeometry(0.95, 0.95, 0.16, 16);
     geo.rBody = new THREE.BoxGeometry(1.0, 0.62, 1.2); geo.rShield = new THREE.BoxGeometry(1.5, 0.95, 0.08);
     geo.rBarrel = new THREE.CylinderGeometry(0.06, 0.07, 2.2, 8); geo.rBrake = new THREE.CylinderGeometry(0.11, 0.11, 0.26, 8);
-    geo.rAmmo = new THREE.BoxGeometry(0.34, 0.3, 0.5); geo.rStripe = new THREE.BoxGeometry(1.02, 0.08, 1.22);
+    geo.rAmmo = new THREE.BoxGeometry(0.34, 0.3, 0.5); geo.rStripe = new THREE.BoxGeometry(1.03, 0.07, 1.23);
     geo.rWall = jersey();
     var dot = LB.proctex && LB.proctex.softDot ? LB.proctex.softDot(THREE) : null;
     mat.flash = new THREE.SpriteMaterial({ map: dot, color: 0xffc46a, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.95 });
@@ -135,7 +135,7 @@
     } else if (type === 'turret') {
       add(geo.rPed, mat.rConcrete, 0, 0.55, 0); add(geo.rRing, mat.rMetal, 0, 1.18, 0);
       var head = new THREE.Group(); head.position.y = 1.55; g.add(head);
-      add(geo.rBody, mat.rCamo[S], 0, 0, 0, head); add(geo.rStripe, mat.rStripe[S], 0, 0.3, 0, head);
+      add(geo.rBody, mat.rCamo[S], 0, 0, 0, head); add(geo.rStripe, mat.rStripe[S], 0, 0.1, 0, head);   // thin faction band round the sides, camo on top
       add(geo.rShield, mat.rCamo[S], 0, 0.12, -0.72, head); add(geo.rAmmo, mat.rCamo[S], 0.62, -0.05, 0.05, head);
       var gun = new THREE.Group(); gun.position.set(0, 0.08, -0.6); head.add(gun);
       var b = add(geo.rBarrel, mat.rMetal, 0, 0, -1.1, gun); b.rotation.x = Math.PI / 2;
@@ -165,7 +165,7 @@
   }
   function animReal(f, dt) {   // per frame: slew the turret at a realistic rate, decay recoil and flash
     var u = f.g.userData;
-    if (u.head && f.aimT != null) { var df = Math.atan2(Math.sin(f.aimT - f.aim), Math.cos(f.aimT - f.aim)), st = SLEW * dt; f.aim += Math.abs(df) <= st ? df : st * Math.sign(df); u.head.rotation.y = f.aim; }
+    if (u.head && f.aimT != null) { var df = Math.atan2(Math.sin(f.aimT - f.aim), Math.cos(f.aimT - f.aim)), st = SLEW * dt; f.aim += Math.abs(df) <= st ? df : st * Math.sign(df); f.aim = Math.atan2(Math.sin(f.aim), Math.cos(f.aim)); u.head.rotation.y = f.aim; }
     if (u.gun && f.recoil) { f.recoil = Math.max(0, f.recoil - dt * 9); u.gun.position.z = -0.6 + f.recoil * 0.22; }
     if (u.flash && f.flashT > 0) { f.flashT -= dt; if (f.flashT <= 0) u.flash.visible = false; }
   }
