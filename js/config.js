@@ -88,8 +88,8 @@
   // Single source of truth for current release metadata.
   // Historical comments and changelog entries are left untouched.
   const BUILD = Object.freeze({
-    version: 'v12.0.25',
-    codename: 'Line of sight for defenses and the ridge',
+    version: 'v12.0.26',
+    codename: 'Defenses realism pass',
     date: '2026-10-22'
   });
 
