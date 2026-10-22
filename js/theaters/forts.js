@@ -1,6 +1,8 @@
 /* LUNC Battlefield v12.0.4 — v12.1 "War Systems" part 4: defensive structures. Game/sim layer.
  * v12.0.26 realism pass (?fortfx=0 → off): weathered concrete, faction camo, Jersey barriers, sandbag courses, turret
  * slew 75°/s and fire only on target, bunker slit arc, muzzle flash, recoil, distance-attenuated delayed sound.
+ * v12.0.27 forts under fire (?fortdmg=0 → off): blast damage through theaters.onStrike, scorch / wreck, squad suppression,
+ * AI mortar missions and repairs, Commander Repair and Mortars-on-fort.
  * Bunkers, turrets and walls, paid from the war economy and unlocked by the Fortifications tech. Pick a type in
  * Map → WAR SYSTEMS · DEFENSES and tap the field (your side of the front only). Turrets swivel to the nearest enemy unit
  * in range and fire tracers; bunkers flash from the slit. Cosmetic game FX: never removes units, never moves the front,
@@ -12,6 +14,9 @@
   var enabled = qs.get('forts') !== '0' && qs.get('economy') !== '0' && qs.get('theaters') !== '0';
   var REAL = qs.get('fortfx') !== '0';   // v12.0.26 defenses realism pass; ?fortfx=0 → v12.0.25 look and behaviour
   var SLEW = 75 * Math.PI / 180, ON_TGT = 6 * Math.PI / 180, SOUND = 343;
+  var DMG = qs.get('fortdmg') !== '0';   // v12.0.27 forts under fire; ?fortdmg=0 → v12.0.26 invulnerable forts
+  var HP = { bunker: 8, turret: 5, wall: 6 }, BLAST_R = 6, WRECK_S = 40, REPAIR_COST = { fuel: 3 }, REPAIR_CD = 20, SHELL_CD = 40, SHELL_COST = { ammo: 3 };
+  var nextId = 1, shells = [], artT = 70, repT = 0, shellT = 0, wrappedStrike = false, scorchCache = {};
   var TYPES = {
     bunker: { label: 'Bunker', cost: { fuel: 8, ammo: 4 }, tip: 'Sandbagged bunker, MG slit', range: 22 },
     turret: { label: 'Turret', cost: { fuel: 6, ammo: 8 }, tip: 'Swivel gun, auto-tracks enemies', range: 28 },
@@ -26,7 +31,7 @@
   function sideName(s) { return s < 0 ? 'BULL' : 'BEAR'; }
   function low() { try { return LB.quality.getEffectiveName() === 'LOW' || E().mobile; } catch (_) { return false; } }
   function cap() { return low() ? 5 : 8; }
-  function count(side) { return list.filter(function (f) { return f.side === side; }).length; }
+  function count(side) { return list.filter(function (f) { return f.side === side && !f.dead; }).length; }
   function unlocked(side) { return !LB.tech || !LB.tech.has ? true : LB.tech.has(side, 'forts'); }
   function afford(side, t) { var st = ECO().getStock(side), c = TYPES[t].cost; for (var r in c) if ((st[r] || 0) < c[r]) return false; return true; }
   function frontX() { try { return E().getFrontlineX() || 0; } catch (_) { return 0; } }
@@ -181,7 +186,7 @@
     x = Math.max(-150, Math.min(150, x)); z = Math.max(-80, Math.min(55, z));
     ECO().pay(side, TYPES[type].cost);
     var g = REAL ? meshReal(type, side) : mesh(type, side); g.position.set(x, H(x, z), z); root.add(g);
-    var f = { id: list.length + 1, type: type, side: side, x: x, z: z, g: g, cd: Math.random(), aim: 0, rise: 0 };
+    var f = { id: nextId++, type: type, side: side, x: x, z: z, g: g, cd: Math.random(), aim: 0, rise: 0, hp: HP[type], maxHp: HP[type], sup: 0 };
     g.scale.set(1, 0.05, 1); list.push(f);
     if (REAL && g.userData.head) { f.aim = side < 0 ? -Math.PI / 2 : Math.PI / 2; g.userData.head.rotation.y = f.aim; }   // v12.0.26: built facing the enemy
     if (me) { stats.built++; armed = null; if (LB.sfx && LB.sfx.ui) try { LB.sfx.ui('arm'); } catch (_) {} } else stats.aiBuilt++;
@@ -203,15 +208,111 @@
     if (df > ON_TGT) { f.cd = 0.08; stats.slewing = (stats.slewing || 0) + 1; return false; }
     return true;
   }
+
+  // ---- v12.0.27 forts under fire: blast damage, scorch / wreck states, crew suppression, mortars, repair ----
+  function scorchMat(m) {
+    if (!m || !m.color || m.isSpriteMaterial) return m;
+    var c = scorchCache[m.uuid]; if (c) return c;
+    c = m.clone(); c.color = m.color.clone().multiplyScalar(0.42); c.roughness = 1; scorchCache[m.uuid] = c; return c;
+  }
+  function paint(f, mode) {   // 'ok' | 'scorch' | 'wreck'
+    f.g.traverse(function (o) {
+      if (!o.isMesh && !o.isInstancedMesh) return;
+      if (!o.userData.mat0) o.userData.mat0 = o.material;
+      o.material = mode === 'ok' ? o.userData.mat0 : mode === 'wreck' ? (mat.wreck || (mat.wreck = new THREE.MeshStandardMaterial({ color: 0x1b1a18, roughness: 1 }))) : scorchMat(o.userData.mat0);
+    });
+  }
+  function hurt(f, dmg, why) {
+    if (f.dead || !DMG) return;
+    var was = f.hp; f.hp = Math.max(0, f.hp - dmg); stats.fortHits = (stats.fortHits || 0) + 1;
+    if (f.hp <= 0) return wreck(f, why);
+    if (was > f.maxHp / 2 && f.hp <= f.maxHp / 2) paint(f, 'scorch');
+    f.sup = Math.min(1, (f.sup || 0) + 0.5);
+    if (f.side === playerSide()) stats.last = TYPES[f.type].label + ' hit (' + f.hp + '/' + f.maxHp + ')';
+  }
+  function wreck(f, why) {
+    f.dead = true; f.hp = 0; f.wreckT = WRECK_S; f.blind = false; paint(f, 'wreck');
+    f.g.scale.y = 0.38; var u = f.g.userData; if (u.head) { u.head.rotation.x = 0.45; u.head.position.y = 1.1; } if (u.flash) u.flash.visible = false;
+    var k = String(f.side); stats.lostBy = stats.lostBy || {}; stats.lostBy[k] = (stats.lostBy[k] || 0) + 1; stats.destroyed = (stats.destroyed || 0) + 1;
+    var F = LB.heavyFx, y = H(f.x, f.z); if (F && F.puff) try { F.puff({ kind: 'fire', x: f.x, y: y + 1.5, z: f.z, size: 3.5, grow: 3, life: 1.2, color: 0xff8a30, opacity: 0.95 }); F.puff({ kind: 'smoke', x: f.x, y: y + 2.5, z: f.z, vy: 2, size: 4, grow: 6, life: 5, color: 0x26221f, opacity: 0.75 }); F.puff({ kind: 'dust', x: f.x, y: y + 0.6, z: f.z, size: 4, grow: 5, life: 2.4, color: 0x9a8b70, opacity: 0.6 }); } catch (_) {}
+    if (LB.sfx && LB.sfx.explosion) try { LB.sfx.explosion(0.9, Math.min(1, camDist(f.x, f.z) / 220)); } catch (_) {}
+    var me = playerSide(), lbl = TYPES[f.type].label.toLowerCase();
+    stats.last = (f.side === me ? 'Our ' : 'Enemy ') + lbl + ' destroyed' + (why ? ' (' + why + ')' : '');
+    radio(f.side, sideName(f.side) + ' ENGINEERS: "' + TYPES[f.type].label + ' destroyed' + (why ? ' by ' + why : '') + '. Crew pulling back." (SIMULATED · game FX)');
+    if (f.side === me && LB.sfx && LB.sfx.ui) try { LB.sfx.ui('deny'); } catch (_) {}
+    renderUi();
+  }
+  function damageAt(x, z, power, why) {   // a blast at (x, z): forts within 6 m × √power take 1–3+ hp, more near the centre
+    if (!DMG || !ready) return 0;
+    var pw = Math.max(0.3, power || 1), r = BLAST_R * Math.sqrt(pw), n = 0;
+    for (var i = 0; i < list.length; i++) { var f = list[i]; if (f.dead) continue; var d = Math.hypot(f.x - x, f.z - z); if (d > r) continue; hurt(f, Math.max(1, Math.round(pw * 3 * (1 - d / r) + 0.4)), why); n++; }
+    if (n) renderUi(); return n;
+  }
+  function wrapStrikes() {
+    var th = LB.theaters; if (wrappedStrike || !th || !th.onStrike) return;
+    var orig = th.onStrike; wrappedStrike = true;
+    th.onStrike = function (x, z, power) { try { damageAt(x, z, power || 1, 'air/artillery strike'); } catch (_) {} return orig.apply(this, arguments); };
+  }
+  function mortars(side, f, who) {   // 3 rounds around a fort, 2–3.6 s time of flight
+    for (var i = 0; i < 3; i++) shells.push({ side: side, x: f.x + (Math.random() - 0.5) * 6, z: f.z + (Math.random() - 0.5) * 6, t: -(2 + i * 0.8) });
+    stats.missions = (stats.missions || 0) + 1;
+    var me = playerSide(), lbl = TYPES[f.type].label.toLowerCase();
+    if (f.side === me) { stats.last = 'INCOMING — enemy mortars on our ' + lbl; radio(me, sideName(me) + ' ENGINEERS: "INCOMING! Mortars on our ' + lbl + '!" (SIMULATED · game FX)'); }
+    else radio(side, sideName(side) + ' MORTARS: "Fire mission, enemy ' + lbl + ', three rounds. Shot, over." (SIMULATED · game FX)');
+  }
+  function tickShells(dt) {
+    var F = LB.heavyFx;
+    for (var i = shells.length - 1; i >= 0; i--) {
+      var S = shells[i]; S.t += dt; if (S.t < 0) continue;
+      var y = H(S.x, S.z);
+      if (F && F.puff) try { F.puff({ kind: 'fire', x: S.x, y: y + 0.6, z: S.z, size: 1.6, grow: 1.6, life: 0.5, color: 0xffa040, opacity: 0.9 }); F.puff({ kind: 'dust', x: S.x, y: y + 0.5, z: S.z, vy: 3, size: 2.2, grow: 2.2, life: 2.2, color: 0x8a7d66, opacity: 0.7 }); } catch (_) {}
+      if (LB.sfx && LB.sfx.explosion) try { LB.sfx.explosion(0.45, Math.min(1, camDist(S.x, S.z) / 220)); } catch (_) {}
+      damageAt(S.x, S.z, 0.8, 'mortars'); shells.splice(i, 1);
+    }
+  }
+  function visibleToAi(f) { return Math.abs(f.x - frontX()) < 60; }   // the AI side sees what's near the front
+  function mostDamaged(side) { var b = null; list.forEach(function (f) { if (f.side === side && !f.dead && f.hp < f.maxHp && (!b || f.hp / f.maxHp < b.hp / b.maxHp)) b = f; }); return b; }
+  function repairFort(f) { f.hp = f.maxHp; f.sup = 0; paint(f, 'ok'); stats.repairs = (stats.repairs || 0) + 1; }
+  function dmgTick(dt) {
+    wrapStrikes(); tickShells(dt);
+    if (repT > 0) repT -= dt; if (shellT > 0) shellT -= dt;
+    var me = playerSide(), en = -me;
+    artT -= dt; if (artT <= 0) {
+      artT = 60 + Math.random() * 30;
+      var tg = list.filter(function (f) { return f.side === me && !f.dead && visibleToAi(f); });
+      if (tg.length && (!ECO() || !ECO().isEnabled() || ECO().pay(en, SHELL_COST))) mortars(en, tg[(Math.random() * tg.length) | 0], 'ai');
+      var d = mostDamaged(en); if (d && Math.random() < 0.6 && ECO().pay(en, REPAIR_COST)) { repairFort(d); radio(en, sideName(en) + ' ENGINEERS: "' + TYPES[d.type].label + ' patched up." (SIMULATED · game FX)'); }
+    }
+  }
+  function cmdRepair() {
+    var me = playerSide(), f = mostDamaged(me);
+    if (repT > 0) { stats.last = 'Engineers busy · ' + Math.ceil(repT) + ' s'; return renderUi(), false; }
+    if (!f) { stats.last = 'Nothing to repair'; return renderUi(), false; }
+    if (!ECO().pay(me, REPAIR_COST)) { stats.last = 'Repair needs 3 fuel'; return renderUi(), false; }
+    repairFort(f); repT = REPAIR_CD; stats.last = TYPES[f.type].label + ' repaired';
+    radio(me, sideName(me) + ' ENGINEERS: "' + TYPES[f.type].label + ' repaired, back in the fight." (SIMULATED · game FX)'); renderUi(); return true;
+  }
+  function cmdShell() {   // your mortars on the nearest enemy fort you can see (fog of war)
+    var me = playerSide(), fogOn = LB.fow && LB.fow.isActive && LB.fow.isActive(), b = null, bd = 1e9, fx = frontX();
+    if (shellT > 0) { stats.last = 'Mortars reloading · ' + Math.ceil(shellT) + ' s'; return renderUi(), false; }
+    list.forEach(function (f) { if (f.side === me || f.dead) return; if (fogOn && !LB.fow.visible(f.x, f.z)) return; var d = Math.abs(f.x - fx) + Math.abs(f.z) * 0.2; if (d < bd) { bd = d; b = f; } });
+    if (!b) { stats.last = 'No enemy fort in sight'; return renderUi(), false; }
+    if (!ECO().pay(me, SHELL_COST)) { stats.last = 'Mortars need 3 ammo'; return renderUi(), false; }
+    mortars(me, b, 'cmd'); shellT = SHELL_CD; stats.cmdMissions = (stats.cmdMissions || 0) + 1; stats.last = 'Mortars on the enemy ' + TYPES[b.type].label.toLowerCase(); renderUi(); return true;
+  }
+  function targetsFor(side) { var o = []; list.forEach(function (f) { if (f.side !== side && !f.dead && f.rise >= 1) o.push({ id: f.id, type: f.type, x: f.x, z: f.z }); }); return o; }
+  function suppress(id, amt) { if (!DMG) return false; for (var i = 0; i < list.length; i++) if (list[i].id === id && !list[i].dead) { list[i].sup = Math.min(1, (list[i].sup || 0) + (amt || 0.15)); stats.suppressed = (stats.suppressed || 0) + 1; return true; } return false; }
   function step(dt) {
     var F = LB.heavyFx;
     for (var i = 0; i < list.length; i++) {
       var f = list[i];
+      if (f.dead) { f.wreckT -= dt; if (f.wreckT <= 0) { root.remove(f.g); list.splice(i, 1); i--; } continue; }   // v12.0.27 wreck, cleared after 40 s
+      if (DMG) { if (f.sup > 0) f.sup = Math.max(0, f.sup - dt * 0.25); if (f.hp <= f.maxHp / 2 && f.g.visible) { f.smokeT = (f.smokeT || 0) - dt; if (f.smokeT <= 0 && F && F.puff) { f.smokeT = 0.8 + Math.random() * 0.6; try { F.puff({ kind: 'smoke', x: f.x + (Math.random() - 0.5), y: H(f.x, f.z) + 2, z: f.z + (Math.random() - 0.5), vy: 1.2, size: 1.4, grow: 3, life: 3, color: 0x2e2a26, opacity: 0.55 }); } catch (_) {} } } }
       if (f.side !== playerSide()) f.g.visible = !(LB.fow && LB.fow.isActive && LB.fow.isActive()) || LB.fow.visible(f.x, f.z);   // v12.0.8 fog of war
       if (f.rise < 1) { f.rise = Math.min(1, f.rise + dt * 1.5); f.g.scale.y = 0.05 + 0.95 * f.rise; }
       var R = TYPES[f.type].range; if (!R) continue;
       if (REAL) animReal(f, dt);
-      f.cd -= dt; if (f.cd > 0) continue; f.cd = f.type === 'turret' ? 1.1 : 1.8;
+      f.cd -= dt; if (f.cd > 0) continue; f.cd = (f.type === 'turret' ? 1.1 : 1.8) * (1 + (f.sup || 0));   // v12.0.27: a suppressed crew fires slower
       // v12.0.25: line of sight; enemy squads first (they can be hurt), then the market armies (cosmetic as before)
       var L = LB.los && LB.los.isEnabled && LB.los.isEnabled() ? LB.los : null, eye = f.type === 'turret' ? 1.9 : 1.25, tx, tz, sq = null, hidden = 0;
       if (L && LB.squads && LB.squads.targetsFor) {
@@ -221,7 +322,7 @@
       if (sq) {
         tx = sq.x; tz = sq.z;
         if (REAL && !onTarget(f, tx, tz)) continue;
-        var pc = (f.type === 'turret' ? 0.22 : 0.18) * (1 - sq.d / R * 0.5) * (sq.cover ? 0.5 : 1);
+        var pc = (f.type === 'turret' ? 0.22 : 0.18) * (1 - sq.d / R * 0.5) * (sq.cover ? 0.5 : 1) * (1 - (f.sup || 0) * 0.5);
         if (LB.wxCombat && LB.wxCombat.mod) try { pc *= LB.wxCombat.mod('gun'); } catch (_) {}
         stats.squadShots = (stats.squadShots || 0) + 1;
         if (Math.random() < pc && LB.squads.woundAt(sq.k, f.side)) stats.squadHits = (stats.squadHits || 0) + 1;
@@ -235,6 +336,7 @@
       if (F && F.tracers) try { F.tracers(f.x, f.z, tx, tz, f.type === 'turret' ? 3 : 2, f.type === 'turret' ? 1.6 : 1.2); stats.shots++; } catch (_) {}
       if (REAL) shotFx(f, F);
     }
+    if (DMG) dmgTick(dt);
     aiT -= dt; if (aiT <= 0) { aiT = 35 + Math.random() * 25; var en = -playerSide(); if (unlocked(en) && count(en) < cap()) { var ty = TLIST[(Math.random() * 3) | 0]; if (afford(en, ty)) place(ty, frontX() + en * (12 + Math.random() * 25), -40 + Math.random() * 80, en); } }
     uiT -= dt; if (uiT <= 0) { uiT = 0.5; renderUi(); }
   }
@@ -243,9 +345,11 @@
     var p = doc.createElement('div'); p.id = 'fortsPanel'; p.className = 'supply-panel forts-panel';
     p.innerHTML = '<div class="th-title">WAR SYSTEMS · DEFENSES <span class="qual sim">SIMULATED</span></div><div class="econ-actions">' +
       TLIST.map(function (t) { var c = TYPES[t].cost; return '<button type="button" data-fort="' + t + '" title="' + TYPES[t].tip + '">' + TYPES[t].label + '<small>' + Object.keys(c).map(function (r) { return c[r] + ' ' + r; }).join(' + ') + '</small></button>'; }).join('') +
-      '</div><div class="sup-row"><span id="fortStatus" class="sup-status"></span></div><div class="th-note">Pick a type, then tap the field on your side of the front. Turrets and bunkers fire tracers at enemies in range — game FX only, they never remove units or move the front.</div>';
+      '</div>' + (DMG ? '<div class="econ-actions"><button type="button" id="fortRepair">Repair<small>3 fuel · most damaged</small></button><button type="button" id="fortShell">Mortars on fort<small>3 ammo · 3 rounds</small></button></div>' : '') + '<div class="sup-row"><span id="fortStatus" class="sup-status"></span></div><div class="th-note">Pick a type, then tap the field on your side of the front. Turrets and bunkers fire tracers at enemies in range — game FX only, they never remove units or move the front.</div>';
     el.p = p; el.status = p.querySelector('#fortStatus');
     p.addEventListener('click', function (ev) {
+      if (ev.target.closest('#fortRepair')) return void cmdRepair();
+      if (ev.target.closest('#fortShell')) return void cmdShell();
       var b = ev.target.closest('button[data-fort]'); if (!b) return;
       var t = b.getAttribute('data-fort'); armed = armed === t ? null : t;
       if (armed && LB.dock && LB.dock.close && E().mobile) try { LB.dock.close(); } catch (_) {}
@@ -263,7 +367,8 @@
     if (!el.p) return; placeUi();
     var me = playerSide(), ok = unlocked(me);
     TLIST.forEach(function (t) { var b = el.p.querySelector('[data-fort="' + t + '"]'); if (!b) return; b.disabled = !ok || !afford(me, t) || count(me) >= cap(); b.classList.toggle('armed', armed === t); });
-    el.status.textContent = !ok ? 'Locked · research Fortifications in the tech tree' : armed ? 'Placing ' + TYPES[armed].label + ' · tap the field (Esc cancels)' : 'Yours ' + count(me) + '/' + cap() + ' · enemy ' + count(-me) + (function () { var b = list.filter(function (f) { return f.side === me && f.blind; }).length; return b ? ' · ' + b + ' NO LOS' : ''; })() + (stats.squadHits ? ' · squad hits ' + stats.squadHits + (LB.squads && LB.squads.getStats ? ' / KIA ' + ((LB.squads.getStats().fortKillsBy || {})[me] || 0) : '') : '') + (stats.last ? ' · ' + stats.last : '');
+    el.status.textContent = !ok ? 'Locked · research Fortifications in the tech tree' : armed ? 'Placing ' + TYPES[armed].label + ' · tap the field (Esc cancels)' : 'Yours ' + count(me) + '/' + cap() + ' · enemy ' + count(-me) + (function () { var b = list.filter(function (f) { return f.side === me && f.blind; }).length; return b ? ' · ' + b + ' NO LOS' : ''; })() + (function () { if (!DMG) return ''; var dmg = list.filter(function (f) { return f.side === me && !f.dead && f.hp < f.maxHp; }).length, lost = (stats.lostBy || {})[String(me)] || 0, kill = (stats.lostBy || {})[String(-me)] || 0; return (dmg ? ' · ' + dmg + ' damaged' : '') + (lost ? ' · lost ' + lost : '') + (kill ? ' · enemy forts destroyed ' + kill : ''); })() + (stats.squadHits ? ' · squad hits ' + stats.squadHits + (LB.squads && LB.squads.getStats ? ' / KIA ' + ((LB.squads.getStats().fortKillsBy || {})[me] || 0) : '') : '') + (stats.last ? ' · ' + stats.last : '');
+    if (DMG) { var rb = el.p.querySelector('#fortRepair'), sb = el.p.querySelector('#fortShell'); if (rb) { rb.disabled = repT > 0 || !mostDamaged(me); rb.querySelector('small').textContent = repT > 0 ? 'engineers busy ' + Math.ceil(repT) + ' s' : '3 fuel · most damaged'; } if (sb) { sb.disabled = shellT > 0; sb.querySelector('small').textContent = shellT > 0 ? 'reloading ' + Math.ceil(shellT) + ' s' : '3 ammo · 3 rounds'; } }
     doc.body.classList.toggle('fort-placing', !!armed);
   }
   function update() {
@@ -278,8 +383,11 @@
   LB.forts = {
     isEnabled: function () { return enabled && ready; }, update: update, place: place,
     arm: function (t) { armed = TYPES[t] ? t : null; renderUi(); },
-    list: function () { return list.map(function (f) { return { type: f.type, side: f.side, x: f.x, z: f.z, blind: !!f.blind }; }); },
-    getStats: function () { return Object.assign({ count: list.length, armed: armed, real: REAL }, stats); },
+    list: function () { return list.filter(function (f) { return !f.dead; }).map(function (f) { return { id: f.id, type: f.type, side: f.side, x: f.x, z: f.z, blind: !!f.blind, hp: f.hp, maxHp: f.maxHp, sup: +(f.sup || 0).toFixed(2) }; }); },
+    wrecks: function () { return list.filter(function (f) { return f.dead; }).map(function (f) { return { id: f.id, type: f.type, side: f.side, x: f.x, z: f.z, t: +f.wreckT.toFixed(1) }; }); },
+    damageAt: function (x, z, p, why) { return damageAt(x, z, p, why); }, targetsFor: targetsFor, suppress: suppress, repair: cmdRepair, shell: cmdShell, dmgEnabled: function () { return DMG; },
+    _artT: function (t) { artT = t; return true; }, _cds: function () { repT = 0; shellT = 0; return true; },
+    getStats: function () { var o = Object.assign({ count: list.filter(function (f) { return !f.dead; }).length, armed: armed, real: REAL, dmg: DMG, shellsInFlight: shells.length }, stats); if (stats.lostBy) o.lostBy = Object.assign({}, stats.lostBy); return o; },
     _aim: function (i) { var f = list[i]; return f ? { aim: +f.aim.toFixed(3), aimT: f.aimT == null ? null : +f.aimT.toFixed(3), recoil: f.recoil || 0, flash: !!(f.g.userData.flash && f.g.userData.flash.visible) } : null; },
     TYPES: TYPES, _step: function (sec) { if (!ready) return; for (var t = 0; t < sec; t += 0.1) step(0.1); }
   };
