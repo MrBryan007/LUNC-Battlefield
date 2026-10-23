@@ -372,12 +372,12 @@ body.cutscene .ach-toast { display: none; }
 .hs-board tr.on td { background: rgba(215,181,109,.08); }
 .hs-btns { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
 .hs-btns button { min-height: 44px; padding: 8px 16px; font-size: 14px; }
-.hs-chip { position: fixed; z-index: 75; left: 50%; transform: translateX(-50%); top: calc(env(safe-area-inset-top, 0px) + 92px); display: flex; align-items: center; gap: 8px; padding: 4px 6px 4px 12px; border-radius: 999px; background: rgba(8,12,10,.82); border: 1px solid rgba(255,255,255,.14); color: #e8e2cf; font: 600 12px Inter, system-ui, sans-serif; pointer-events: auto; }
+.hs-chip { position: fixed; z-index: 75; left: 50%; transform: translateX(-50%); bottom: calc(env(safe-area-inset-bottom, 0px) + 66px); display: flex; align-items: center; gap: 8px; padding: 4px 6px 4px 12px; border-radius: 999px; background: rgba(8,12,10,.82); border: 1px solid rgba(255,255,255,.14); color: #e8e2cf; font: 600 12px Inter, system-ui, sans-serif; pointer-events: auto; white-space: nowrap; }
 .hs-chip.hs-bull { border-color: rgba(124,240,168,.55); } .hs-chip.hs-bear { border-color: rgba(255,138,128,.55); }
 .hs-chip.hs-bull #hsWho { color: #7cf0a8; } .hs-chip.hs-bear #hsWho { color: #ff8a80; }
 .hs-chip b { font-variant-numeric: tabular-nums; min-width: 34px; text-align: center; }
 .hs-chip.hs-low b { color: #ff8a80; }
 .hs-chip #hsRound { color: #9aa59d; font-weight: 500; }
 .hs-chip button { font: 600 11px Inter, system-ui, sans-serif; color: #14100a; background: #d7b56d; border: 0; border-radius: 999px; padding: 5px 10px; cursor: pointer; }
-@media (max-width: 760px) { .hs-chip { top: calc(env(safe-area-inset-top, 0px) + 124px); } }
+@media (max-width: 760px) { .hs-chip { bottom: auto; top: calc(env(safe-area-inset-top, 0px) + 96px); left: calc(env(safe-area-inset-left, 0px) + 10px); transform: none; } }
 body.ui-hidden .hs-chip { display: flex; }
