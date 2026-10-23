@@ -88,8 +88,8 @@
   // Single source of truth for current release metadata.
   // Historical comments and changelog entries are left untouched.
   const BUILD = Object.freeze({
-    version: 'v12.0.30',
-    codename: 'Navy detail: funnels, exhaust, radar',
+    version: 'v12.0.31',
+    codename: 'Hot-seat: two commanders, one device',
     date: '2026-10-23'
   });
 

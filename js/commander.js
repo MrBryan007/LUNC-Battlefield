@@ -991,6 +991,10 @@
   LB.commander = {
     init: init, tick: tick, arm: arm, deploy: deploy, togglePause: togglePause,
     getState: function () { return { started: started, session: session, profile: profile, mission: mission, call: call, armed: armed, cds: cds }; },
+    // v12.0.31 hot-seat: switch the commanded side (not saved unless keep) and swap per-player session + cooldowns
+    setSide: function (sd, keep) { if (sd !== 'bull' && sd !== 'bear') return false; profile.side = sd; if (keep) save(); renderSide(); return true; },
+    useSession: function (s, c) { var o = { session: session, cds: cds }; if (s) session = s; if (c) cds = c; try { disarm(); } catch (_) {} renderAll(); return o; },
+    freshSession: function () { return { session: { score: 0, combo: 0, comboT: 0, level: 1, charge: 0, nuke: 0, hits: 0, strikes: 0, streak: 0, missionsDone: 0 }, cds: { arty: 0, air: 0, moon: 0, cluster: 0, emp: 0, flare: 0, moab: 0, cbomb: 0, napalm: 0, gas: 0, a10: 0, nuke: 0 } }; },
     // test hook: fire an ability at world x/z (used by headless verification)
     debugFire: function (ability, x, z) { fireAt(ability, { x: x, z: z }); },
     // v11.1 loading-screen warm-up: light exists before first compile; one fire + one smoke
