@@ -70,9 +70,9 @@
       add(g, geo.box, mat.boot, 0, 0.28, 0, L * 1.005, 0.32, B * 1.04);
       var nf = s.kind === 'battleship' ? 2 : 1;
       for (var k = 0; k < nf; k++) {
-        var fx = -L * 0.2 - k * L * 0.09, r = L * 0.034, h = 1.5;
-        d.funnels.push(add(g, geo.funnel, gray, fx, 2.7 + h / 2 - 0.4, 0, r * 2, h, r * 2));
-        add(g, geo.cap, mat.cap, fx - 0.06, 2.7 + h - 0.38, 0, r * 2.04, 0.16, r * 2.04);
+        var bs = s.kind === 'battleship', fx = -L * (bs ? 0.19 : 0.2) - k * L * 0.065, r = L * (bs ? 0.025 : 0.03), h = bs ? 1.9 : 1.5;   // stands on the 1.4 m deck
+        d.funnels.push(add(g, geo.funnel, gray, fx, 1.4 + h / 2, 0, r * 2, h, r * 2));
+        add(g, geo.cap, mat.cap, fx - h * 0.06, 1.4 + h + 0.02, 0, r * 2.04, 0.16, r * 2.04);
       }
       var mx = -L * 0.03, mt = 3.2;
       add(g, geo.mast, mat.steel, mx, mt + 0.9, 0, 1, 1.8, 1);

@@ -39,7 +39,7 @@ const checks = [
   ['rank unlocks wired', read('js/ui/achievements.js').includes('function setCamo(') && read('js/ui/achievements.js').includes("qs.get('cosmetics') !== '0'") && read('js/theaters/forts.js').includes('function applyCamo(') && read('css/hud-dock.css').includes('.ach-camo')],
   ['fort crews + engineers wired', read('js/theaters/forts.js').includes('function soldier(') && read('js/theaters/forts.js').includes("qs.get('fortcrew') !== '0'") && read('js/theaters/forts.js').includes('function tickEng(') && read('js/theaters/forts.js').includes('engHit(x, z,')],
   ['navy detail wired', index.includes('js/fx/naval-detail.js') && index.indexOf('fx/naval-detail.js') > index.indexOf('theaters/theaters.js') && engine.includes('LUNCBattle.navalDetail.update()') && read('js/fx/naval-detail.js').includes("qs.get('navdetail') !== '0'")],
-  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.29')]
+  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.30')]
 ];
 
 let failed = 0;
