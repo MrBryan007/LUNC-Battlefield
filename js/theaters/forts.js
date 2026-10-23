@@ -3,6 +3,9 @@
  * slew 75°/s and fire only on target, bunker slit arc, muzzle flash, recoil, distance-attenuated delayed sound.
  * v12.0.27 forts under fire (?fortdmg=0 → off): blast damage through theaters.onStrike, scorch / wreck, squad suppression,
  * AI mortar missions and repairs, Commander Repair and Mortars-on-fort.
+ * v12.0.29 fort crews and combat engineers (?fortcrew=0 → off): a gunner behind each turret shield and a sentry behind
+ * each bunker (they duck when suppressed and are gone when the fort is wrecked); Repair sends a two-man engineer team on
+ * foot from 35 m behind the fort, they work 6 s and can be killed by mortars / strikes on the way.
  * Bunkers, turrets and walls, paid from the war economy and unlocked by the Fortifications tech. Pick a type in
  * Map → WAR SYSTEMS · DEFENSES and tap the field (your side of the front only). Turrets swivel to the nearest enemy unit
  * in range and fire tracers; bunkers flash from the slit. Cosmetic game FX: never removes units, never moves the front,
@@ -16,6 +19,8 @@
   var SLEW = 75 * Math.PI / 180, ON_TGT = 6 * Math.PI / 180, SOUND = 343;
   var DMG = qs.get('fortdmg') !== '0';   // v12.0.27 forts under fire; ?fortdmg=0 → v12.0.26 invulnerable forts
   var HP = { bunker: 8, turret: 5, wall: 6 }, BLAST_R = 6, WRECK_S = 40, REPAIR_COST = { fuel: 3 }, REPAIR_CD = 20, SHELL_CD = 40, SHELL_COST = { ammo: 3 };
+  var CREW = REAL && qs.get('fortcrew') !== '0';   // v12.0.29 crews + engineers; ?fortcrew=0 → v12.0.28 (no crew, instant repair)
+  var ENG_SPEED = 3.5, ENG_WORK = 6, ENG_FROM = 35, ENG_KILL_R = 4, engs = [];
   var nextId = 1, shells = [], artT = 70, repT = 0, shellT = 0, wrappedStrike = false, scorchCache = {};
   var TYPES = {
     bunker: { label: 'Bunker', cost: { fuel: 8, ammo: 4 }, tip: 'Sandbagged bunker, MG slit', range: 22 },
@@ -126,6 +131,35 @@
     }
     im.castShadow = im.receiveShadow = true; return im;
   }
+  // ---- v12.0.29 crew figures: ~1.8 m procedural soldier in faction uniform with helmet, shared geometry/materials ----
+  function soldier(side, eng) {
+    var S = String(side), g = new THREE.Group(), sh = !low();
+    if (!geo.cTorso) {
+      geo.cTorso = new THREE.BoxGeometry(0.44, 0.6, 0.25); geo.cLeg = new THREE.BoxGeometry(0.16, 0.8, 0.19); geo.cArm = new THREE.BoxGeometry(0.12, 0.58, 0.14);
+      geo.cHead = new THREE.SphereGeometry(0.115, 8, 6); geo.cHelm = new THREE.SphereGeometry(0.16, 9, 5, 0, Math.PI * 2, 0, Math.PI / 2); geo.cPack = new THREE.BoxGeometry(0.32, 0.38, 0.16);
+      geo.cKit = new THREE.BoxGeometry(0.34, 0.2, 0.16);
+      geo.cLeg.translate(0, -0.4, 0); geo.cArm.translate(0, -0.27, 0);   // pivot at hip / shoulder
+      mat.cUni = { '-1': new THREE.MeshStandardMaterial({ color: col(0x4f5a2e), roughness: 0.9 }), '1': new THREE.MeshStandardMaterial({ color: col(0x7a7360), roughness: 0.9 }) };
+      mat.cHelm = { '-1': new THREE.MeshStandardMaterial({ color: col(0x3c4426), roughness: 0.75 }), '1': new THREE.MeshStandardMaterial({ color: col(0x625c4b), roughness: 0.75 }) };
+      mat.cSkin = new THREE.MeshStandardMaterial({ color: col(0x8a6a55), roughness: 0.8 });
+      mat.cBoot = new THREE.MeshStandardMaterial({ color: col(0x1e1c19), roughness: 0.9 });
+      mat.cKit = new THREE.MeshStandardMaterial({ color: col(0x6e3a1e), roughness: 0.7, metalness: 0.2 });
+    }
+    function add(gm, mt, x, y, z) { var q = new THREE.Mesh(gm, mt); q.position.set(x, y, z); q.castShadow = sh; (q.userData || (q.userData = {})).crew = 1; g.add(q); return q; }
+    var legs = [add(geo.cLeg, mat.cUni[S], -0.11, 0.82, 0), add(geo.cLeg, mat.cUni[S], 0.11, 0.82, 0)];
+    add(geo.cTorso, mat.cUni[S], 0, 1.12, 0);
+    var arms = [add(geo.cArm, mat.cUni[S], -0.29, 1.38, 0), add(geo.cArm, mat.cUni[S], 0.29, 1.38, 0)];
+    add(geo.cHead, mat.cSkin, 0, 1.56, 0); add(geo.cHelm, mat.cHelm[S], 0, 1.6, 0);
+    add(geo.cPack, mat.cHelm[S], 0, 1.14, 0.2);
+    if (eng) { var kit = add(geo.cKit, mat.cKit, 0.38, 0.95, 0); g.userData.kit = kit; }
+    g.userData.legs = legs; g.userData.arms = arms; g.userData.crouch = 0;
+    return g;
+  }
+  function crewPose(m, crouch, t) {   // crouch 0..1: knees down, lean forward; small idle sway
+    var u = m.userData; u.crouch += (crouch - u.crouch) * 0.15;
+    m.scale.y = 1 - 0.32 * u.crouch; m.rotation.x = -0.25 * u.crouch + Math.sin(t * 0.7 + m.id) * 0.015;
+  }
+
   function meshReal(type, side) {
     var g = new THREE.Group(), m, S = String(side);
     function add(geom, mt, x, y, z, par) { var q = new THREE.Mesh(geom, mt); q.position.set(x, y, z); q.castShadow = q.receiveShadow = true; (par || g).add(q); return q; }
@@ -137,6 +171,7 @@
       var flag = add(new THREE.BoxGeometry(0.03, 0.5, 0.9), mat.rStripe[S], side * 1.4, 2.75, 0.45); flag.castShadow = false;
       add(new THREE.CylinderGeometry(0.03, 0.03, 1.3, 5), mat.rMetal, side * 1.4, 2.45, 0);
       g.userData.muzzle = new THREE.Vector3(-side * 2.95, 1.25, 0);
+      if (CREW) { var sen = soldier(side); sen.position.set(side * 4.35, 0, 0.7); sen.rotation.y = side * Math.PI / 2; g.add(sen); g.userData.crew = [sen]; }   // v12.0.29 sentry behind the bunker, facing the enemy
     } else if (type === 'turret') {
       add(geo.rPed, mat.rConcrete, 0, 0.55, 0); add(geo.rRing, mat.rMetal, 0, 1.18, 0);
       var head = new THREE.Group(); head.position.y = 1.55; g.add(head);
@@ -146,6 +181,7 @@
       var b = add(geo.rBarrel, mat.rMetal, 0, 0, -1.1, gun); b.rotation.x = Math.PI / 2;
       var br = add(geo.rBrake, mat.rMetal, 0, 0, -2.2, gun); br.rotation.x = Math.PI / 2;
       g.userData.head = head; g.userData.gun = gun;
+      if (CREW) { var gn = soldier(side); gn.position.set(0, -0.29, 0.62); gn.userData.arms.forEach(function (a) { a.rotation.x = 1.1; }); head.add(gn); g.userData.crew = [gn]; }   // v12.0.29 gunner on the pedestal behind the shield, turns with the head
       g.userData.muzzleLocal = new THREE.Vector3(0, 0.08, -2.95);
     } else {
       var w = new THREE.InstancedMesh(geo.rWall, mat.rConcrete, 5), o = new THREE.Object3D();
@@ -173,6 +209,7 @@
     if (u.head && f.aimT != null) { var df = Math.atan2(Math.sin(f.aimT - f.aim), Math.cos(f.aimT - f.aim)), st = SLEW * dt; f.aim += Math.abs(df) <= st ? df : st * Math.sign(df); f.aim = Math.atan2(Math.sin(f.aim), Math.cos(f.aim)); u.head.rotation.y = f.aim; }
     if (u.gun && f.recoil) { f.recoil = Math.max(0, f.recoil - dt * 9); u.gun.position.z = -0.6 + f.recoil * 0.22; }
     if (u.flash && f.flashT > 0) { f.flashT -= dt; if (f.flashT <= 0) u.flash.visible = false; }
+    if (u.crew) { var tt = performance.now() / 1000, c = (f.sup || 0) > 0.3 ? 1 : 0; for (var i = 0; i < u.crew.length; i++) crewPose(u.crew[i], c, tt); }   // v12.0.29 a suppressed crew ducks
   }
   function place(type, x, z, side) {
     side = side == null ? playerSide() : side; var me = side === playerSide();
@@ -232,7 +269,7 @@
   }
   function wreck(f, why) {
     f.dead = true; f.hp = 0; f.wreckT = WRECK_S; f.blind = false; paint(f, 'wreck');
-    f.g.scale.y = 0.38; var u = f.g.userData; if (u.head) { u.head.rotation.x = 0.45; u.head.position.y = 1.1; } if (u.flash) u.flash.visible = false;
+    f.g.scale.y = 0.38; var u = f.g.userData; if (u.crew) u.crew.forEach(function (m) { m.visible = false; }); if (u.head) { u.head.rotation.x = 0.45; u.head.position.y = 1.1; } if (u.flash) u.flash.visible = false;
     var k = String(f.side); stats.lostBy = stats.lostBy || {}; stats.lostBy[k] = (stats.lostBy[k] || 0) + 1; stats.destroyed = (stats.destroyed || 0) + 1;
     var F = LB.heavyFx, y = H(f.x, f.z); if (F && F.puff) try { F.puff({ kind: 'fire', x: f.x, y: y + 1.5, z: f.z, size: 3.5, grow: 3, life: 1.2, color: 0xff8a30, opacity: 0.95 }); F.puff({ kind: 'smoke', x: f.x, y: y + 2.5, z: f.z, vy: 2, size: 4, grow: 6, life: 5, color: 0x26221f, opacity: 0.75 }); F.puff({ kind: 'dust', x: f.x, y: y + 0.6, z: f.z, size: 4, grow: 5, life: 2.4, color: 0x9a8b70, opacity: 0.6 }); } catch (_) {}
     if (LB.sfx && LB.sfx.explosion) try { LB.sfx.explosion(0.9, Math.min(1, camDist(f.x, f.z) / 220)); } catch (_) {}
@@ -245,6 +282,7 @@
   function damageAt(x, z, power, why) {   // a blast at (x, z): forts within 6 m × √power take 1–3+ hp, more near the centre
     if (!DMG || !ready) return 0;
     var pw = Math.max(0.3, power || 1), r = BLAST_R * Math.sqrt(pw), n = 0;
+    if (engs.length) engHit(x, z, ENG_KILL_R * Math.sqrt(pw), why);
     for (var i = 0; i < list.length; i++) { var f = list[i]; if (f.dead) continue; var d = Math.hypot(f.x - x, f.z - z); if (d > r) continue; hurt(f, Math.max(1, Math.round(pw * 3 * (1 - d / r) + 0.4)), why); n++; }
     if (n) renderUi(); return n;
   }
@@ -271,17 +309,86 @@
     }
   }
   function visibleToAi(f) { return Math.abs(f.x - frontX()) < 60; }   // the AI side sees what's near the front
-  function mostDamaged(side) { var b = null; list.forEach(function (f) { if (f.side === side && !f.dead && f.hp < f.maxHp && (!b || f.hp / f.maxHp < b.hp / b.maxHp)) b = f; }); return b; }
+  function mostDamaged(side) { var b = null; list.forEach(function (f) { if (f.side === side && !f.dead && !f.engTeam && f.hp < f.maxHp && (!b || f.hp / f.maxHp < b.hp / b.maxHp)) b = f; }); return b; }
   function repairFort(f) { f.hp = f.maxHp; f.sup = 0; paint(f, 'ok'); stats.repairs = (stats.repairs || 0) + 1; }
+
+  // ---- v12.0.29 combat engineers: Repair walks a two-man team out from 35 m behind the fort, 6 s of work, can be killed ----
+  function engOn() { return CREW && DMG; }
+  function sendEngineers(f, who) {
+    var side = f.side, sx = f.x + side * ENG_FROM, team = { id: nextId++, side: side, fort: f, who: who, state: 'walk', t: 0, age: 0, men: [] };
+    sx = Math.max(-170, Math.min(170, sx));
+    for (var i = 0; i < 2; i++) {
+      var z = f.z + (i ? 1.3 : -1.3), m = soldier(side, true); m.position.set(sx, H(sx, z), z); root.add(m);
+      team.men.push({ g: m, x: sx, z: z, x0: sx, z0: z, ox: i ? 1.2 : -1.2, alive: true, ph: Math.random() * 6, deadT: 0 });
+    }
+    f.engTeam = team; engs.push(team); stats.engSent = (stats.engSent || 0) + 1;
+    return team;
+  }
+  function engKia(team, m, why) {
+    m.alive = false; m.deadT = 8; m.g.rotation.x = -Math.PI / 2 * 0.95; m.g.position.y = H(m.x, m.z) + 0.15;
+    var k = String(team.side); stats.engKiaBy = stats.engKiaBy || {}; stats.engKiaBy[k] = (stats.engKiaBy[k] || 0) + 1; stats.engKia = (stats.engKia || 0) + 1;
+    if (team.side === playerSide()) stats.last = 'Engineer hit' + (why ? ' (' + why + ')' : '');
+  }
+  function engHit(x, z, r, why) {
+    for (var i = 0; i < engs.length; i++) { var T = engs[i]; for (var j = 0; j < T.men.length; j++) { var m = T.men[j]; if (m.alive && Math.hypot(m.x - x, m.z - z) <= r) engKia(T, m, why); } }
+  }
+  function endTeam(T, i) {
+    T.men.forEach(function (m) { root.remove(m.g); }); engs.splice(i, 1); if (T.fort.engTeam === T) T.fort.engTeam = null;
+  }
+  function tickEng(dt) {
+    var F = LB.heavyFx, me = playerSide(), fog = LB.fow && LB.fow.isActive && LB.fow.isActive();
+    for (var i = engs.length - 1; i >= 0; i--) {
+      var T = engs[i], f = T.fort, alive = T.men.filter(function (m) { return m.alive; }), lbl = TYPES[f.type].label;
+      T.age += dt;
+      T.men.forEach(function (m) { if (!m.alive && m.deadT > 0) { m.deadT -= dt; if (m.deadT <= 0) m.g.visible = false; } });
+      if (!alive.length && T.state !== 'failed') {
+        T.state = 'failed'; T.t = 6; stats.engFailed = (stats.engFailed || 0) + 1; if (f.engTeam === T) f.engTeam = null;
+        if (T.side === me) stats.last = 'Engineer team down · ' + lbl + ' not repaired';
+        radio(T.side, sideName(T.side) + ' ENGINEERS: "Repair team is down! ' + lbl + ' still damaged." (SIMULATED · game FX)'); renderUi();
+      }
+      if (T.state === 'failed') { T.t -= dt; if (T.t <= 0) endTeam(T, i); continue; }
+      if (f.dead && T.state !== 'back') { T.state = 'back'; if (f.engTeam === T) f.engTeam = null; }
+      var working = T.state === 'work', arrived = 0;
+      for (var j = 0; j < alive.length; j++) {
+        var m = alive[j], u = m.g.userData, tx, tz;
+        if (T.state === 'back') { tx = m.x0; tz = m.z0; } else { tx = f.x + T.side * 3.9; tz = f.z + m.ox; }
+        var dx = tx - m.x, dz = tz - m.z, d = Math.hypot(dx, dz), st = ENG_SPEED * dt;
+        if (!working && d > 0.15) {
+          var k = Math.min(1, st / d); m.x += dx * k; m.z += dz * k; m.ph += dt * 9;
+          m.g.rotation.y = Math.atan2(-dx, -dz);
+          u.legs[0].rotation.x = Math.sin(m.ph) * 0.55; u.legs[1].rotation.x = -Math.sin(m.ph) * 0.55;
+          u.arms[0].rotation.x = -Math.sin(m.ph) * 0.4; u.arms[1].rotation.x = Math.sin(m.ph) * 0.4;
+        } else {
+          arrived++; u.legs[0].rotation.x = u.legs[1].rotation.x = 0;
+          if (working) { m.g.rotation.y = Math.atan2(-(f.x - m.x), -(f.z - m.z)); m.ph += dt * 7; u.arms[1].rotation.x = 1.2 + Math.sin(m.ph) * 0.6; u.arms[0].rotation.x = 0.9; crewPose(m.g, 0.6, m.ph); }
+        }
+        m.g.position.set(m.x, H(m.x, m.z) + (working ? 0 : Math.abs(Math.sin(m.ph)) * 0.04), m.z);
+        if (T.side !== me) m.g.visible = !fog || LB.fow.visible(m.x, m.z);
+      }
+      if (T.state === 'walk' && arrived === alive.length) { T.state = 'work'; T.t = ENG_WORK; if (T.side === me) stats.last = 'Engineers repairing the ' + lbl.toLowerCase(); }
+      else if (T.state === 'work') {
+        T.t -= dt; T.fxT = (T.fxT || 0) - dt;
+        if (T.fxT <= 0 && F && F.puff && f.g.visible) { T.fxT = 0.45 + Math.random() * 0.3; var y = H(f.x, f.z); try { F.puff({ kind: 'fire', x: f.x + T.side * 3.0, y: y + 0.9 + Math.random() * 0.6, z: f.z + (Math.random() - 0.5) * 2, size: 0.35, grow: 0.4, life: 0.25, color: 0xffd27a, opacity: 0.95 }); F.puff({ kind: 'dust', x: f.x + T.side * 3.2, y: y + 0.4, z: f.z, size: 1, grow: 1.4, life: 1, color: 0xa89878, opacity: 0.35 }); } catch (_) {} }
+        if (T.t <= 0) {
+          repairFort(f); if (f.g.userData.crew) f.g.userData.crew.forEach(function (c) { c.visible = true; });
+          stats.engRepairs = (stats.engRepairs || 0) + 1; if (T.who === 'me') stats.cmdRepairs = (stats.cmdRepairs || 0) + 1;
+          if (T.side === me) stats.last = lbl + ' repaired by engineers';
+          radio(T.side, sideName(T.side) + ' ENGINEERS: "' + lbl + ' repaired, back in the fight. Pulling back." (SIMULATED · game FX)');
+          T.state = 'back'; if (f.engTeam === T) f.engTeam = null; renderUi();
+        }
+      } else if (T.state === 'back' && (arrived === alive.length || T.age > 90)) endTeam(T, i);
+    }
+  }
+  function myTeam() { var me = playerSide(); for (var i = 0; i < engs.length; i++) if (engs[i].side === me && engs[i].who === 'me' && (engs[i].state === 'walk' || engs[i].state === 'work')) return engs[i]; return null; }
   function dmgTick(dt) {
-    wrapStrikes(); tickShells(dt);
+    wrapStrikes(); tickShells(dt); if (engs.length) tickEng(dt);
     if (repT > 0) repT -= dt; if (shellT > 0) shellT -= dt;
     var me = playerSide(), en = -me;
     artT -= dt; if (artT <= 0) {
       artT = 60 + Math.random() * 30;
       var tg = list.filter(function (f) { return f.side === me && !f.dead && visibleToAi(f); });
       if (tg.length && (!ECO() || !ECO().isEnabled() || ECO().pay(en, SHELL_COST))) mortars(en, tg[(Math.random() * tg.length) | 0], 'ai');
-      var d = mostDamaged(en); if (d && Math.random() < 0.6 && ECO().pay(en, REPAIR_COST)) { repairFort(d); radio(en, sideName(en) + ' ENGINEERS: "' + TYPES[d.type].label + ' patched up." (SIMULATED · game FX)'); }
+      var d = mostDamaged(en); if (d && Math.random() < 0.6 && ECO().pay(en, REPAIR_COST)) { if (engOn()) { sendEngineers(d, 'ai'); radio(en, sideName(en) + ' ENGINEERS: "Moving up to fix the ' + TYPES[d.type].label.toLowerCase() + '." (SIMULATED · game FX)'); } else { repairFort(d); radio(en, sideName(en) + ' ENGINEERS: "' + TYPES[d.type].label + ' patched up." (SIMULATED · game FX)'); } }
     }
   }
   function cmdRepair() {
@@ -290,6 +397,10 @@
     if (repT > 0) { stats.last = 'Engineers busy · ' + Math.ceil(repT) + ' s'; return renderUi(), false; }
     if (!f) { stats.last = 'Nothing to repair'; return renderUi(), false; }
     if (!ECO().pay(me, REPAIR_COST)) { stats.last = 'Repair needs 3 fuel'; return renderUi(), false; }
+    if (engOn()) {   // v12.0.29: the repair happens when the engineer team gets there and finishes the job
+      sendEngineers(f, 'me'); repT = REPAIR_CD; stats.cmdDispatch = (stats.cmdDispatch || 0) + 1; stats.last = 'Engineers moving to the ' + TYPES[f.type].label.toLowerCase();
+      radio(me, sideName(me) + ' ENGINEERS: "Copy, moving up to the ' + TYPES[f.type].label.toLowerCase() + '. ETA ' + Math.round(ENG_FROM / ENG_SPEED) + ' seconds." (SIMULATED · game FX)'); renderUi(); return true;
+    }
     repairFort(f); repT = REPAIR_CD; stats.cmdRepairs = (stats.cmdRepairs || 0) + 1; stats.last = TYPES[f.type].label + ' repaired';
     radio(me, sideName(me) + ' ENGINEERS: "' + TYPES[f.type].label + ' repaired, back in the fight." (SIMULATED · game FX)'); renderUi(); return true;
   }
@@ -406,8 +517,8 @@
     if (!el.p) return; placeUi();
     var me = playerSide(), ok = unlocked(me);
     TLIST.forEach(function (t) { var b = el.p.querySelector('[data-fort="' + t + '"]'); if (!b) return; b.disabled = !ok || !afford(me, t) || count(me) >= cap(); b.classList.toggle('armed', armed === t); });
-    el.status.textContent = !ok ? 'Locked · research Fortifications in the tech tree' : armed ? 'Placing ' + TYPES[armed].label + ' · tap the field (Esc cancels)' : 'Yours ' + count(me) + '/' + cap() + ' · enemy ' + count(-me) + (function () { var b = list.filter(function (f) { return f.side === me && f.blind; }).length; return b ? ' · ' + b + ' NO LOS' : ''; })() + (function () { if (!DMG) return ''; var dmg = list.filter(function (f) { return f.side === me && !f.dead && f.hp < f.maxHp; }).length, lost = (stats.lostBy || {})[String(me)] || 0, kill = (stats.lostBy || {})[String(-me)] || 0; return (dmg ? ' · ' + dmg + ' damaged' : '') + (lost ? ' · lost ' + lost : '') + (kill ? ' · enemy forts destroyed ' + kill : ''); })() + (stats.squadHits ? ' · squad hits ' + stats.squadHits + (LB.squads && LB.squads.getStats ? ' / KIA ' + ((LB.squads.getStats().fortKillsBy || {})[me] || 0) : '') : '') + (stats.last ? ' · ' + stats.last : '');
-    if (DMG) { var rb = el.p.querySelector('#fortRepair'), sb = el.p.querySelector('#fortShell'); if (rb) { rb.disabled = repT > 0 || !mostDamaged(me); rb.querySelector('small').textContent = repT > 0 ? 'engineers busy ' + Math.ceil(repT) + ' s' : '3 fuel · most damaged'; } if (sb) { sb.disabled = shellT > 0; sb.querySelector('small').textContent = shellT > 0 ? 'reloading ' + Math.ceil(shellT) + ' s' : '3 ammo · 3 rounds'; } }
+    el.status.textContent = !ok ? 'Locked · research Fortifications in the tech tree' : armed ? 'Placing ' + TYPES[armed].label + ' · tap the field (Esc cancels)' : 'Yours ' + count(me) + '/' + cap() + ' · enemy ' + count(-me) + (function () { var b = list.filter(function (f) { return f.side === me && f.blind; }).length; return b ? ' · ' + b + ' NO LOS' : ''; })() + (function () { if (!DMG) return ''; var dmg = list.filter(function (f) { return f.side === me && !f.dead && f.hp < f.maxHp; }).length, lost = (stats.lostBy || {})[String(me)] || 0, kill = (stats.lostBy || {})[String(-me)] || 0; var ek = (stats.engKiaBy || {})[String(me)] || 0; return (dmg ? ' · ' + dmg + ' damaged' : '') + (lost ? ' · lost ' + lost : '') + (ek ? ' · engineers lost ' + ek : '') + (kill ? ' · enemy forts destroyed ' + kill : ''); })() + (stats.squadHits ? ' · squad hits ' + stats.squadHits + (LB.squads && LB.squads.getStats ? ' / KIA ' + ((LB.squads.getStats().fortKillsBy || {})[me] || 0) : '') : '') + (stats.last ? ' · ' + stats.last : '');
+    if (DMG) { var rb = el.p.querySelector('#fortRepair'), sb = el.p.querySelector('#fortShell'); if (rb) { var tm = myTeam(); rb.disabled = repT > 0 || !mostDamaged(me); rb.querySelector('small').textContent = tm ? (tm.state === 'work' ? 'repairing ' + Math.ceil(tm.t) + ' s' : 'engineers en route ' + Math.round(Math.max(0, Math.abs(tm.fort.x + tm.side * 3.9 - (tm.men.filter(function (m) { return m.alive; })[0] || tm.men[0]).x))) + ' m') : repT > 0 ? 'engineers busy ' + Math.ceil(repT) + ' s' : '3 fuel · most damaged'; } if (sb) { sb.disabled = shellT > 0; sb.querySelector('small').textContent = shellT > 0 ? 'reloading ' + Math.ceil(shellT) + ' s' : '3 ammo · 3 rounds'; } }
     try { applyCamo(); } catch (_) {}
     doc.body.classList.toggle('fort-placing', !!armed);
   }
@@ -426,6 +537,9 @@
     list: function () { return list.filter(function (f) { return !f.dead; }).map(function (f) { return { id: f.id, type: f.type, side: f.side, x: f.x, z: f.z, blind: !!f.blind, hp: f.hp, maxHp: f.maxHp, sup: +(f.sup || 0).toFixed(2) }; }); },
     wrecks: function () { return list.filter(function (f) { return f.dead; }).map(function (f) { return { id: f.id, type: f.type, side: f.side, x: f.x, z: f.z, t: +f.wreckT.toFixed(1) }; }); },
     damageAt: function (x, z, p, why) { return damageAt(x, z, p, why); }, targetsFor: targetsFor, suppress: suppress, repair: cmdRepair, shell: cmdShell, dmgEnabled: function () { return DMG; }, camoApplied: function () { return camoKey; },
+    crewEnabled: function () { return CREW; },
+    engineers: function () { return engs.map(function (T) { return { id: T.id, side: T.side, fortId: T.fort.id, who: T.who, state: T.state, t: +(T.t || 0).toFixed(1), men: T.men.map(function (m) { return { x: +m.x.toFixed(1), z: +m.z.toFixed(1), alive: m.alive }; }) }; }); },
+    crew: function (id) { for (var i = 0; i < list.length; i++) if (list[i].id === id) { var c = list[i].g.userData.crew || []; return { n: c.length, visible: c.filter(function (m) { return m.visible; }).length, crouch: c.length ? +c[0].userData.crouch.toFixed(2) : 0 }; } return null; },
     _artT: function (t) { artT = t; return true; }, _cds: function () { repT = 0; shellT = 0; return true; },
     getStats: function () { var o = Object.assign({ count: list.filter(function (f) { return !f.dead; }).length, armed: armed, real: REAL, dmg: DMG, shellsInFlight: shells.length }, stats); if (stats.lostBy) o.lostBy = Object.assign({}, stats.lostBy); return o; },
     _aim: function (i) { var f = list[i]; return f ? { aim: +f.aim.toFixed(3), aimT: f.aimT == null ? null : +f.aimT.toFixed(3), recoil: f.recoil || 0, flash: !!(f.g.userData.flash && f.g.userData.flash.visible) } : null; },
