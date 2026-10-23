@@ -31,7 +31,6 @@
       funnel: new THREE.CylinderGeometry(0.5, 0.56, 1, 12),
       cap: new THREE.CylinderGeometry(0.53, 0.53, 1, 12),
       mast: new THREE.CylinderGeometry(0.05, 0.07, 1, 6),
-      boat: new THREE.CylinderGeometry(0.16, 0.16, 1, 8, 1, false, 0, Math.PI),
       aa: new THREE.CylinderGeometry(0.22, 0.26, 0.22, 8),
       dish: new THREE.BoxGeometry(1, 0.32, 0.06)
     };
@@ -80,7 +79,7 @@
       d.radar = add(g, geo.dish, mat.radar, mx, mt + 1.9, 0, L * 0.07, 1, 1);
       for (var a = -1; a <= 1; a += 2) {                                                       // AA mounts + lifeboats on both beams
         add(g, geo.aa, mat.steel, -L * 0.12, 1.5, a * B * 0.38, 1, 1, 1);
-        var bt = add(g, geo.boat, mat.boat, -L * 0.26, 1.75, a * B * 0.42, 1, L * 0.07, 1); bt.rotation.set(0, 0, Math.PI / 2); bt.rotation.x = Math.PI;
+        add(g, geo.box, mat.boat, -L * 0.27, 1.62, a * B * 0.43, L * 0.075, 0.2, 0.26); add(g, geo.box, mat.gray[S], -L * 0.27, 1.75, a * B * 0.43, L * 0.07, 0.06, 0.22);   // lifeboat + canvas cover
       }
     }
     stats.funnels += d.funnels.length; if (d.radar) stats.radars++;
