@@ -139,18 +139,21 @@
       geo.cHead = new THREE.SphereGeometry(0.115, 8, 6); geo.cHelm = new THREE.SphereGeometry(0.16, 9, 5, 0, Math.PI * 2, 0, Math.PI / 2); geo.cPack = new THREE.BoxGeometry(0.32, 0.38, 0.16);
       geo.cKit = new THREE.BoxGeometry(0.34, 0.2, 0.16);
       geo.cLeg.translate(0, -0.4, 0); geo.cArm.translate(0, -0.27, 0);   // pivot at hip / shoulder
-      mat.cUni = { '-1': new THREE.MeshStandardMaterial({ color: col(0x4f5a2e), roughness: 0.9 }), '1': new THREE.MeshStandardMaterial({ color: col(0x7a7360), roughness: 0.9 }) };
-      mat.cHelm = { '-1': new THREE.MeshStandardMaterial({ color: col(0x3c4426), roughness: 0.75 }), '1': new THREE.MeshStandardMaterial({ color: col(0x625c4b), roughness: 0.75 }) };
+      mat.cUni = { '-1': new THREE.MeshStandardMaterial({ color: col(0x3d4526), roughness: 0.92 }), '1': new THREE.MeshStandardMaterial({ color: col(0x5c5747), roughness: 0.92 }) };
+      mat.cHelm = { '-1': new THREE.MeshStandardMaterial({ color: col(0x2d331d), roughness: 0.8 }), '1': new THREE.MeshStandardMaterial({ color: col(0x4a463a), roughness: 0.8 }) };
       mat.cSkin = new THREE.MeshStandardMaterial({ color: col(0x8a6a55), roughness: 0.8 });
       mat.cBoot = new THREE.MeshStandardMaterial({ color: col(0x1e1c19), roughness: 0.9 });
       mat.cKit = new THREE.MeshStandardMaterial({ color: col(0x6e3a1e), roughness: 0.7, metalness: 0.2 });
     }
     function add(gm, mt, x, y, z) { var q = new THREE.Mesh(gm, mt); q.position.set(x, y, z); q.castShadow = sh; (q.userData || (q.userData = {})).crew = 1; g.add(q); return q; }
-    var legs = [add(geo.cLeg, mat.cUni[S], -0.11, 0.82, 0), add(geo.cLeg, mat.cUni[S], 0.11, 0.82, 0)];
-    add(geo.cTorso, mat.cUni[S], 0, 1.12, 0);
-    var arms = [add(geo.cArm, mat.cUni[S], -0.29, 1.38, 0), add(geo.cArm, mat.cUni[S], 0.29, 1.38, 0)];
-    add(geo.cHead, mat.cSkin, 0, 1.56, 0); add(geo.cHelm, mat.cHelm[S], 0, 1.6, 0);
-    add(geo.cPack, mat.cHelm[S], 0, 1.14, 0.2);
+    var AR = LB.armyRealism && LB.armyRealism.isEnabled && LB.armyRealism.isEnabled() ? LB.armyRealism : null;   // same camo fatigues as the armies
+    function am(kind, fb) { var m = null; if (AR) try { m = AR.material(side, kind); } catch (_) {} return m || fb; }
+    var mu = am('uniform', mat.cUni[S]), mt = am('trousers', mat.cUni[S]), mg = am('gear', mat.cHelm[S]);
+    var legs = [add(geo.cLeg, mt, -0.11, 0.82, 0), add(geo.cLeg, mt, 0.11, 0.82, 0)];
+    add(geo.cTorso, mu, 0, 1.12, 0);
+    var arms = [add(geo.cArm, mu, -0.29, 1.38, 0), add(geo.cArm, mu, 0.29, 1.38, 0)];
+    add(geo.cHead, mat.cSkin, 0, 1.56, 0); add(geo.cHelm, mg, 0, 1.6, 0);
+    add(geo.cPack, mg, 0, 1.14, 0.2);
     if (eng) { var kit = add(geo.cKit, mat.cKit, 0.38, 0.95, 0); g.userData.kit = kit; }
     g.userData.legs = legs; g.userData.arms = arms; g.userData.crouch = 0;
     return g;
