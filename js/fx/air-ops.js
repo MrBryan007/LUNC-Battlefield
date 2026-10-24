@@ -139,7 +139,8 @@
         if (L.lx > STERN - 0.5 && L.lx < BOW && Math.abs(L.lz) < 2.6 && J.y < dy) J.y = dy;   // wheels on the deck, never through it
         if (L.lx > STERN - 30 && Math.abs(L.lz - LZ) > 5) { stats.waveOffs++; v.ph = 'join'; radio(J, 'wave off, wave off.'); }
         else if (L.lx >= TD.lo && L.lx <= TD.hi && J.y <= dy + 0.45 && Math.abs(L.lz - LZ) < 1.6 && aligned) {
-          v.ph = 'trap'; v.wire = 1 + Math.min(3, Math.floor((L.lx - TD.lo) / ((TD.hi - TD.lo) / 4))); v.rv = Math.max(4, J.sp - shipV(s)); v.lx = L.lx; v.lz = L.lz;
+          v.ph = 'trap'; var rw = Math.random(); v.wire = rw < 0.1 ? 1 : rw < 0.35 ? 2 : rw < 0.82 ? 3 : 4;   // the hook picks up a wire (3-wire is the target)
+          v.rv = Math.max(4, J.sp - shipV(s)); v.lx = Math.max(L.lx, TD.lo + (v.wire - 1) * 1.3); v.lz = L.lz;
           J.st = 'land'; stats.traps++; radio(J, 'trap, ' + v.wire + ' wire.');
           var f2 = F(); if (f2) { var tw = toWorld(s, L.lx - 1, L.lz); f2.puff({ kind: 'smoke', x: tw.x, y: dy - 0.45, z: tw.z, size: 0.6, grow: 1.6, life: 0.7, color: 0x9a9b98, opacity: 0.45 }); }
         } else if (L.lx > TD.hi && L.lx < BOW + 4 && J.y < dy + 3) {   // past the wires and still flying → bolter, go around
