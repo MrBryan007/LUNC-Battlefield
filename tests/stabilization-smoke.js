@@ -40,7 +40,8 @@ const checks = [
   ['fort crews + engineers wired', read('js/theaters/forts.js').includes('function soldier(') && read('js/theaters/forts.js').includes("qs.get('fortcrew') !== '0'") && read('js/theaters/forts.js').includes('function tickEng(') && read('js/theaters/forts.js').includes('engHit(x, z,')],
   ['navy detail wired', index.includes('js/fx/naval-detail.js') && index.indexOf('fx/naval-detail.js') > index.indexOf('theaters/theaters.js') && engine.includes('LUNCBattle.navalDetail.update()') && read('js/fx/naval-detail.js').includes("qs.get('navdetail') !== '0'")],
   ['hot-seat wired', index.includes('js/ui/hotseat.js') && read('js/ui/hotseat.js').includes("qs.get('hotseat') !== '0'") && read('js/commander.js').includes('useSession: function') && read('js/commander.js').includes('setSide: function') && read('css/hud-dock.css').includes('.hs-cover')],
-  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.31')]
+  ['hq banners wired', index.includes('js/fx/hq-banners.js') && engine.includes('LUNCBattle.hqBanners.update()') && read('js/fx/hq-banners.js').includes("qs.get('banners') !== '0'") && read('js/ui/achievements.js').includes('function setBanner(') && read('js/ui/achievements.js').includes('id="achBanner"')],
+  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.32')]
 ];
 
 let failed = 0;

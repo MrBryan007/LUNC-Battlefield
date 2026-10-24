@@ -88,9 +88,9 @@
   // Single source of truth for current release metadata.
   // Historical comments and changelog entries are left untouched.
   const BUILD = Object.freeze({
-    version: 'v12.0.31',
-    codename: 'Hot-seat: two commanders, one device',
-    date: '2026-10-23'
+    version: 'v12.0.32',
+    codename: 'HQ Standards',
+    date: '2026-10-24'
   });
 
   const config = {

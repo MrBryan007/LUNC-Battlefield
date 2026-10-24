@@ -2,7 +2,8 @@
  * 19 achievements read once a second from counters the other modules already keep (no hooks into them). Unlocks are
  * saved in localStorage ('luncBattle.achievements', id → unlock time). Your service-record title rises with the count.
  * Never touches market data, armies, the front or data-truth labels. ?ach=0 turns it off.
- * v12.0.28: 3 fort achievements (22 total, General of the Army at 22) and rank-unlocked camo for your defenses (?cosmetics=0 → off). */
+ * v12.0.28: 3 fort achievements (22 total, General of the Army at 22) and rank-unlocked camo for your defenses (?cosmetics=0 → off).
+ * v12.0.32: rank-unlocked banners for your HQ flagpole (drawn by js/fx/hq-banners.js). */
 (function (global) {
   'use strict';
   var LB = global.LUNCBattle = global.LUNCBattle || {}, doc = global.document;
@@ -16,6 +17,14 @@
     { id: 'urban', name: 'Urban', need: 10, rank: 'Captain', base: 0x8a8d8f, spots: [0x5c5f62, 0xb4b6b6, 0x2e3032], sw: ['#8a8d8f', '#5c5f62', '#b4b6b6', '#2e3032'] },
     { id: 'night', name: 'Night', need: 16, rank: 'Colonel', base: 0x2f3540, spots: [0x1d222a, 0x434a57, 0x151719], sw: ['#2f3540', '#1d222a', '#434a57', '#151719'] },
     { id: 'tiger', name: 'Tiger stripe', need: 19, rank: 'General', base: 0x5b6a3a, spots: [0x262a1a, 0x7a6a3e], tiger: true, sw: ['#5b6a3a', '#262a1a', '#7a6a3e'] }
+  ];
+  var BANNERS = [   // v12.0.32 procedural HQ banners (drawn by js/fx/hq-banners.js in your faction colours)
+    { id: 'std', name: 'Standard', need: 0, rank: 'Recruit', sw: ['#2e8a5a', '#a8453b'] },
+    { id: 'chevron', name: 'Chevron', need: 1, rank: 'Private', sw: ['#2e8a5a', '#e8e2cf', '#2e8a5a'] },
+    { id: 'horns', name: 'Emblem', need: 3, rank: 'Corporal', sw: ['#1d2a22', '#d7b56d', '#1d2a22'] },
+    { id: 'star', name: 'Star', need: 7, rank: 'Lieutenant', sw: ['#24384f', '#e8e2cf', '#24384f'] },
+    { id: 'laurel', name: 'Laurel', need: 13, rank: 'Major', sw: ['#3b2a1a', '#d7b56d', '#5a7a3a'] },
+    { id: 'general', name: "General's", need: 22, rank: 'General of the Army', sw: ['#7a1f1f', '#ffd36a', '#7a1f1f'] }
   ];
   var cosm = loadC();
   var KEY = 'luncBattle.achievements';
@@ -56,6 +65,16 @@
   function camoById(id) { return CAMOS.filter(function (c) { return c.id === id; })[0]; }
   function curCamo() { if (!COSM) return null; var c = camoById(cosm.camo); return camoOk(c) && c.id !== 'std' ? c : null; }   // a reset or lost unlock falls back to Standard
   function setCamo(id) { var c = camoById(id); if (!COSM || !camoOk(c)) return false; cosm.camo = id; saveC(); uiDirty = true; render(); if (LB.sfx && LB.sfx.ui) try { LB.sfx.ui('arm'); } catch (_) {} return true; }
+  function banById(id) { return BANNERS.filter(function (c) { return c.id === id; })[0]; }
+  function curBanner() { if (!COSM) return null; var c = banById(cosm.banner); return camoOk(c) && c.id !== 'std' ? c : null; }
+  function setBanner(id) { var c = banById(id); if (!COSM || !camoOk(c)) return false; cosm.banner = id; saveC(); uiDirty = true; render(); if (LB.sfx && LB.sfx.ui) try { LB.sfx.ui('arm'); } catch (_) {} return true; }
+  function renderBanner() {
+    if (!el.ban) return; var cur = curBanner(), n = count();
+    el.ban.innerHTML = BANNERS.map(function (c) {
+      var ok = n >= c.need, on = (cur ? cur.id : 'std') === c.id;
+      return '<button type="button" class="ach-camo' + (on ? ' on' : '') + '" data-banner="' + c.id + '"' + (ok ? '' : ' disabled') + ' title="' + esc(c.name) + (ok ? '' : ' · unlocks at ' + c.rank) + '"><i style="background:linear-gradient(180deg,' + c.sw.join(',') + ')"></i><b>' + esc(c.name) + '</b><small>' + (on ? 'In use' : ok ? 'Unlocked' : c.rank) + '</small></button>';
+    }).join('');
+  }
   function renderCamo() {
     if (!el.camo) return; var cur = curCamo(), n = count();
     el.camo.innerHTML = CAMOS.map(function (c) {
@@ -107,10 +126,12 @@
     var p = doc.createElement('div'); p.id = 'achPanel'; p.className = 'supply-panel ach-panel';
     p.innerHTML = '<div class="th-title">SERVICE RECORD · ACHIEVEMENTS <span class="qual sim">GAME LAYER</span></div>' +
       '<div class="ach-rank"><b id="achTitle"></b><span id="achCount"></span><i class="ach-bar"><span id="achBar"></span></i><small id="achNext"></small></div>' +
-      (COSM ? '<div class="ach-unlocks"><small>UNLOCKS · CAMO FOR YOUR BUNKERS AND TURRETS</small><div id="achCamo" class="ach-camos"></div></div>' : '') +
+      (COSM ? '<div class="ach-unlocks"><small>UNLOCKS · CAMO FOR YOUR BUNKERS AND TURRETS</small><div id="achCamo" class="ach-camos"></div></div>' +
+        '<div class="ach-unlocks"><small>UNLOCKS · BANNER FOR YOUR HQ</small><div id="achBanner" class="ach-camos"></div></div>' : '') +
       '<div class="ach-list" id="achList"></div>' +
       '<div class="ach-foot"><span class="th-note">Saved on this device. Achievements only read the game layer, never market data.</span><button type="button" id="achReset">Reset</button></div>';
-    el.p = p; el.list = p.querySelector('#achList'); el.camo = p.querySelector('#achCamo');
+    el.p = p; el.list = p.querySelector('#achList'); el.camo = p.querySelector('#achCamo'); el.ban = p.querySelector('#achBanner');
+    if (el.ban) el.ban.addEventListener('click', function (e) { var b = e.target.closest('button[data-banner]'); if (b && !b.disabled) setBanner(b.getAttribute('data-banner')); });
     if (el.camo) el.camo.addEventListener('click', function (e) { var b = e.target.closest('button[data-camo]'); if (b && !b.disabled) setCamo(b.getAttribute('data-camo')); });
     p.querySelector('#achReset').addEventListener('click', function () {
       var b = this; if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = 'Tap again to reset'; setTimeout(function () { b.dataset.armed = ''; b.textContent = 'Reset'; }, 3000); return; }
@@ -130,7 +151,7 @@
     el.p.querySelector('#achCount').textContent = n + ' / ' + DEFS.length;
     el.p.querySelector('#achBar').style.width = Math.round(n / DEFS.length * 100) + '%';
     el.p.querySelector('#achNext').textContent = nt ? 'Next: ' + nt[1] + ' at ' + nt[0] : 'Top rank reached';
-    renderCamo();
+    renderCamo(); renderBanner();
     el.list.innerHTML = DEFS.map(function (d) {
       var on = !!got[d.id], p = [0, 1]; try { p = d.p(); } catch (_) {}
       var f = on ? 1 : Math.max(0, Math.min(1, p[0] / p[1]));
@@ -144,12 +165,13 @@
     iv = setInterval(function () { try { tick(); } catch (err) { console.warn('[achievements]', err); } }, 1000);
   }
   LB.achievements = {
-    version: 'v12.0.28', isEnabled: function () { return enabled && ready; },
+    version: 'v12.0.32', isEnabled: function () { return enabled && ready; },
     list: function () { return DEFS.map(function (d) { var p = [0, 1]; try { p = d.p(); } catch (_) {} return { id: d.id, name: d.name, on: !!got[d.id], cur: p[0], goal: p[1] }; }); },
     count: count, title: function () { return title(count()); },
     getState: function () { return { enabled: enabled && ready, count: count(), total: DEFS.length, title: title(count()), ev: Object.assign({}, ev), queued: queue.length, showing: showing }; },
     cosmetics: function () { var n = count(), cur = curCamo(); return { enabled: COSM, camo: cur ? cur.id : 'std', camos: CAMOS.map(function (c) { return { id: c.id, name: c.name, rank: c.rank, unlocked: n >= c.need }; }) }; },
     camo: curCamo, setCamo: setCamo,
+    banner: curBanner, setBanner: setBanner, banners: function () { var n = count(), cur = curBanner(); return { enabled: COSM, banner: cur ? cur.id : 'std', list: BANNERS.map(function (c) { return { id: c.id, name: c.name, rank: c.rank, unlocked: n >= c.need }; }) }; },
     reset: function () { got = {}; save(); uiDirty = true; render(); },
     _tick: tick, _unlock: function (id) { var d = DEFS.filter(function (x) { return x.id === id; })[0]; return d ? unlock(d) : false; }
   };

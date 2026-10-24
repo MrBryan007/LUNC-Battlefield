@@ -1,5 +1,16 @@
 # Changelog
 
+## v12.0.32 — HQ standards: rank-unlocked banners (2026-10-24, AI build)
+- Finishes yesterday's interrupted cycle 4. Neither HQ had a flag of its own, and the service record's only unlock was fort camo. This covers the roadmap's open "unlocks for HQ flags" item and adds a realism touch to the bases.
+- New module `js/fx/hq-banners.js`: a 9 m flagpole at the rear of each HQ compound with a gold finial, a truck, a halyard and a cleat, flying a 3 × 1.9 m cloth banner. The cloth waves in the wind with a travelling wave from the hoist to the fly, a little droop, and a stronger wave in rain. LOW / phones use fewer cloth segments, update every other frame and recompute the lighting normals less often. A flag more than about 260 m from the camera (160 m on LOW / phones) holds its last pose, since you can't see the cloth move from there.
+- Six banner designs drawn procedurally in your faction colours: Standard (Recruit), Chevron (Private), Emblem (Corporal: a bull or bear head), Star (Lieutenant), Laurel (Major) and the General's standard with gold fringe and four stars (General of the Army). The enemy HQ always flies its faction Standard.
+- Cmd → Service record has a new row, UNLOCKS · BANNER FOR YOUR HQ. It's saved on the device with your camo choice, and locked designs show the rank you need. It works with hot-seat: the banner follows whichever side you command.
+- API: `achievements.banner()`, `setBanner(id)`, `banners()`; `hqBanners.getState()`.
+- Game layer only. It never touches market data, army counts, the price-driven front or data-truth labels. The market-driven frontline, Moon Shot, Commander, the v11.4 HUD/dock, Hide UI, the v12.x systems and all `?flags` are unchanged. Kill switches: `?banners=0` (no flagpoles) and `?cosmetics=0` (both HQs fly the Standard).
+- Version bump to v12.0.32 (BUILD, quality api, index tags, cache-bust `?v=20261024v12032` on all 82 local css/js tags, including the new module).
+- Tested: `node --check` on all 86 JS files, asset-lifecycle 33/33, stabilization-smoke 29/29 (now also checks the banner wiring), and headless HIGH / MEDIUM / LOW / iPhone 390×844 with 0 page errors. The banner probe ran on HIGH, MEDIUM and iPhone. With a fresh record only Standard was unlocked and picking Star was refused. With all 22 achievements, all six designs unlocked, General's and Emblem flew on your HQ, the enemy kept its Standard, and switching to the Bears moved your banner to the Bear HQ. With `?banners=0` no flagpoles were built. Changed while testing: the first cloth barely moved and read as a stiff board, so the wave is stronger. Screenshots in `docs/v12032-shots/`. SwiftShader only, so this isn't measured on a real iPhone/Mac yet.
+- Build hours (real timestamps): day total so far 0.11 h before the cycle-1 deploy, under the 2–4 h target. The run continues.
+
 ## v12.0.31 — Hot-seat: two commanders, one device (2026-10-23, AI build)
 - First slice of v12.2 Multiplayer. The roadmap starts with hot-seat (turn handoff, a camera and fog per player, a pass-the-device screen), and none of v12.2 existed yet.
 - New module `js/ui/hotseat.js`, with a HOT-SEAT · 2 PLAYERS card at the top of the Cmd sheet. Player 1 commands the Bulls and Player 2 the Bears. Pick a turn length (60, 90 or 120 s) and 2, 3 or 5 rounds, then Start match. `?hotseat=1` opens a match straight away.
