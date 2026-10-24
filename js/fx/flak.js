@@ -55,7 +55,9 @@
     return true;
   }
 
+  var lastBurst = null;
   function burst(s, prox) {
+    lastBurst = { x: s.x, y: s.y, z: s.z, prox: prox };
     stats.bursts++; if (prox) stats.prox++; else stats.timed++;
     var f = F(), lo = lowFx();
     if (f) {
@@ -104,5 +106,5 @@
 
   LB.flak = { version: 'v12.0.34', isEnabled: function () { return enabled; }, fire: fire, update: update,
     getState: function () { return Object.assign({ enabled: enabled, cap: CAP[tier()] || 32 }, stats); },
-    _shells: function () { return shells; } };
+    _shells: function () { return shells; }, _last: function () { return lastBurst; } };
 })(window);
