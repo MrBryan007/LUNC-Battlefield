@@ -88,8 +88,8 @@
   // Single source of truth for current release metadata.
   // Historical comments and changelog entries are left untouched.
   const BUILD = Object.freeze({
-    version: 'v12.0.32',
-    codename: 'HQ Standards',
+    version: 'v12.0.33',
+    codename: 'Air Ops',
     date: '2026-10-24'
   });
 
