@@ -386,8 +386,10 @@
       var a = aaGuns[i]; a.cd -= dt; if (a.cd > 0) continue; a.cd = 0.7;
       if (WXOFF(a.side, 'aa')) continue;   // v12.0.18: AA knocked out by a cyber hack
       this_x = a.wx; this_z = a.wz; var foe = enemyOf(a.side, jets);
-      if (!foe || foe.d > 60) continue;
+      var FL = LB.flak && LB.flak.isEnabled() ? LB.flak : null;   // v12.0.34 flak: aimed shells with fuzes replace the kill roll
+      if (!foe || foe.d > (FL ? 85 : 60)) continue;
       var o = foe.o; a.g.rotation.y = Math.atan2(o.x - a.wx, o.z - a.wz);
+      if (FL) { if (FL.fire(a.wx, 1.9, a.wz, o, a.side)) { FL.fire(a.wx, 1.9, a.wz, o, a.side); a.cd = 1.1; } continue; }
       if (F) F.puff({ kind: 'smoke', x: o.x + rnd(-4, 4), y: o.y + rnd(-2, 3), z: o.z + rnd(-4, 4), size: 1.3, grow: 1.2, life: 1.2, color: 0x262422, opacity: 0.6 });
       if (Math.random() < 0.06 * WXM('aa', a.side) && o.st !== 'down') { o.st = 'down'; stats.kills++; }   // v12.0.18 weather / cyber
     }
@@ -505,6 +507,7 @@
     if (nd) { for (var i = 0; i < ships.length; i++) tickShip(ships[i], nd); tickShells(nd); }
     for (var j = 0; j < jets.length; j++) tickJet(jets[j], wdt);   // aircraft cross theaters → always full rate (few)
     tickMissiles(wdt);
+    if (LB.flak) { try { LB.flak.update(wdt); } catch (e) { if (!update._flErr) { update._flErr = 1; console.warn('[flak]', e); } } }   // v12.0.34
     if (navalNear || doFar) tickBases(navalNear ? wdt : fdt);
     stats.ships = ships.filter(function (s) { return s.st === 'sail'; }).length; stats.hulks = hulks.length; stats.jets = jets.length; stats.airborne = airborne();
     stats.shells = shells.length; stats.missiles = missiles.length;
