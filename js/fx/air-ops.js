@@ -44,8 +44,8 @@
     var strutM = new THREE.MeshStandardMaterial({ color: lin(0xb9bcbf), roughness: 0.45, metalness: 0.7 });
     var tyreM = new THREE.MeshStandardMaterial({ color: lin(0x1c1d1e), roughness: 0.95 });
     var hookM = new THREE.MeshStandardMaterial({ color: lin(0xd8c23a), roughness: 0.6, metalness: 0.3 });
-    var flame = new THREE.MeshBasicMaterial({ color: lin(0xff8a2a), transparent: true, opacity: 0.0, blending: THREE.AdditiveBlending, depthWrite: false });
-    var core = new THREE.MeshBasicMaterial({ color: lin(0xbfd8ff), transparent: true, opacity: 0.0, blending: THREE.AdditiveBlending, depthWrite: false });
+    var flame = new THREE.MeshBasicMaterial({ color: new THREE.Color(0xff7a22).multiplyScalar(0.55), transparent: true, opacity: 0.0, blending: THREE.AdditiveBlending, depthWrite: false });
+    var core = new THREE.MeshBasicMaterial({ color: new THREE.Color(0x9fc0ff).multiplyScalar(0.5), transparent: true, opacity: 0.0, blending: THREE.AdditiveBlending, depthWrite: false });
     var beacon = new THREE.MeshBasicMaterial({ color: 0xff2a1a });
     var cone = new THREE.ConeGeometry(1, 1, 10, 1, true); cone.translate(0, 0.5, 0); cone.rotateZ(Math.PI / 2);   // base at the nozzle, tip trailing (-x)
     R = { strutM: strutM, tyreM: tyreM, hookM: hookM, beacon: beacon,
@@ -209,10 +209,10 @@
     a.thr += clamp(a.thrT - a.thr, -dt * 1.4, dt * 2.5);
     if (a.fl) {
       var reheat = a.thr > 0.6, on = st !== 'parked' && st !== 'dead' && st !== 'down';
-      var flick = 0.88 + Math.random() * 0.24, len = (0.25 + a.thr * 1.6) * flick;
+      var flick = 0.88 + Math.random() * 0.24, len = (0.2 + a.thr * 0.85) * flick;
       a.fl.visible = on && reheat && !phone(); a.co.visible = on && a.thr > 0.05;
-      if (a.fl.visible) { a.fl.scale.set(len, 0.16, 0.16); a.fm.opacity = Math.min(0.8, (a.thr - 0.5) * 1.6); }
-      if (a.co.visible) { a.co.scale.set(0.2 + a.thr * 0.8 * flick, 0.09, 0.09); a.cm.opacity = 0.25 + a.thr * 0.55; }
+      if (a.fl.visible) { a.fl.scale.set(len, 0.15, 0.15); a.fm.opacity = Math.min(0.5, (a.thr - 0.5) * 1.1); }
+      if (a.co.visible) { a.co.scale.set(0.15 + a.thr * 0.4 * flick, 0.08, 0.08); a.cm.opacity = 0.2 + a.thr * 0.35; }
       a.be.visible = on && st !== 'down' && ((performance.now() / 1000 + J.slot * 0.13) % 1) < 0.12;
     }
   }
