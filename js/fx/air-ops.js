@@ -116,12 +116,16 @@
       a.cv = null; return J.st === 'dead';
     }
     var h = shd(s), L = toLocal(s, J.x, J.z), dy = deckY(s);
-    if (v.ph === 'join' || v.ph === 'final') {
+    if (v.ph === 'join' || v.ph === 'dw' || v.ph === 'base' || v.ph === 'final') {
       J.st = 'rtb';
-      if (v.ph === 'join') {
-        var ip = toWorld(s, STERN - 85, LZ + 10), d = C.steer(J, ip.x, dy + 9, ip.z, dt, 1.0);
-        J.sp += clamp(22 - J.sp, -6 * dt, 6 * dt); a.thrT = 0.2;
-        if (d < 16) { v.ph = 'final'; v.t = 0; v.err = Math.random() < 0.18 ? 0.9 + Math.random() * 0.6 : 0; }   // ~1 in 5 passes come in high → bolter
+      if (v.ph === 'join' || v.ph === 'dw' || v.ph === 'base') {   // racetrack: abeam the ship to starboard → downwind (aft) → base turn
+        var P = v.ph === 'join' ? toWorld(s, STERN + 10, LZ + 50) : v.ph === 'dw' ? toWorld(s, STERN - 70, LZ + 50) : toWorld(s, STERN - 62, LZ);
+        var d = C.steer(J, P.x, dy + (v.ph === 'base' ? 7.5 : 9), P.z, dt, 1.0);
+        J.sp += clamp(22 - J.sp, -6 * dt, 6 * dt); a.thrT = 0.2; v.t += dt;
+        if (v.ph === 'join' && (d < 18 || (L.lz > LZ + 30 && L.lx < STERN + 10))) { v.ph = 'dw'; v.t = 0; }
+        else if (v.ph === 'dw' && (d < 15 || L.lx < STERN - 70)) { v.ph = 'base'; v.t = 0; }
+        else if (v.ph === 'base' && (d < 14 || (L.lx > STERN - 78 && Math.abs(L.lz - LZ) < 10))) { v.ph = 'final'; v.t = 0; v.err = Math.random() < 0.18 ? 0.9 + Math.random() * 0.6 : 0; }   // ~1 in 5 passes come in high → bolter
+        if (v.t > 45) { v.ph = 'join'; v.t = 0; }
       } else {
         v.t += dt;
         var along = L.lx - TD.lo, look = clamp(Math.abs(along) * 0.35, 8, 26);
@@ -131,7 +135,7 @@
         J.sp += clamp(tgtSp - J.sp, -5 * dt, 5 * dt); a.thrT = 0.35; a.hookT = 1;
         C.steer(J, tp.x, gs, tp.z, dt, 1.1);
         var aligned = Math.abs(wrap(J.hd - h)) < 0.35;
-        if (aligned) J.y += (gs - J.y) * Math.min(1, dt * 1.8);
+        if (aligned) J.y += (gs - 0.105 * (J.sp - shipV(s)) * 0.35 - J.y) * Math.min(1, dt * 4);   // fly the slope with a little lead
         if (L.lx > STERN - 0.5 && L.lx < BOW && Math.abs(L.lz) < 2.6 && J.y < dy) J.y = dy;   // wheels on the deck, never through it
         if (L.lx > STERN - 30 && Math.abs(L.lz - LZ) > 5) { stats.waveOffs++; v.ph = 'join'; radio(J, 'wave off, wave off.'); }
         else if (L.lx >= TD.lo && L.lx <= TD.hi && J.y <= dy + 0.45 && Math.abs(L.lz - LZ) < 1.6 && aligned) {
@@ -173,6 +177,7 @@
   function tick(J, dt, C) {
     if (!enabled || !LB.engine || !LB.engine.THREE) return false;
     var a = decorate(J);
+    if ((J.st === 'parked' || J.st === 'dead') && !a.cv) J.carrier = null;   // back in the airbase pool
     if (a.cat) { if (J.st !== 'takeoff') a.cat = null; else return tickCat(J, dt, a); }
     if (a.cv && !(J.st === 'rtb' || J.st === 'land')) { a.cv = null; }    // shot down in the pattern
     if (!a.cv && J.st === 'rtb' && J.carrier) { if (afloat(J.carrier)) startCv(J, a); else { J.carrier = null; stats.diverts++; } }
@@ -188,7 +193,8 @@
     var down = st === 'parked' || st === 'taxi' || st === 'land' || st === 'dead';
     if (st === 'takeoff') { if (J.y > (J.carrier ? deckY(J.carrier) + 0.6 : 0.9)) { a.upAt += dt; } down = a.upAt < 1.2; }
     else a.upAt = 0;
-    if (st === 'rtb' && (ap === 2 || (a.cv && a.cv.ph === 'final'))) down = J.y < 14 || ap === 2;
+    if (st === 'rtb' && a.cv) down = a.cv.ph !== 'join';   // carrier pattern: gear stays down through a bolter
+    else if (st === 'rtb' && ap === 2) down = true;
     if (st === 'down') down = a.gear > 0.5;
     a.gearT = down ? 1 : 0;
     var was = a.gear; a.gear += clamp(a.gearT - a.gear, -dt / 1.5, dt / 1.5);
