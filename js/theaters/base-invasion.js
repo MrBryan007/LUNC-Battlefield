@@ -512,6 +512,10 @@
     }
     var from = { x: d.position.x, y: d.position.y + 1.8, z: d.position.z };
     var to = { x: jet.x, y: (jet.y || 20), z: jet.z };
+    if (LB.flak && LB.flak.isEnabled()) {   // v12.0.34: real flak shells (lead, fuzes, fragment damage) instead of cosmetic tracers
+      if (LB.flak.fire(from.x, from.y, from.z, jet, d.userData.side)) { if (LB.sfx && LB.sfx.gunfire) try { LB.sfx.gunfire(0.4); } catch (_) {} stats.shots++; }
+      return;
+    }
     try {
       if (E().effects && E().effects.fireWeapon) {
         E().effects.fireWeapon({ from: from, to: to, kind: 'tracer', side: d.userData.side, power: 1.2, color: 0xffee88 });
