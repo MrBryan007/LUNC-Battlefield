@@ -13,7 +13,7 @@
   var enabled = qs.get('banners') !== '0';
   var W = 3.0, HGT = 1.9, POLE = 9;
   var THREE = null, root = null, flags = {}, last = 0, frame = 0, chkT = 0, t0 = performance.now();
-  var stats = { built: 0, redraws: 0, frames: 0 };
+  var stats = { built: 0, redraws: 0, frames: 0, culled: 0 };
   var PAL = { '-1': { field: '#2b5e3e', dark: '#1b3a27', light: '#e8e2cf', mark: '#7cf0a8' }, '1': { field: '#7e2b26', dark: '#4d1a17', light: '#e8e2cf', mark: '#ff8a80' } };
   var GOLD = '#d7b56d';
 
@@ -88,11 +88,16 @@
     var poleM = new THREE.MeshStandardMaterial({ color: new THREE.Color(0x8d9296).convertSRGBToLinear(), roughness: 0.4, metalness: 0.7 });
     var goldM = new THREE.MeshStandardMaterial({ color: new THREE.Color(0xd7b56d).convertSRGBToLinear(), roughness: 0.35, metalness: 0.8 });
     var baseM = new THREE.MeshStandardMaterial({ color: new THREE.Color(0x77736b).convertSRGBToLinear(), roughness: 0.95 });
+    var ropeM = new THREE.MeshStandardMaterial({ color: new THREE.Color(0xd9d2bf).convertSRGBToLinear(), roughness: 0.9 });
     [-1, 1].forEach(function (side) {
       var x = side * (hqX() + 5), z = -7, y = H(x, z), g = new THREE.Group(); g.position.set(x, y, z); root.add(g);
       var pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.1, POLE, 8), poleM); pole.position.y = POLE / 2; pole.castShadow = !lw; g.add(pole);
       var fin = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 8), goldM); fin.position.y = POLE + 0.12; g.add(fin);
       var base = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.85, 0.5, 10), baseM); base.position.y = 0.2; base.receiveShadow = true; g.add(base);
+      // halyard: a thin rope from the cleat up to the truck, down the fly side of the pole, plus a cleat and a truck pulley
+      var hal = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, POLE - 1.2, 4), ropeM); hal.position.set(0.09, (POLE - 1.2) / 2 + 1.1, 0.02); g.add(hal);
+      var cleat = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.22, 0.05), poleM); cleat.position.set(0.1, 1.2, 0); g.add(cleat);
+      var truck = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.08, 10), poleM); truck.position.y = POLE - 0.04; g.add(truck);
       var canvas = doc.createElement('canvas'); canvas.width = 256; canvas.height = 160;
       var tex = new THREE.CanvasTexture(canvas); if (THREE.sRGBEncoding) tex.encoding = THREE.sRGBEncoding; tex.anisotropy = 2;
       var geo = new THREE.PlaneGeometry(W, HGT, sx, sy); geo.translate(W / 2, 0, 0);
@@ -112,15 +117,15 @@
       draw(F.canvas, side, id); F.tex.needsUpdate = true; F.key = key; F.id = id; stats.redraws++;
     });
   }
-  function wave(F, t, wind) {
-    var p = F.geo.attributes.position, a = p.array, b = F.base0, amp = 0.16 * wind, k = 2.3, w = 5.2 * (0.7 + wind * 0.3);
+  function wave(F, t, wind, normals) {
+    var p = F.geo.attributes.position, a = p.array, b = F.base0, amp = 0.27 * wind, k = 2.1, w = 5.2 * (0.7 + wind * 0.3);
     for (var i = 0; i < a.length; i += 3) {
       var x = b[i], y = b[i + 1], u = x / W;
       a[i + 2] = Math.sin(k * x - w * t + F.ph + y * 0.6) * amp * (0.15 + u) + Math.sin(k * 2.1 * x - w * 1.7 * t) * amp * 0.25 * u;
       a[i + 1] = y - u * u * 0.12 / wind;
       a[i] = x * (1 - 0.03 * Math.abs(Math.sin(w * t * 0.5 + F.ph)));
     }
-    p.needsUpdate = true; F.geo.computeVertexNormals();
+    p.needsUpdate = true; if (normals) F.geo.computeVertexNormals();
   }
   function update() {
     if (!enabled) return;
@@ -131,8 +136,14 @@
     if (e.isPaused && e.isPaused()) return;
     frame++; if (low() && frame % 2) return;
     var t = (now - t0) / 1000, wind = (rain() ? 1.35 : 1) * (0.85 + 0.15 * Math.sin(t * 0.37));
-    for (var s in flags) { var F = flags[s]; F.g.rotation.y = 0.35 + Math.sin(t * 0.05) * 0.1; wave(F, t, wind); }
-    stats.frames++;
+    var cam = e.camera, lw = low(), n = 0;
+    for (var s in flags) {
+      var F = flags[s]; F.g.rotation.y = 0.35 + Math.sin(t * 0.05) * 0.1;
+      // far flags (beyond ~260 m, or ~160 m on LOW / phones) freeze in their last pose: you can't see the cloth move from there
+      if (cam) { var dx = cam.position.x - F.g.position.x, dz = cam.position.z - F.g.position.z, far = lw ? 160 : 260; if (dx * dx + dz * dz > far * far) { stats.culled++; continue; } }
+      wave(F, t, wind, !lw || frame % 4 < 2); n++;
+    }
+    if (n) stats.frames++;
   }
 
   LB.hqBanners = {
