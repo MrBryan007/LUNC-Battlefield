@@ -42,7 +42,7 @@ const checks = [
   ['hot-seat wired', index.includes('js/ui/hotseat.js') && read('js/ui/hotseat.js').includes("qs.get('hotseat') !== '0'") && read('js/commander.js').includes('useSession: function') && read('js/commander.js').includes('setSide: function') && read('css/hud-dock.css').includes('.hs-cover')],
   ['hq banners wired', index.includes('js/fx/hq-banners.js') && engine.includes('LUNCBattle.hqBanners.update()') && read('js/fx/hq-banners.js').includes("qs.get('banners') !== '0'") && read('js/ui/achievements.js').includes('function setBanner(') && read('js/ui/achievements.js').includes('id="achBanner"')],
   ['air ops wired', index.includes('js/fx/air-ops.js') && read('js/fx/air-ops.js').includes("qs.get('airops') !== '0'") && read('js/theaters/theaters.js').includes('AO.tick(J, dt, homeCtx(J))') && read('js/theaters/theaters.js').includes('LB.airOps.catapult(J, s)') && read('js/theaters/theaters.js').includes('AO.pose(J, dt)')],
-  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.32')]
+  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.33')]
 ];
 
 let failed = 0;
