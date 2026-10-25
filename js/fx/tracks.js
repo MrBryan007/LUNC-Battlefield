@@ -9,8 +9,8 @@
  *  - Prints are height-aware: y from engine.terrainHeight and tilted to the local slope (finite-difference normal), so
  *    they hug berms and craters. Nothing is laid in the ocean or on the beach.
  *  - One InstancedMesh ring buffer (one draw call, no shadows, polygon offset against z-fighting). Caps per tier.
- *    Prints age over minutes: they lighten toward the soil colour and thin out near the end of their life, then the
- *    slot is reused for the newest print.
+ *    Prints darken the soil underneath (multiply blend, so they read right on any ground, at night and in fog) and age
+ *    over minutes: they fade back into the soil and thin out near the end of their life, then the slot is reused.
  *  - Rain (Settings → WORLD weather) lays darker, wetter, slightly wider mud prints.
  *  - Wrecks / hidden units lay nothing; a jump of more than 6 m (respawn, teleport) starts a fresh line.
  * Kill switch: ?tracks=0 (also off with ?realism=0). API: LUNCBattle.tracks.getState().
@@ -25,11 +25,12 @@
   // per vehicle type: half gauge (m, centre of hull to centre of the print), print width, step between prints
   var KIND = { 1: { half: 1.07, w: 0.36, step: 1.6, cleat: true }, 2: { half: 0.62, w: 0.2, step: 1.8, cleat: false } };
   var SHORE_Z = 54, JUMP = 6;
-  var DRY = { fresh: 0x2b261e, old: 0x6b5f49 }, WET = { fresh: 0x17130e, old: 0x4a4031 };
+  // multiply factors (1 = untouched soil): fresh dry prints darken ~35 %, wet mud ~50 %, and both fade to nothing
+  var DRY = { fresh: [0.7, 0.66, 0.6], old: [1, 1, 1] }, WET = { fresh: [0.52, 0.48, 0.43], old: [1, 1, 1] };
 
   var THREE = null, mesh = null, geo = null, mat = null, capT = '', cap = CAPS.HIGH;
   var marks = [], head = 0, filled = 0, frame = 0, last = 0, ageAcc = 0, tierAcc = 0;
-  var state = { enabled: enabled, ready: false, tier: '', cap: 0, marks: 0, vehicles: 0, drops: 0, recycled: 0, skippedShore: 0, skippedWreck: 0, skippedFar: 0, restarts: 0, wet: false, maxSlopeDeg: 0 };
+  var state = { enabled: enabled, ready: false, tier: '', cap: 0, marks: 0, vehicles: 0, drops: 0, recycled: 0, skippedShore: 0, skippedWreck: 0, skippedFar: 0, restarts: 0, wet: false, wetDrops: 0, maxSlopeDeg: 0 };
   var _m = null, _q = null, _q2 = null, _p = null, _s = null, _up = null, _n = null, _c = null, _cf = null, _co = null, _e = null;
 
   function E() { return LB.engine; }
@@ -45,17 +46,19 @@
     _up = new THREE.Vector3(0, 1, 0); _n = new THREE.Vector3(); _c = new THREE.Color(); _cf = new THREE.Color(); _co = new THREE.Color(); _e = new THREE.Euler();
     // a print: a flat quad with soft cleat bars baked into a tiny canvas (track) or a plain soft rut (wheels)
     geo = new THREE.PlaneGeometry(1, 1); geo.rotateX(-Math.PI / 2);
+    // v12.0.36: the print DARKENS whatever soil is underneath (multiply blend), so it reads right on grass, dirt, sand,
+    // at night and in fog; a white texel / white instance colour means "no change", which is how prints fade out.
     var tex = null;
     try {
       var cv = document.createElement('canvas'); cv.width = 16; cv.height = 64; var g = cv.getContext('2d');
-      g.fillStyle = '#000'; g.fillRect(0, 0, 16, 64);
-      var grd = g.createLinearGradient(0, 0, 16, 0); grd.addColorStop(0, 'rgba(255,255,255,0)'); grd.addColorStop(0.18, 'rgba(255,255,255,.75)'); grd.addColorStop(0.82, 'rgba(255,255,255,.75)'); grd.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = '#fff'; g.fillRect(0, 0, 16, 64);
+      var grd = g.createLinearGradient(0, 0, 16, 0); grd.addColorStop(0, 'rgba(0,0,0,0)'); grd.addColorStop(0.2, 'rgba(0,0,0,.55)'); grd.addColorStop(0.8, 'rgba(0,0,0,.55)'); grd.addColorStop(1, 'rgba(0,0,0,0)');
       g.fillStyle = grd; g.fillRect(0, 0, 16, 64);
-      g.fillStyle = 'rgba(255,255,255,.35)'; for (var y = 2; y < 64; y += 8) g.fillRect(2, y, 12, 3);   // cleat bars
+      g.fillStyle = 'rgba(0,0,0,.28)'; for (var y = 2; y < 64; y += 8) g.fillRect(3, y, 10, 3);   // cleat bars
       tex = new THREE.CanvasTexture(cv); tex.wrapS = THREE.ClampToEdgeWrapping; tex.wrapT = THREE.RepeatWrapping;
     } catch (_) { tex = null; }
-    mat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7, depthWrite: false, alphaMap: tex || null,
-      polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3, fog: true });
+    mat = new THREE.MeshBasicMaterial({ color: 0xffffff, map: tex || null, transparent: true, blending: THREE.MultiplyBlending, premultipliedAlpha: false, depthWrite: false,
+      polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3, fog: false, toneMapped: false });
     mat.name = 'tracks.print';
     alloc(tierName());
     state.ready = true;
@@ -81,7 +84,7 @@
     _p.set(k.x, k.y, k.z); _s.set(k.w * thin, 1, k.l);
     _e.set(0, k.yaw, 0); _q.setFromEuler(_e); _q2.setFromUnitVectors(_up, _n.set(k.nx, k.ny, k.nz)); _q.premultiply(_q2);
     _m.compose(_p, _q, _s); mesh.setMatrixAt(k.i, _m);
-    var P = k.wet ? WET : DRY; _cf.setHex(P.fresh); _co.setHex(P.old); _c.copy(_cf).lerp(_co, Math.min(1, f * 1.15));
+    var P = k.wet ? WET : DRY; _cf.setRGB(P.fresh[0], P.fresh[1], P.fresh[2]); _co.setRGB(P.old[0], P.old[1], P.old[2]); _c.copy(_cf).lerp(_co, Math.pow(f, 1.4));
     mesh.setColorAt ? mesh.setColorAt(k.i, _c) : (mesh.instanceColor.setXYZ(k.i, _c.r, _c.g, _c.b));
   }
   function put(k) {
@@ -98,7 +101,7 @@
     var sl = Math.acos(Math.min(1, _n.y)) * 57.3; if (sl > state.maxSlopeDeg) state.maxSlopeDeg = +sl.toFixed(1);
     var w = K.w * (rain ? 1.15 : 1);
     put({ x: x, y: H(x, z) + 0.035, z: z, yaw: yaw, l: len, w: w, nx: _n.x, ny: _n.y, nz: _n.z, wet: rain, t0: now });
-    state.drops++;
+    state.drops++; if (rain) state.wetDrops++;
   }
   function lay(u, rain, now, fx, fz, near2) {
     var ud = u.userData, t = ud.utype != null ? ud.utype : ud.type, K = KIND[t];
