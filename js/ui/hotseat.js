@@ -86,7 +86,7 @@
     var a = pstats(st.players[0]), b = pstats(st.players[1]);
     // score decides; a tie goes to missions completed, then hits (v12.0.35)
     var cmp = (a.score - b.score) || (a.missions - b.missions) || (a.hits - b.hits);
-    st.winner = cmp === 0 ? 0 : cmp > 0 ? 1 : 2; st.tieBreak = a.score === b.score && cmp !== 0 ? (a.missions !== b.missions ? 'missions' : 'hits') : '';
+    st.winner = cmp === 0 ? 0 : cmp > 0 ? 1 : 2; st.tieBreak = a.score === b.score && cmp !== 0 ? (a.missions !== b.missions ? 'orders completed' : 'hits') : '';
     var W = st.winner ? st.players[st.winner - 1] : null;
     var w = W ? esc(W.name).toUpperCase() + ' · ' + NAMES[W.side] + ' WIN' : 'DRAW';
     hist.unshift({ at: stamp(), rounds: st.rounds, turn: st.turn, winner: st.winner, tie: st.tieBreak,

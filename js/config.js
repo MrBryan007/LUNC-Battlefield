@@ -88,9 +88,9 @@
   // Single source of truth for current release metadata.
   // Historical comments and changelog entries are left untouched.
   const BUILD = Object.freeze({
-    version: 'v12.0.34',
-    codename: 'Flak',
-    date: '2026-10-24'
+    version: 'v12.0.35',
+    codename: 'Hot-seat part 2: names, sides, own orders',
+    date: '2026-10-25'
   });
 
   const config = {
