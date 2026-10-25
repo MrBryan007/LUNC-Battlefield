@@ -229,6 +229,9 @@
       if (window.LUNCBattle && LUNCBattle.fires && LUNCBattle.fires.update) {   // v12.0.19 fires that burn out over minutes
         try { LUNCBattle.fires.update(); } catch (e) { if (!drawFrame._fireErr) { drawFrame._fireErr = 1; console.warn('[fires]', e); } }
       }
+      if (window.LUNCBattle && LUNCBattle.tracks && LUNCBattle.tracks.update) {   // v12.0.36 tread marks that persist under vehicles
+        try { LUNCBattle.tracks.update(); } catch (e) { if (!drawFrame._trkErr) { drawFrame._trkErr = 1; console.warn('[tracks]', e); } }
+      }
       if (window.LUNCBattle && LUNCBattle.craters && LUNCBattle.craters.update) {
         try { LUNCBattle.craters.update(); } catch (e) { if (!drawFrame._crErr) { drawFrame._crErr = 1; console.warn('[craters]', e); } }
       }
