@@ -3,7 +3,9 @@
  * Cosmetic only (game/visual layer). Never touches market data, the price→X mapping, the frontline math, army counts
  * or data-truth labels.
  *  - Every MBT (type 1) lays a pair of track prints and every self-propelled gun (type 2) a pair of narrower wheel
- *    ruts as it moves: a print roughly every metre of travel, offset to each side of the hull along its heading.
+ *    ruts as it moves: a print every 1.6–1.8 m of travel, offset to each side of the hull along its heading. Only
+ *    vehicles within a tier radius of the camera focus lay prints (LOW 90 m … ULTRA 230 m), so the ring buffer holds
+ *    the prints you can actually see.
  *  - Prints are height-aware: y from engine.terrainHeight and tilted to the local slope (finite-difference normal), so
  *    they hug berms and craters. Nothing is laid in the ocean or on the beach.
  *  - One InstancedMesh ring buffer (one draw call, no shadows, polygon offset against z-fighting). Caps per tier.
@@ -19,15 +21,15 @@
   var qs; try { qs = new URLSearchParams(global.location.search); } catch (_) { qs = { get: function () { return null; } }; }
   var enabled = qs.get('tracks') !== '0' && qs.get('realism') !== '0';
 
-  var CAPS = { LOW: { n: 500, life: 150, every: 3 }, MEDIUM: { n: 1400, life: 420, every: 2 }, HIGH: { n: 2800, life: 420, every: 1 }, ULTRA: { n: 4000, life: 420, every: 1 } };
+  var CAPS = { LOW: { n: 600, life: 150, every: 3, near: 90 }, MEDIUM: { n: 1800, life: 420, every: 2, near: 140 }, HIGH: { n: 3600, life: 420, every: 1, near: 180 }, ULTRA: { n: 5000, life: 420, every: 1, near: 230 } };
   // per vehicle type: half gauge (m, centre of hull to centre of the print), print width, step between prints
-  var KIND = { 1: { half: 1.07, w: 0.36, step: 1.0, cleat: true }, 2: { half: 0.62, w: 0.2, step: 1.1, cleat: false } };
+  var KIND = { 1: { half: 1.07, w: 0.36, step: 1.6, cleat: true }, 2: { half: 0.62, w: 0.2, step: 1.8, cleat: false } };
   var SHORE_Z = 54, JUMP = 6;
   var DRY = { fresh: 0x2b261e, old: 0x6b5f49 }, WET = { fresh: 0x17130e, old: 0x4a4031 };
 
   var THREE = null, mesh = null, geo = null, mat = null, capT = '', cap = CAPS.HIGH;
   var marks = [], head = 0, filled = 0, frame = 0, last = 0, ageAcc = 0, tierAcc = 0;
-  var state = { enabled: enabled, ready: false, tier: '', cap: 0, marks: 0, vehicles: 0, drops: 0, recycled: 0, skippedShore: 0, skippedWreck: 0, restarts: 0, wet: false, maxSlopeDeg: 0 };
+  var state = { enabled: enabled, ready: false, tier: '', cap: 0, marks: 0, vehicles: 0, drops: 0, recycled: 0, skippedShore: 0, skippedWreck: 0, skippedFar: 0, restarts: 0, wet: false, maxSlopeDeg: 0 };
   var _m = null, _q = null, _q2 = null, _p = null, _s = null, _up = null, _n = null, _c = null, _cf = null, _co = null, _e = null;
 
   function E() { return LB.engine; }
@@ -52,7 +54,7 @@
       g.fillStyle = 'rgba(255,255,255,.35)'; for (var y = 2; y < 64; y += 8) g.fillRect(2, y, 12, 3);   // cleat bars
       tex = new THREE.CanvasTexture(cv); tex.wrapS = THREE.ClampToEdgeWrapping; tex.wrapT = THREE.RepeatWrapping;
     } catch (_) { tex = null; }
-    mat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.62, depthWrite: false, alphaMap: tex || null,
+    mat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.7, depthWrite: false, alphaMap: tex || null,
       polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3, fog: true });
     mat.name = 'tracks.print';
     alloc(tierName());
@@ -98,11 +100,13 @@
     put({ x: x, y: H(x, z) + 0.035, z: z, yaw: yaw, l: len, w: w, nx: _n.x, ny: _n.y, nz: _n.z, wet: rain, t0: now });
     state.drops++;
   }
-  function lay(u, rain, now) {
+  function lay(u, rain, now, fx, fz, near2) {
     var ud = u.userData, t = ud.utype != null ? ud.utype : ud.type, K = KIND[t];
     if (!K) return false;
     if (ud.wreckUntil || !u.visible || u.scale.x < 0.05) { ud._trk = null; state.skippedWreck++; return true; }
     var p = u.position, tr = ud._trk;
+    var fdx = p.x - fx, fdz = p.z - fz;
+    if (fdx * fdx + fdz * fdz > near2) { ud._trk = null; state.skippedFar++; return true; }   // nobody sees prints out there
     if (!tr) { ud._trk = { x: p.x, z: p.z }; return true; }
     var dx = p.x - tr.x, dz = p.z - tr.z, dist = Math.hypot(dx, dz);
     if (dist > JUMP) { tr.x = p.x; tr.z = p.z; state.restarts++; return true; }
@@ -127,7 +131,8 @@
     tierAcc += dt; if (tierAcc > 2) { tierAcc = 0; var t = tierName(); if (t !== capT) alloc(t); }
     if ((++frame % cap.every) !== 0) return;
     var A = e.getArmies(), rain = wet(), n = 0; state.wet = rain;
-    [A.bulls, A.bears].forEach(function (list) { if (list) for (var i = 0; i < list.length; i++) if (lay(list[i], rain, now)) n++; });
+    var f = e.controls && e.controls.target ? e.controls.target : e.camera.position, near2 = cap.near * cap.near;
+    [A.bulls, A.bears].forEach(function (list) { if (list) for (var i = 0; i < list.length; i++) if (lay(list[i], rain, now, f.x, f.z, near2)) n++; });
     state.vehicles = n;
     ageAcc += dt * cap.every; if (ageAcc > 0.5) { ageAcc = 0; age(now); }
     state.marks = filled;
