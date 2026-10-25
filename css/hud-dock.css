@@ -381,3 +381,15 @@ body.cutscene .ach-toast { display: none; }
 .hs-chip button { font: 600 11px Inter, system-ui, sans-serif; color: #14100a; background: #d7b56d; border: 0; border-radius: 999px; padding: 5px 10px; cursor: pointer; }
 @media (max-width: 760px) { .hs-chip { bottom: auto; top: calc(env(safe-area-inset-top, 0px) + 96px); left: calc(env(safe-area-inset-left, 0px) + 10px); transform: none; } }
 body.ui-hidden .hs-chip { display: flex; }
+/* v12.0.35 hot-seat part 2: names, side choice, match history */
+.hs-names input { flex: 1 1 96px; min-width: 0; max-width: 150px; font: 600 13px Inter, system-ui, sans-serif; color: #e8e2cf; background: rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.16); border-radius: 8px; padding: 6px 8px; min-height: 32px; }
+.hs-names input:focus { outline: none; border-color: #d7b56d; }
+.hs-names input:disabled { opacity: .55; }
+.hs-side { font: 700 10px Inter, system-ui, sans-serif; letter-spacing: .6px; padding: 2px 6px; border-radius: 6px; background: rgba(255,255,255,.06); }
+.hs-hist { margin-top: 8px; font-size: 11px; }
+.hs-hist small { display: block; color: #9aa59d; letter-spacing: .5px; margin-bottom: 4px; }
+.hs-hist .hs-h { display: flex; gap: 6px; flex-wrap: wrap; align-items: baseline; padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,.06); }
+.hs-hist .hs-h span:first-child { color: #9aa59d; min-width: 74px; }
+.hs-hist .hs-h b { margin-left: auto; color: #d7b56d; font-weight: 600; }
+.hs-hist button { margin-top: 6px; min-height: 28px; padding: 4px 10px; font-size: 11px; }
+@media (max-width: 520px) { .hs-names input { max-width: none; flex-basis: 40%; } .hs-hist .hs-h span:first-child { min-width: 0; } }

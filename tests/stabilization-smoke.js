@@ -43,7 +43,7 @@ const checks = [
   ['hq banners wired', index.includes('js/fx/hq-banners.js') && engine.includes('LUNCBattle.hqBanners.update()') && read('js/fx/hq-banners.js').includes("qs.get('banners') !== '0'") && read('js/ui/achievements.js').includes('function setBanner(') && read('js/ui/achievements.js').includes('id="achBanner"')],
   ['air ops wired', index.includes('js/fx/air-ops.js') && read('js/fx/air-ops.js').includes("qs.get('airops') !== '0'") && read('js/theaters/theaters.js').includes('AO.tick(J, dt, homeCtx(J))') && read('js/theaters/theaters.js').includes('LB.airOps.catapult(J, s)') && read('js/theaters/theaters.js').includes('AO.pose(J, dt)')],
   ['flak wired', index.includes('js/fx/flak.js') && read('js/fx/flak.js').includes("qs.get('flak') !== '0'") && read('js/theaters/theaters.js').includes('LB.flak.update(wdt)') && read('js/theaters/theaters.js').includes('FL.fire(a.wx, 1.9, a.wz, o, a.side)') && read('js/theaters/base-invasion.js').includes('LB.flak.fire(from.x, from.y, from.z, jet, d.userData.side)')],
-  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.34')]
+  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.35')]
 ];
 
 let failed = 0;
