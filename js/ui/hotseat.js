@@ -23,7 +23,9 @@
   // v12.0.35: player names, side choice and match history, saved on this device only
   function loadS() { try { return JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (_) { return {}; } }
   function saveS() { try { localStorage.setItem(KEY, JSON.stringify({ names: cfg.names, swap: cfg.swap, turn: cfg.turn, rounds: cfg.rounds, history: hist })); } catch (_) {} }
-  function clean(v, n) { v = String(v == null ? '' : v).replace(/[<>&"'`\\]/g, '').replace(/\s+/g, ' ').trim().slice(0, 16); return v || 'Player ' + n; }
+  function clean(v, n) { v = String(v == null ? '' : v).replace(/<[^>]*>/g, '').replace(/[<>&"'`\\]/g, '').replace(/\s+/g, ' ').trim().slice(0, 16); return v || 'Player ' + n; }
+  // local date/time for the match history (device clock, not UTC)
+  function stamp() { var d = new Date(), z = function (n) { return ('0' + n).slice(-2); }; return d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate()) + ' ' + z(d.getHours()) + ':' + z(d.getMinutes()); }
   function who(P) { return P.name + ' · ' + NAMES[P.side]; }
   function C() { return LB.commander; }
   function E() { return LB.engine; }
@@ -87,7 +89,7 @@
     st.winner = cmp === 0 ? 0 : cmp > 0 ? 1 : 2; st.tieBreak = a.score === b.score && cmp !== 0 ? (a.missions !== b.missions ? 'missions' : 'hits') : '';
     var W = st.winner ? st.players[st.winner - 1] : null;
     var w = W ? esc(W.name).toUpperCase() + ' · ' + NAMES[W.side] + ' WIN' : 'DRAW';
-    hist.unshift({ at: new Date().toISOString().slice(0, 16).replace('T', ' '), rounds: st.rounds, turn: st.turn, winner: st.winner, tie: st.tieBreak,
+    hist.unshift({ at: stamp(), rounds: st.rounds, turn: st.turn, winner: st.winner, tie: st.tieBreak,
       p: st.players.map(function (P) { var s2 = pstats(P); return { name: P.name, side: P.side, score: s2.score, missions: s2.missions }; }) });
     hist = hist.slice(0, 5); saveS();
     cover('<div class="hs-kicker">MATCH OVER · ' + st.rounds + ' ROUNDS</div><h2' + (W ? ' class="hs-' + W.side + '"' : '') + '>' + w + '</h2>' + (st.tieBreak ? '<div class="hs-sub">Level on score, decided on ' + st.tieBreak + '.</div>' : '') + board() +
