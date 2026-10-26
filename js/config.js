@@ -88,9 +88,9 @@
   // Single source of truth for current release metadata.
   // Historical comments and changelog entries are left untouched.
   const BUILD = Object.freeze({
-    version: 'v12.0.36',
-    codename: 'Tread marks that persist under vehicles',
-    date: '2026-10-25'
+    version: 'v12.0.37',
+    codename: 'SAM sites: radar-guided missiles',
+    date: '2026-10-26'
   });
 
   const config = {

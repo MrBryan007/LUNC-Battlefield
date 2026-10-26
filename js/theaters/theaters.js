@@ -508,6 +508,7 @@
     for (var j = 0; j < jets.length; j++) tickJet(jets[j], wdt);   // aircraft cross theaters → always full rate (few)
     tickMissiles(wdt);
     if (LB.flak) { try { LB.flak.update(wdt); } catch (e) { if (!update._flErr) { update._flErr = 1; console.warn('[flak]', e); } } }   // v12.0.34
+    if (LB.sam) { try { LB.sam.update(wdt); } catch (e) { if (!update._samErr) { update._samErr = 1; console.warn('[sam]', e); } } }   // v12.0.37 SAM sites
     if (navalNear || doFar) tickBases(navalNear ? wdt : fdt);
     stats.ships = ships.filter(function (s) { return s.st === 'sail'; }).length; stats.hulks = hulks.length; stats.jets = jets.length; stats.airborne = airborne();
     stats.shells = shells.length; stats.missiles = missiles.length;
