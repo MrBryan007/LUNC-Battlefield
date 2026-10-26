@@ -88,8 +88,8 @@
   // Single source of truth for current release metadata.
   // Historical comments and changelog entries are left untouched.
   const BUILD = Object.freeze({
-    version: 'v12.0.37',
-    codename: 'SAM sites: radar-guided missiles',
+    version: 'v12.0.38',
+    codename: 'Sea surface: whitecaps, breakers, wet sand',
     date: '2026-10-26'
   });
 
