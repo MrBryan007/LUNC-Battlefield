@@ -70,6 +70,7 @@
     beach.rotation.x = -Math.PI / 2; beach.position.set(0, -0.3, SHORE - 5); root.add(beach);
     foam = new THREE.Mesh(new THREE.PlaneGeometry(BOUNDS.maxX * 2 + 260, 2.2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.45, depthWrite: false }));
     foam.rotation.x = -Math.PI / 2; foam.position.set(0, -0.2, SHORE + 1.2); root.add(foam);
+    if (LB.shoreline) { try { LB.shoreline.patch({ THREE: THREE, root: root, ocean: ocean, beach: beach, foam: foam, shore: SHORE, oceanZ: SHORE + 160, waves: waves, width: BOUNDS.maxX * 2 + 260 }); } catch (err) { console.warn('[shoreline]', err); } }   // v12.0.38 whitecaps, breakers, wet sand
     hideSkirtUnderSea();
   }
   // v12.0.15 fix: the far ground skirt (y −0.55) poked up through every wave trough (ocean dips to −0.95) as gold
@@ -484,7 +485,7 @@
   }
 
   // ---------------------------------------------------------------- tick
-  var fogT = 0;
+  var fogT = 0, shoreT = 0;
   function update() {
     if (!enabled) return;
     var e = E(); if (!e || !e.THREE) return;
@@ -495,6 +496,7 @@
     var t0 = now;
     if (oceanU) oceanU.value += wdt;
     if (foam) foam.material.opacity = 0.32 + Math.sin(now * 0.0013) * 0.14;
+    shoreT += wdt; if (LB.shoreline) LB.shoreline.update(oceanU ? oceanU.value : shoreT, wdt);   // v12.0.38
     fogT -= wdt; if (fogT <= 0) { fogT = 2; fogWide(); }
     // sim LOD: theaters far from the camera tick at 4 Hz
     var T = e.getCameraTarget(), far = Math.abs(T.x) > 0 ? 0 : 0;
