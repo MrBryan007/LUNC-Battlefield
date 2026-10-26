@@ -223,6 +223,22 @@
       }
       if (big) { var pgs = LB.asw.pings(); for (var pq = 0; pq < pgs.length; pq++) { var PG = pgs[pq]; c.strokeStyle = 'rgba(160,232,255,' + (0.7 * (1 - PG.k)).toFixed(2) + ')'; c.lineWidth = 1.2; c.beginPath(); c.arc(X(PG.x), Z(PG.z), Math.max(2, PG.r * sx), 0, 6.283); c.stroke(); } }
     }
+    // v12.0.37 SAM batteries (own always with a dashed engagement ring on the big map; enemy only where you can see) + missiles in flight
+    if (LB.sam && LB.sam.isEnabled && LB.sam.isEnabled()) {
+      var sml = LB.sam._sites();
+      for (var sm = 0; sm < sml.length; sm++) {
+        var SM = sml[sm], oM = SM.side === own; if (!oM && fowOn && !LB.fow.visible(SM.x, SM.z)) continue;
+        var smx = X(SM.x), smz = Z(SM.z), sms = gs * 1.05; sideColNow = sideCol(SM.side);
+        frame(c, smx, smz, sms, oM, 'land', SM.side);
+        if (big) {
+          label(c, 'SAM', smx, smz - sms * 0.2, Math.max(6, sms * 0.7), '#f2f6f3');
+          if (oM) { c.strokeStyle = 'rgba(255,255,255,.28)'; c.lineWidth = 1; c.setLineDash([4, 4]); c.beginPath(); c.arc(smx, smz, Math.max(4, 200 * sx), 0, 6.283); c.stroke(); c.setLineDash([]); }
+        }
+        n++;
+      }
+      var mll = LB.sam._missiles(); c.fillStyle = '#ffffff';
+      for (var ml = 0; ml < mll.length; ml++) { var MM = mll[ml]; c.fillRect(X(MM.x) - 1, Z(MM.z) - 1, 2, 2); }
+    }
     // fog of war: dim unseen ground + last-known ghosts
     if (fowOn) {
       var step = big ? 10 : 4; c.fillStyle = 'rgba(4,6,10,.5)';
@@ -300,7 +316,7 @@
       '<span class="tac-ob-l">ORDER</span><button type="button" data-so="move" class="on">Move<small>tap map</small></button><button type="button" data-so="flank">Flank</button><button type="button" data-so="hold">Hold</button><button type="button" data-so="cover">Cover</button></div>' +
       '<div class="tac-body"><canvas id="tacCanvas"></canvas><div class="tac-legend" hidden>' +
       '<div><i class="lg rect"></i>Own forces (rectangle) · <i class="lg dia"></i>Enemy (diamond)</div>' +
-      '<div>✕ infantry · ⬭ armor · ● artillery · ⋈ helicopter · ⌒ air track (line = heading) · ○ CV/BB/DD ships · ◡ SSN submarine (dashed = weak sonar contact)</div>' +
+      '<div>✕ infantry · ⬭ armor · ● artillery · ⋈ helicopter · ⌒ air track (line = heading) · ○ CV/BB/DD ships · ◡ SSN submarine (dashed = weak sonar contact) · SAM surface-to-air battery (dashed ring = your engagement range)</div>' +
       '<div>• •• ••• | || ||| unit-count echelon (on-screen units, not real strength) · HQ / AB / SUP installations</div>' +
       '<div><span style="color:#ffd36a">◗◗ FLOT</span>: the front line set by the market price · rings: supply drops / pings</div>' +
       '<div>Tap / click: fly the camera there · long-press / right-click: drop a ping · N: open/close · Esc: close</div>' +
