@@ -45,7 +45,7 @@ const checks = [
   ['tracks wired', index.includes('js/fx/tracks.js') && read('js/fx/tracks.js').includes("qs.get('tracks') !== '0'") && engine.includes('LUNCBattle.tracks.update()')],
   ['flak wired', index.includes('js/fx/flak.js') && read('js/fx/flak.js').includes("qs.get('flak') !== '0'") && read('js/theaters/theaters.js').includes('LB.flak.update(wdt)') && read('js/theaters/theaters.js').includes('FL.fire(a.wx, 1.9, a.wz, o, a.side)') && read('js/theaters/base-invasion.js').includes('LB.flak.fire(from.x, from.y, from.z, jet, d.userData.side)')],
   ['sam wired', index.includes('js/fx/sam.js') && read('js/fx/sam.js').includes("qs.get('sam') !== '0'") && read('js/theaters/theaters.js').includes('LB.sam.update(wdt)')],
-  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.36')]
+  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.37')]
 ];
 
 let failed = 0;

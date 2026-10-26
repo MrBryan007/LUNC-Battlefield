@@ -164,7 +164,7 @@
       if (S.lock >= LOCK) { S.st = 'locked'; stats.locks++; }
     }
     if (S.st === 'locked' && S.gap <= 0 && err < 0.25 && d <= RMAX && d >= RMIN) {
-      if (launch(S, J)) { S.gap = GAP; if (S.rounds <= 0) { S.st = 'reload'; S.reload = RELOAD; S.tgt = null; } }
+      if (launch(S, J)) { S.gap = GAP; if (S.rounds <= 0) { S.st = 'reload'; S.reload = RELOAD * (lowFx() ? 1.6 : 1); S.tgt = null; } }   // phones fly few jets: slower reloads keep some in the sky
     }
   }
 
@@ -205,7 +205,7 @@
         if (M.chaffT <= 0) {
           M.chaffT = rnd(0.9, 1.5); stats.chaff++;
           if (f) for (var c = 0; c < (lo ? 2 : 5); c++) f.puff({ kind: 'flash', x: J.x - Math.cos(J.hd) * 1.5, y: J.y - 0.3, z: J.z + Math.sin(J.hd) * 1.5, vx: rnd(-2, 2), vy: rnd(-2, 0), vz: rnd(-2, 2), size: 0.7, grow: 2.2, life: 1.4, color: 0xdfe6ea, opacity: 0.55, delay: c * 0.06, drag: 0.9 });
-          if (Math.random() < 0.18 / Math.max(0.5, WXM(M.side))) { M.guided = false; stats.lostLock++; stats.chaff += 0; radio(J.side, cs(J), 'chaff worked, missile defeated.'); }
+          if (Math.random() < 0.24 / Math.max(0.5, WXM(M.side))) { M.guided = false; stats.lostLock++; radio(J.side, cs(J), 'chaff worked, missile defeated.'); }
         }
         // notch: the jet's velocity nearly perpendicular to the line of sight → doppler gate loses it
         var lx = J.x - M.x, lz = J.z - M.z, ll = Math.hypot(lx, lz) || 1, vx = Math.cos(J.hd), vz = -Math.sin(J.hd);
