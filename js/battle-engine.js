@@ -257,6 +257,7 @@
         if (LUNCBattle.soundscape) { try { LUNCBattle.soundscape.update(); } catch (e) { if (!drawFrame._sndErr) { drawFrame._sndErr = 1; console.warn('[soundscape]', e); } } }
         if (LUNCBattle.wxCombat) { try { LUNCBattle.wxCombat.update(); } catch (e) { if (!drawFrame._wxErr) { drawFrame._wxErr = 1; console.warn('[wx-combat]', e); } } }
         if (LUNCBattle.fow) { try { LUNCBattle.fow.update(); } catch (e) { if (!drawFrame._fowErr) { drawFrame._fowErr = 1; console.warn('[fow]', e); } } }
+        if (LUNCBattle.brevity) { try { LUNCBattle.brevity.update(); } catch (e) { if (!drawFrame._bErr) { drawFrame._bErr = 1; console.warn('[brevity]', e); } } }   // v12.0.40
         if (LUNCBattle.voice) { try { LUNCBattle.voice.update(); } catch (e) { if (!drawFrame._vErr) { drawFrame._vErr = 1; console.warn('[voice]', e); } } }
         if (LUNCBattle.baseInvasion) { try { LUNCBattle.baseInvasion.update(); } catch (e) { if (!drawFrame._invErr) { drawFrame._invErr = 1; console.warn('[invasion]', e); } } }
       }
