@@ -88,8 +88,8 @@
   // Single source of truth for current release metadata.
   // Historical comments and changelog entries are left untouched.
   const BUILD = Object.freeze({
-    version: 'v12.0.41',
-    codename: 'Squad Specialists',
+    version: 'v12.0.42',
+    codename: 'Power-ups',
     date: '2026-10-29'
   });
 

@@ -50,7 +50,7 @@ const checks = [
   ['brevity wired', index.includes('js/theaters/brevity.js') && read('js/theaters/brevity.js').includes("qs.get('brevity') !== '0'") && read('js/theaters/theaters.js').includes("LB.brevity.air('fox', J, o)") && read('js/commander.js').includes('LB.brevity.fireMission(') && read('js/battle-engine.js').includes('LUNCBattle.brevity.update()')],
   ['squad kits wired', read('js/ui/achievements.js').includes("qs.get('squadkits') !== '0'") && read('js/ui/achievements.js').includes('squadKit: squadKit') && read('js/theaters/squads.js').includes('function refreshKits()') && read('js/theaters/squads.js').includes('kitStep(S, dt)')],
   ['power-ups wired', index.includes('js/theaters/powerups.js') && read('js/theaters/powerups.js').includes("qs.get('powerups') !== '0'") && read('js/commander.js').includes('PU.scoreMult()') && read('js/commander.js').includes('LB.powerups.strikeAt(') && read('js/theaters/supply.js').includes("LB.powerups.grant(null, 'crate')")],
-  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.41')]
+  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.42')]
 ];
 
 let failed = 0;
