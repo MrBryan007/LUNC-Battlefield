@@ -274,7 +274,8 @@
   }
   function fireMissile(J, o) {
     if (missiles.length > 24) return;
-    missiles.push({ x: J.x, y: J.y - 0.4, z: J.z, tgt: o, t: 0, side: J.side });
+    missiles.push({ x: J.x, y: J.y - 0.4, z: J.z, tgt: o, t: 0, side: J.side, J: J });
+    if (LB.brevity) try { LB.brevity.air('fox', J, o); } catch (_) {}   // v12.0.40 brevity
   }
   function tickMissiles(dt) {
     var F = fx();
@@ -285,8 +286,9 @@
       if (F) F.puff({ kind: 'smoke', x: m.x, y: m.y, z: m.z, size: 0.35, grow: 1.6, life: 1.1, color: 0xe8e8e8, opacity: 0.45 });
       if (d < 2 || m.t > 3) {
         missiles.splice(i, 1);
-        if (o.flare > 0 && Math.random() < 0.4) { o.flare--; if (F) for (var k = 0; k < 4; k++) F.puff({ kind: 'fire', x: o.x, y: o.y - k * 0.5, z: o.z, vy: -2, size: 0.5, grow: 0.2, life: 0.8, color: 0xffd27a, opacity: 0.9, delay: k * 0.05 }); continue; }
-        if (d < 4 && (o.st === 'cruise' || o.st === 'fight' || o.st === 'rtb') && Math.random() < WXM('ir', m.side)) { if (F) F.puff({ kind: 'fire', x: o.x, y: o.y, z: o.z, size: 2.4, grow: 0.6, life: 0.6, color: 0xff9a3a, opacity: 0.95 }); o.st = 'down'; stats.kills++; }
+        if (o.flare > 0 && Math.random() < 0.4) { o.flare--; if (LB.brevity) try { LB.brevity.air('defend', m.J, o); LB.brevity.air('trashed', m.J, o); } catch (_) {} if (F) for (var k = 0; k < 4; k++) F.puff({ kind: 'fire', x: o.x, y: o.y - k * 0.5, z: o.z, vy: -2, size: 0.5, grow: 0.2, life: 0.8, color: 0xffd27a, opacity: 0.9, delay: k * 0.05 }); continue; }
+        if (d < 4 && (o.st === 'cruise' || o.st === 'fight' || o.st === 'rtb') && Math.random() < WXM('ir', m.side)) { if (F) F.puff({ kind: 'fire', x: o.x, y: o.y, z: o.z, size: 2.4, grow: 0.6, life: 0.6, color: 0xff9a3a, opacity: 0.95 }); o.st = 'down'; stats.kills++; if (LB.brevity) try { LB.brevity.air('splash', m.J, o); } catch (_) {} }
+        else if (m.t > 3 && o.st !== 'down' && LB.brevity) try { LB.brevity.air('trashed', m.J, o); } catch (_) {}   // v12.0.40 brevity: miss
       }
     }
   }

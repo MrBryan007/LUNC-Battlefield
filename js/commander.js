@@ -550,7 +550,8 @@
     if (E().isPaused() || (LB.cutscene && LB.cutscene.isActive())) return;
     session.strikes++;
     lastAbility = ability;
-    if (LB.voice && LB.voice.event) try { LB.voice.event(ability === 'nuke' ? 'nuke' : 'strike', -enemySide()); } catch (_) {}   // v12.0.10 radio
+    if (ability !== 'nuke' && ability !== 'moon' && LB.brevity && LB.brevity.isEnabled()) { try { LB.brevity.fireMission(-enemySide(), ability); } catch (_) {} }   // v12.0.40 call-for-fire procedure
+    else if (LB.voice && LB.voice.event) try { LB.voice.event(ability === 'nuke' ? 'nuke' : 'strike', -enemySide()); } catch (_) {}   // v12.0.10 radio
     learn('strike', { ability: ability, x: p.x, z: p.z });
     if (ability === 'moon') learn('moon', {});
     if (ability === 'arty') strikeArty(p.x, p.z);
