@@ -47,7 +47,7 @@ const checks = [
   ['sam wired', index.includes('js/fx/sam.js') && read('js/fx/sam.js').includes("qs.get('sam') !== '0'") && read('js/theaters/theaters.js').includes('LB.sam.update(wdt)')],
   ['shoreline wired', index.includes('js/fx/shoreline.js') && read('js/fx/shoreline.js').includes("qs.get('shore') !== '0'") && read('js/theaters/theaters.js').includes('LB.shoreline.patch(') && read('js/theaters/theaters.js').includes('LB.shoreline.update(')],
   ['spatial audio wired', read('js/sfx.js').includes("get('spatial') !== '0'") && read('js/sfx.js').includes('function whoosh(') && read('js/fx/realism-pass.js').includes('if (pos && LB.sfx.whoosh) return raw.call(LB.sfx, power, dist, pos)') && read('js/fx/sam.js').includes('LB.sfx.whoosh(')],
-  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.38')]
+  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.39')]
 ];
 
 let failed = 0;
