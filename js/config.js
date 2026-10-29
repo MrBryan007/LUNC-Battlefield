@@ -88,8 +88,8 @@
   // Single source of truth for current release metadata.
   // Historical comments and changelog entries are left untouched.
   const BUILD = Object.freeze({
-    version: 'v12.0.40',
-    codename: 'Brevity Codes',
+    version: 'v12.0.41',
+    codename: 'Squad Specialists',
     date: '2026-10-29'
   });
 
