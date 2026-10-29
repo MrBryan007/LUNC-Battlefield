@@ -37,7 +37,7 @@
     return true;
   }
 
-  function noise(dur, filterType, freq, q, vol, attack, when) {
+  function noise(dur, filterType, freq, q, vol, attack, when, dest) {
     var t = (when || ctx.currentTime);
     var src = ctx.createBufferSource(); src.buffer = noiseBuf;
     src.playbackRate.value = 0.8 + Math.random() * 0.4;
@@ -46,12 +46,12 @@
     g.gain.setValueAtTime(0.0001, t);
     g.gain.exponentialRampToValueAtTime(Math.max(0.0002, vol), t + (attack || 0.005));
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    src.connect(f); f.connect(g); g.connect(comp);
+    src.connect(f); f.connect(g); g.connect(dest || comp);
     src.start(t, Math.random() * 1.5); src.stop(t + dur + 0.05);
     return f;
   }
 
-  function tone(freq, endFreq, dur, type, vol, when) {
+  function tone(freq, endFreq, dur, type, vol, when, dest) {
     var t = (when || ctx.currentTime);
     var o = ctx.createOscillator(); o.type = type || 'sine';
     o.frequency.setValueAtTime(freq, t);
@@ -60,12 +60,59 @@
     g.gain.setValueAtTime(0.0001, t);
     g.gain.exponentialRampToValueAtTime(Math.max(0.0002, vol), t + 0.01);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-    o.connect(g); g.connect(comp); o.start(t); o.stop(t + dur + 0.05);
+    o.connect(g); g.connect(dest || comp); o.start(t); o.stop(t + dur + 0.05);
   }
 
-  /** power ~0.5–3, dist 0..1 (0 = at camera) */
-  function explosion(power, dist) {
+  // ---------------------------------------------------------------- v12.0.39 positional audio
+  // A world position on a sound gives: stereo pan from the camera's right vector, a duller sound from behind (simple
+  // head-shadow high cut), air absorption (a low-pass that closes with distance) and the speed-of-sound delay on the
+  // audio clock. ?spatial=0 keeps the old flat behaviour. Distances above 1 are metres and get normalised (some callers
+  // passed metres where 0..1 was expected, which pinned their booms at the quietest level).
+  var SPATIAL = true; try { SPATIAL = new URLSearchParams(global.location.search).get('spatial') !== '0'; } catch (_) {}
+  var SOS = 340, SP = { calls: 0, delayed: 0, normalised: 0, whooshes: 0, last: null };
+  function camD(pos) { try { var c = LB.engine.camera.position; return Math.hypot(pos.x - c.x, (pos.y || 0) - c.y, pos.z - c.z); } catch (_) { return 100; } }
+  function nd(dist) { if (dist > 1) { SP.normalised++; return Math.min(1, dist / 260); } return dist || 0; }
+  function spatial(pos) {
+    var e = LB.engine, cam = e && e.camera; if (!cam || !pos) return null;
+    var c = cam.position, dx = pos.x - c.x, dy = (pos.y || 0) - c.y, dz = pos.z - c.z, d = Math.sqrt(dx * dx + dy * dy + dz * dz) || 0.001;
+    var m = cam.matrixWorld.elements, rx = m[0], ry = m[1], rz = m[2], fx = -m[8], fy = -m[9], fz = -m[10];
+    var pan = Math.max(-1, Math.min(1, (dx * rx + dy * ry + dz * rz) / d * 0.9));
+    var front = (dx * fx + dy * fy + dz * fz) / d;                      // 1 ahead … −1 behind
+    var cut = 600 + 17400 * Math.exp(-d / 85);                          // air absorption: highs fade first with distance
+    if (front < 0) cut *= 1 + front * 0.45;                             // head shadow: duller from behind
+    var o = { d: d, pan: pan, front: front, cut: Math.max(350, cut), delay: Math.min(2.5, d / SOS) };
+    SP.calls++; SP.last = { d: Math.round(d), pan: Math.round(pan * 100) / 100, cut: Math.round(o.cut), delay: Math.round(o.delay * 100) / 100, behind: front < 0 };
+    return o;
+  }
+  function bus(sp, when) {   // per-sound chain: absorption low-pass → stereo panner → compressor
+    var f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.Q.value = 0.5; f.frequency.setValueAtTime(sp.cut, when);
+    if (ctx.createStereoPanner) { var p = ctx.createStereoPanner(); p.pan.setValueAtTime(sp.pan, when); f.connect(p); p.connect(comp); }
+    else f.connect(comp);
+    return f;
+  }
+  /** Doppler roar of a passing object (missile, shell): pitch from the radial speed toward the camera. vel {x,y,z} m/s */
+  function whoosh(pos, vel, power) {
+    if (!ctx || muted || !pos || !voice(1600)) return;
+    var sp = SPATIAL ? spatial(pos) : null; if (!sp) return;
+    if (sp.d > 320) return;
+    var t = ctx.currentTime + sp.delay, c = LB.engine.camera.position, v = vel || { x: 0, y: 0, z: 0 };
+    var ux = (c.x - pos.x) / sp.d, uy = (c.y - (pos.y || 0)) / sp.d, uz = (c.z - pos.z) / sp.d;
+    var vr = Math.max(-SOS * 0.8, Math.min(SOS * 0.8, v.x * ux + v.y * uy + v.z * uz));   // + = coming toward the camera
+    var dop = SOS / (SOS - vr), att = Math.max(0.05, 1 - sp.d / 320) * Math.min(1.4, power || 1), dur = 1.6;
+    var out = bus(sp, t), src = ctx.createBufferSource(); src.buffer = noiseBuf; src.playbackRate.setValueAtTime(Math.max(0.5, Math.min(2, dop)), t);
+    var f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 0.8; f.frequency.setValueAtTime(700 * dop, t); f.frequency.exponentialRampToValueAtTime(Math.max(120, 380 * dop), t + dur);
+    var g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.2 * att, t + 0.06); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(f); f.connect(g); g.connect(out); src.start(t, Math.random()); src.stop(t + dur + 0.05);
+    SP.whooshes++; SP.lastDoppler = Math.round(dop * 1000) / 1000;
+  }
+
+  /** power ~0.5–3, dist 0..1 (0 = at camera; metres are normalised), pos {x,y,z[,noDelay]} optional world position */
+  function explosion(power, dist, pos) {
     if (!ctx || muted) return;
+    var sp = SPATIAL && pos ? spatial(pos) : null, at = ctx.currentTime, out = null;
+    if (dist == null && pos) dist = Math.min(1, (sp ? sp.d : camD(pos)) / 260);
+    if (sp) { if (!pos.noDelay && sp.delay > 0.03) at += sp.delay; }
+    dist = nd(dist);
     intensity = Math.min(1, intensity + 0.05 * (power || 1));
     var now = performance.now();
     if (now - lastBoom < 70) return;
@@ -74,22 +121,28 @@
     var att = Math.max(0.08, 1 - (dist || 0));
     var dur = 0.5 + power * 0.45;
     if (!voice(dur * 1000)) return;
-    var f = noise(dur, 'lowpass', 900 + power * 500, 0.8, 0.55 * att * Math.min(1.4, power), 0.004);
-    f.frequency.exponentialRampToValueAtTime(120, ctx.currentTime + dur);
-    tone(85 + Math.random() * 20, 32, dur * 0.8, 'sine', 0.5 * att * Math.min(1.3, power));
-    if (power > 1.4) noise(0.12, 'highpass', 2500, 0.5, 0.18 * att);
+    if (sp) { out = bus(sp, at); if (at > ctx.currentTime) SP.delayed++; }
+    var f = noise(dur, 'lowpass', 900 + power * 500, 0.8, 0.55 * att * Math.min(1.4, power), 0.004, at, out);
+    f.frequency.exponentialRampToValueAtTime(120, at + dur);
+    tone(85 + Math.random() * 20, 32, dur * 0.8, 'sine', 0.5 * att * Math.min(1.3, power), at, out);
+    if (power > 1.4) noise(0.12, 'highpass', 2500, 0.5, 0.18 * att, 0.005, at, out);
   }
 
-  function gunfire(dist) {
+  function gunfire(dist, pos) {
     if (!ctx || muted) return;
+    var sp = SPATIAL && pos ? spatial(pos) : null, at = ctx.currentTime, out = null;
+    if (dist == null && pos) dist = Math.min(1, (sp ? sp.d : camD(pos)) / 180);
+    if (sp) { if (!pos.noDelay && sp.delay > 0.03) at += sp.delay; }
+    dist = nd(dist);
     var now = performance.now();
     if (now - lastGun < 90) return;
     lastGun = now;
     if (!voice(200)) return;
     var att = Math.max(0.05, 1 - (dist || 0));
+    if (sp) { out = bus(sp, at); if (at > ctx.currentTime) SP.delayed++; }
     var bursts = 1 + (Math.random() * 3 | 0);
     for (var i = 0; i < bursts; i++) {
-      noise(0.06, 'bandpass', 1400 + Math.random() * 900, 1.2, 0.12 * att, 0.002, ctx.currentTime + i * 0.07);
+      noise(0.06, 'bandpass', 1400 + Math.random() * 900, 1.2, 0.12 * att, 0.002, at + i * 0.07, out);
     }
   }
 
@@ -268,7 +321,7 @@
   LB.sfx = {
     setBeds: setBeds, jetPass: jetPass, blip: blip, audio: function () { return ctx ? { ctx: ctx, comp: comp, beds: !!beds } : null; },
     setVolume: setVolume, getVolume: function () { return volume; }, combat: combat, getIntensity: function () { return intensity; },
-    explosion: explosion, gunfire: gunfire, jet: jet, ui: ui, success: success, fail: fail, rank: rank, radio: radio, siren: siren, sonar: sonar,
+    explosion: explosion, gunfire: gunfire, whoosh: whoosh, spatialState: function () { return Object.assign({ enabled: SPATIAL }, SP); }, _spatial: spatial, jet: jet, ui: ui, success: success, fail: fail, rank: rank, radio: radio, siren: siren, sonar: sonar,
     setMuted: setMuted, isMuted: function () { return muted; }, toggleMute: function () { setMuted(!muted); return muted; },
     setPaused: setPaused, ready: function () { return !!ctx; }
   };

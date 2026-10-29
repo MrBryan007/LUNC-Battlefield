@@ -247,7 +247,7 @@
         M.cd = rnd(1.4, 2.2) * (T.st === 'retreat' ? 1.6 : 1); stats.shots++;
         var p = 0.16 * sm * (M.y - best.y > 2 ? 1.35 : 1) * (inCover(best, O.side) ? 0.6 : 1) * (O.st === 'climb' || O.st === 'retreat' ? 0.85 : 1) * (1 - bd / (RANGE * 1.6));
         if (Math.random() < 0.4) tracer(M.x, M.y + 1.15, M.z, best.x + rnd(-0.4, 0.4), best.y + 0.9, best.z + rnd(-0.4, 0.4));
-        if (LB.sfx && LB.sfx.gunfire && Math.random() < 0.3) try { LB.sfx.gunfire(camDist(M.x, M.y, M.z)); } catch (_) {}
+        if (LB.sfx && LB.sfx.gunfire && Math.random() < 0.3) try { LB.sfx.gunfire(null, { x: M.x, y: M.y + 1.2, z: M.z }); } catch (_) {}
         if (Math.random() < p) hit(best, O, 1);
       });
     });
@@ -312,7 +312,7 @@
       var S = shells[i]; S.t += dt; if (S.t < 0) continue;
       var y = groundY(S.x, S.z);
       if (F) { F.puff({ kind: 'fire', x: S.x, y: y + 0.6, z: S.z, size: 1.6, grow: 1.6, life: 0.5, color: 0xffa040, opacity: 0.9 }); F.puff({ kind: 'dust', x: S.x, y: y + 0.5, z: S.z, vy: 3, size: 2.2, grow: 2.2, life: 2.2, color: 0x8a7d66, opacity: 0.7 }); }
-      if (LB.sfx && LB.sfx.explosion) try { LB.sfx.explosion(0.45, camDist(S.x, y, S.z)); } catch (_) {}
+      if (LB.sfx && LB.sfx.explosion) try { LB.sfx.explosion(0.45, null, { x: S.x, y: y, z: S.z }); } catch (_) {}
       var O = S.side === teams[0].side ? teams[1] : teams[0];
       O.men.forEach(function (M) { if (!M.alive) return; var d = Math.hypot(M.x - S.x, M.z - S.z), cov = inCover(M, O.side) ? 0.5 : 1; if (d < 2.5) hit(M, O, cov === 1 || Math.random() < 0.6 ? 2 : 1); else if (d < 5 && Math.random() < 0.5 * cov) hit(M, O, 1); });
       shells.splice(i, 1);

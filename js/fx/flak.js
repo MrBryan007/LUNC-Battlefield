@@ -65,7 +65,7 @@
       f.puff({ kind: 'smoke', x: s.x, y: s.y, z: s.z, vx: rnd(0.3, 0.9), vy: 0.15, size: 1.4, grow: 1.45, life: lo ? 2.2 : 3.4, color: 0x161514, opacity: 0.72, drag: 0.985 });
       if (!lo) f.puff({ kind: 'smoke', x: s.x + rnd(-0.6, 0.6), y: s.y + rnd(-0.4, 0.4), z: s.z + rnd(-0.6, 0.6), vx: rnd(0.3, 0.9), size: 1.0, grow: 1.6, life: 3.0, color: 0x2a2826, opacity: 0.5, delay: 0.05, drag: 0.985 });
     }
-    if (LB.sfx && LB.sfx.explosion) { var d = camDist(s.x, s.y, s.z); if (d < 220) try { LB.sfx.explosion(0.45, d); } catch (_) {} }
+    if (LB.sfx && LB.sfx.explosion) { var d = camDist(s.x, s.y, s.z); if (d < 220) try { LB.sfx.explosion(0.45, d, { x: s.x, y: s.y, z: s.z }); } catch (_) {} }
     var list = jets(), hitAny = false;
     for (var i = 0; i < list.length; i++) {
       var J = list[i]; if (J.side === s.side || !airborne(J)) continue;
