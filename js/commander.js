@@ -155,7 +155,10 @@
   // ---------------- Scoring ----------------
   function addScore(points, worldPos, noCombo) {
     var mult = noCombo ? 1 : (1 + Math.min(9, session.combo) * 0.25);
+    var PU = (LB.powerups && LB.powerups.isEnabled() ? LB.powerups : null);   // v12.0.42 power-ups
+    if (PU && !noCombo) mult *= PU.scoreMult();
     var gained = Math.round(points * mult);
+    if (PU && !noCombo) try { PU.noteScore(points, gained); } catch (_) {}
     session.score += gained;
     var before = rankFor(profile.xp);
     profile.xp += gained;
@@ -552,6 +555,7 @@
     lastAbility = ability;
     if (ability !== 'nuke' && ability !== 'moon' && LB.brevity && LB.brevity.isEnabled()) { try { LB.brevity.fireMission(-enemySide(), ability); } catch (_) {} }   // v12.0.40 call-for-fire procedure
     else if (LB.voice && LB.voice.event) try { LB.voice.event(ability === 'nuke' ? 'nuke' : 'strike', -enemySide()); } catch (_) {}   // v12.0.10 radio
+    if (LB.powerups && LB.powerups.strikeAt) try { LB.powerups.strikeAt(p.x, p.z); } catch (_) {}   // v12.0.42 field pickup
     learn('strike', { ability: ability, x: p.x, z: p.z });
     if (ability === 'moon') learn('moon', {});
     if (ability === 'arty') strikeArty(p.x, p.z);
@@ -635,9 +639,10 @@
     if (!paused && LB.damage) try { LB.damage.update(dt); } catch (_) {}
     var cut = LB.cutscene && LB.cutscene.isActive();
     if (!paused) {
-      for (var k in cds) if (cds[k] > 0) cds[k] = Math.max(0, cds[k] - dt);
+      var PU = (LB.powerups && LB.powerups.isEnabled() ? LB.powerups : null), cdr = PU ? PU.cdRate() : 1;   // v12.0.42 Rapid Reload / Combo Lock
+      for (var k in cds) if (cds[k] > 0) cds[k] = Math.max(0, cds[k] - dt * cdr);
       if (session.comboT > 0) {
-        session.comboT -= dt;
+        if (!(PU && PU.comboLocked())) session.comboT -= dt;
         if (session.comboT <= 0) { session.combo = 0; renderStats(); }
       }
       if (mission && !cut) {
