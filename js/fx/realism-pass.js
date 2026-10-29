@@ -194,6 +194,7 @@
     var delayMs = Math.min(2500, (d / SOS) * 1000);
     // Attenuation: loud near, quiet far (also passed as dist 0..1 to sfx)
     var attDist = Math.min(1, d / 160);
+    if (LB.sfx.whoosh) { try { LB.sfx.explosion(power, attDist, { x: x, y: y || 0, z: z }); } catch (_) {} if (delayMs >= 40) state.delayedBooms++; return; }   // v12.0.39 positional
     if (delayMs < 40) {
       try { LB.sfx.explosion(power, attDist); } catch (_) {}
       return;
@@ -308,9 +309,11 @@
     if (LB.sfx && LB.sfx.explosion && !LB.sfx.__realismSos) {
       var raw = LB.sfx.explosion;
       LB.sfx._rawExplosion = raw;
-      LB.sfx.explosion = function (power, dist) {
-        if (LB.sfx.__sosInside) return raw.call(LB.sfx, power, dist);
+      LB.sfx.explosion = function (power, dist, pos) {
+        if (LB.sfx.__sosInside) return raw.call(LB.sfx, power, dist, pos);
+        if (pos && LB.sfx.whoosh) return raw.call(LB.sfx, power, dist, pos);   // v12.0.39: positional sounds schedule their own delay on the audio clock
         dist = dist == null ? 0 : dist;
+        if (dist > 1) dist = Math.min(1, dist / 260);   // v12.0.39: some callers pass metres
         // dist 0 = near / loud, 1 = far / quiet (battle-engine convention)
         if (dist > 0.22) {
           var approxM = dist * 140;

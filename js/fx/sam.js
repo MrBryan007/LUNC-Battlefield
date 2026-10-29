@@ -144,7 +144,8 @@
       var bx = S.x - dir.x * 3, bz = S.z - dir.z * 3;   // backblast: a low dust and smoke cloud behind the launcher
       for (var k = 0; k < (lo ? 3 : 7); k++) f.puff({ kind: k % 2 ? 'dust' : 'smoke', x: bx + rnd(-3, 3), y: S.y + 0.8, z: bz + rnd(-3, 3), vx: -dir.x * rnd(2, 5), vy: rnd(0.3, 1.2), vz: -dir.z * rnd(2, 5), size: rnd(2.2, 3.4), grow: 1.6, life: rnd(2.5, 4.5), color: k % 2 ? 0xb7a98a : 0xd9d6cf, opacity: 0.55, drag: 0.96 });
     }
-    if (LB.sfx && LB.sfx.explosion) { var cd = camDist(S.x, S.y, S.z); if (cd < 260) try { LB.sfx.explosion(0.55, cd); } catch (_) {} }
+    if (LB.sfx && LB.sfx.explosion) { var cd = camDist(S.x, S.y, S.z); if (cd < 260) try { LB.sfx.explosion(0.55, cd, { x: S.x, y: S.y + 1, z: S.z }); } catch (_) {} }
+    if (LB.sfx && LB.sfx.whoosh) try { LB.sfx.whoosh({ x: v.x, y: v.y, z: v.z }, { x: dir.x * 60, y: dir.y * 60, z: dir.z * 60 }, 1.2); } catch (_) {}   // v12.0.39 booster roar with Doppler
     radio(S.side, S.call, 'bird away, ' + cs(J) + ' engaged.', 1);
     radio(J.side, cs(J), 'mud spike, missile launch! Chaff, chaff, defending.', 2);
     J._samDef = 3.0; J._samSide = Math.random() < 0.5 ? -1 : 1;
@@ -177,7 +178,7 @@
       f.puff({ kind: 'smoke', x: M.x, y: M.y, z: M.z, vx: rnd(0.2, 0.8), vy: 0.2, size: 2.4, grow: 1.5, life: lo ? 2.6 : 4, color: 0x3a3633, opacity: 0.65, drag: 0.985 });
       if (!lo) for (var k = 0; k < 6; k++) f.puff({ kind: 'tracer', x: M.x, y: M.y, z: M.z, vx: rnd(-14, 14), vy: rnd(-10, 8), vz: rnd(-14, 14), size: 0.35, grow: 0.1, life: 0.5, color: 0xffd090, opacity: 0.9, drag: 0.94 });
     }
-    if (LB.sfx && LB.sfx.explosion) { var cd = camDist(M.x, M.y, M.z); if (cd < 260) try { LB.sfx.explosion(0.6, cd); } catch (_) {} }
+    if (LB.sfx && LB.sfx.explosion) { var cd = camDist(M.x, M.y, M.z); if (cd < 260) try { LB.sfx.explosion(0.6, cd, { x: M.x, y: M.y, z: M.z }); } catch (_) {} }
     if (!prox) return;
     var list = jets();
     for (var i = 0; i < list.length; i++) {
