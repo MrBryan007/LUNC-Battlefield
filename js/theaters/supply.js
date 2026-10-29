@@ -110,6 +110,7 @@
     if (me) {
       if (d.kind === 'intel') { reveals.push({ x: d.x, z: d.z, t: REVEAL_S }); eff = ' Area revealed for 30 s.'; }
       else if (d.kind === 'ammo') { try { var cds = LB.commander.getState().cds; for (var k in cds) if (cds[k] > 0) cds[k] *= 0.7; eff = ' Cooldowns cut 30%.'; } catch (_) {} }
+      else if (d.kind === 'power' && LB.powerups && LB.powerups.isEnabled()) { try { var gid = LB.powerups.grant(null, 'crate'); eff = gid ? ' Power-up: ' + ({ double: 'Double Points', reload: 'Rapid Reload', combo: 'Combo Lock', moon: 'Moon Fuel' })[gid] + '.' : ''; } catch (_) {} }   // v12.0.42
       else if (d.kind === 'power') { try { var s = LB.commander.getState().session; if (s) { s.charge = Math.min(100, (s.charge || 0) + 25); eff = ' +25 Moon Shot charge.'; } } catch (_) {} }
       else eff = ' Fuel banked.';
     }
@@ -192,7 +193,7 @@
       '<tbody><tr data-s="-1"><td class="b">Bulls</td>' + KLIST.map(function (k) { return '<td data-k="' + k + '">0</td>'; }).join('') + '</tr>' +
       '<tr data-s="1"><td class="r">Bears</td>' + KLIST.map(function (k) { return '<td data-k="' + k + '">0</td>'; }).join('') + '</tr></tbody></table>' +
       '<div class="sup-row"><button type="button" id="supCall">Call supply drop</button><span id="supStatus" class="sup-status">Next drop soon</span></div>' +
-      '<div class="th-note">Crates are a game layer: they never change price, armies or the front. Your side wins intel = fog lifted 30 s, ammo = cooldowns −30%, power-up = +25 Moon Shot charge.</div>';
+      '<div class="th-note">Crates are a game layer: they never change price, armies or the front. Your side wins intel = fog lifted 30 s, ammo = cooldowns −30%, power-up = a random power-up (Double Points, Rapid Reload, Combo Lock or Moon Fuel; +25 Moon Shot charge with ?powerups=0).</div>';
     var host = doc.querySelector('#sheet-map .sheet-body');
     if (host) { var tb = doc.getElementById('theaterBar'); if (tb && tb.parentNode === host) host.insertBefore(p, tb.nextSibling); else host.insertBefore(p, host.firstChild); }
     else {   // v12.0.5: no dock sheet (?dock=0) → a WAR SYSTEMS drawer instead of a hidden panel
