@@ -205,7 +205,7 @@
     if (u.gun) f.recoil = 1;
     if (f.type === 'bunker' && F && F.puff && seen && Math.random() < 0.35) try { F.puff({ kind: 'dust', x: f.x + (u.muzzle ? u.muzzle.x : 0), y: H(f.x, f.z) + 1.0, z: f.z + (u.muzzle ? u.muzzle.z : 0), size: 0.8, grow: 1.2, life: 0.7, color: 0xa89878, opacity: 0.35 }); } catch (_) {}
     var d = camDist(f.x, f.z);
-    if (seen && d < 180 && LB.sfx && LB.sfx.gunfire) { var fire = function () { try { LB.sfx.gunfire(d / 180); } catch (_) {} }; if (d > 120) setTimeout(fire, d / SOUND * 1000); else fire(); }
+    if (seen && d < 180 && LB.sfx && LB.sfx.gunfire) { var fire = function () { try { LB.sfx.gunfire(d / 180, { x: f.x, y: H(f.x, f.z) + 1.2, z: f.z, noDelay: true }); } catch (_) {} }; if (d > 120) setTimeout(fire, d / SOUND * 1000); else fire(); }
   }
   function animReal(f, dt) {   // per frame: slew the turret at a realistic rate, decay recoil and flash
     var u = f.g.userData;
@@ -275,7 +275,7 @@
     f.g.scale.y = 0.38; var u = f.g.userData; if (u.crew) u.crew.forEach(function (m) { m.visible = false; }); if (u.head) { u.head.rotation.x = 0.45; u.head.position.y = 1.1; } if (u.flash) u.flash.visible = false;
     var k = String(f.side); stats.lostBy = stats.lostBy || {}; stats.lostBy[k] = (stats.lostBy[k] || 0) + 1; stats.destroyed = (stats.destroyed || 0) + 1;
     var F = LB.heavyFx, y = H(f.x, f.z); if (F && F.puff) try { F.puff({ kind: 'fire', x: f.x, y: y + 1.5, z: f.z, size: 3.5, grow: 3, life: 1.2, color: 0xff8a30, opacity: 0.95 }); F.puff({ kind: 'smoke', x: f.x, y: y + 2.5, z: f.z, vy: 2, size: 4, grow: 6, life: 5, color: 0x26221f, opacity: 0.75 }); F.puff({ kind: 'dust', x: f.x, y: y + 0.6, z: f.z, size: 4, grow: 5, life: 2.4, color: 0x9a8b70, opacity: 0.6 }); } catch (_) {}
-    if (LB.sfx && LB.sfx.explosion) try { LB.sfx.explosion(0.9, Math.min(1, camDist(f.x, f.z) / 220)); } catch (_) {}
+    if (LB.sfx && LB.sfx.explosion) try { LB.sfx.explosion(0.9, Math.min(1, camDist(f.x, f.z) / 220), { x: f.x, y: y + 1, z: f.z }); } catch (_) {}
     var me = playerSide(), lbl = TYPES[f.type].label.toLowerCase();
     stats.last = (f.side === me ? 'Our ' : 'Enemy ') + lbl + ' destroyed' + (why ? ' (' + why + ')' : '');
     radio(f.side, sideName(f.side) + ' ENGINEERS: "' + TYPES[f.type].label + ' destroyed' + (why ? ' by ' + why : '') + '. Crew pulling back." (SIMULATED · game FX)');
@@ -307,7 +307,7 @@
       var S = shells[i]; S.t += dt; if (S.t < 0) continue;
       var y = H(S.x, S.z);
       if (F && F.puff) try { F.puff({ kind: 'fire', x: S.x, y: y + 0.6, z: S.z, size: 1.6, grow: 1.6, life: 0.5, color: 0xffa040, opacity: 0.9 }); F.puff({ kind: 'dust', x: S.x, y: y + 0.5, z: S.z, vy: 3, size: 2.2, grow: 2.2, life: 2.2, color: 0x8a7d66, opacity: 0.7 }); } catch (_) {}
-      if (LB.sfx && LB.sfx.explosion) try { LB.sfx.explosion(0.45, Math.min(1, camDist(S.x, S.z) / 220)); } catch (_) {}
+      if (LB.sfx && LB.sfx.explosion) try { LB.sfx.explosion(0.45, Math.min(1, camDist(S.x, S.z) / 220), { x: S.x, y: y, z: S.z }); } catch (_) {}
       damageAt(S.x, S.z, 0.8, 'mortars'); shells.splice(i, 1);
     }
   }

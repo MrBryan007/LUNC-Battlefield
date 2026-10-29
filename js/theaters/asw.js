@@ -246,7 +246,7 @@
       stats.torpHits++;
       try { TH().onStrike(T.tgt.x, T.tgt.z, 1.6); TH().splash(T.tgt.x, T.tgt.z, 2.4); } catch (_) {}
       if (F) { F.puff({ kind: 'dust', x: T.tgt.x, y: 1, z: T.tgt.z, vy: 5, size: 4, grow: 5, life: 2.4, color: 0xf2f8fa, opacity: 0.85 }); F.puff({ kind: 'fire', x: T.tgt.x, y: 1.5, z: T.tgt.z, size: 2.4, grow: 1.6, life: 0.9, color: 0xffa040, opacity: 0.9 }); }
-      if (LB.sfx && LB.sfx.explosion) try { LB.sfx.explosion(1.2, camDist(T.tgt.x, T.tgt.z)); } catch (_) {}
+      if (LB.sfx && LB.sfx.explosion) try { LB.sfx.explosion(1.2, null, { x: T.tgt.x, y: 0.5, z: T.tgt.z }); } catch (_) {}
       radio(T.side, T.cs, T.cs + ', hit! Explosion on the bearing of the target.', null, 'th' + T.side, 6000);
     } else if (why === 'decoy') { try { TH().splash(T.x, T.z, 1.2); } catch (_) {} stats.seduced = (stats.seduced || 0) + 1; }
     else stats.torpMiss = (stats.torpMiss || 0) + 1;
@@ -358,7 +358,7 @@
   function uwBlast(x, z, p) {
     var F = fx(); try { TH().splash(x, z, 1.6 * p); } catch (_) {}
     if (F) { F.puff({ kind: 'dust', x: x, y: 0.4, z: z, vy: 7 * p, size: 2.6 * p, grow: 2.4, life: 2.2, color: 0xf4f9fb, opacity: 0.85 }); if (!low()) F.puff({ kind: 'dust', x: x, y: 0.1, z: z, size: 4 * p, grow: 2.2, life: 3, color: 0xcfe6ea, opacity: 0.5 }); }
-    if (LB.sfx && LB.sfx.explosion) try { LB.sfx.explosion(0.5 * p, camDist(x, z)); } catch (_) {}
+    if (LB.sfx && LB.sfx.explosion) try { LB.sfx.explosion(0.5 * p, null, { x: x, y: 0, z: z }); } catch (_) {}
   }
   function tickRings(dt) {
     for (var i = 0; i < rings.length; i++) {

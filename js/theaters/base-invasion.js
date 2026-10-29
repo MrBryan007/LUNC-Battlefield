@@ -438,7 +438,7 @@
   function fireTracer(from, to, side) {
     // 1-in-5 visible tracer (realism checklist)
     if (Math.random() > 0.22) {
-      if (LB.sfx && LB.sfx.gunfire) try { LB.sfx.gunfire(Math.min(0.9, camDist(from.x, from.z) / 120)); } catch (_) {}
+      if (LB.sfx && LB.sfx.gunfire) try { LB.sfx.gunfire(Math.min(0.9, camDist(from.x, from.z) / 120), { x: from.x, y: from.y || 1.2, z: from.z }); } catch (_) {}
       stats.shots++;
       return;
     }
@@ -449,7 +449,7 @@
         E().effects.fireWeapon({ from: from, to: to, kind: 'tracer', side: side, power: 0.6 });
       }
     } catch (_) {}
-    if (LB.sfx && LB.sfx.gunfire) try { LB.sfx.gunfire(Math.min(0.9, camDist(from.x, from.z) / 120)); } catch (_) {}
+    if (LB.sfx && LB.sfx.gunfire) try { LB.sfx.gunfire(Math.min(0.9, camDist(from.x, from.z) / 120), { x: from.x, y: from.y || 1.2, z: from.z }); } catch (_) {}
     stats.shots++;
   }
 
@@ -513,7 +513,7 @@
     var from = { x: d.position.x, y: d.position.y + 1.8, z: d.position.z };
     var to = { x: jet.x, y: (jet.y || 20), z: jet.z };
     if (LB.flak && LB.flak.isEnabled()) {   // v12.0.34: real flak shells (lead, fuzes, fragment damage) instead of cosmetic tracers
-      if (LB.flak.fire(from.x, from.y, from.z, jet, d.userData.side)) { if (LB.sfx && LB.sfx.gunfire) try { LB.sfx.gunfire(0.4); } catch (_) {} stats.shots++; }
+      if (LB.flak.fire(from.x, from.y, from.z, jet, d.userData.side)) { if (LB.sfx && LB.sfx.gunfire) try { LB.sfx.gunfire(0.4, { x: from.x, y: from.y, z: from.z }); } catch (_) {} stats.shots++; }
       return;
     }
     try {
@@ -523,7 +523,7 @@
         LB.heavyFx.tracers(from.x, from.z, to.x, to.z, 2, from.y);
       }
     } catch (_) {}
-    if (LB.sfx && LB.sfx.gunfire) try { LB.sfx.gunfire(0.4); } catch (_) {}
+    if (LB.sfx && LB.sfx.gunfire) try { LB.sfx.gunfire(0.4, { x: from.x, y: from.y || 2, z: from.z }); } catch (_) {}
     stats.shots++;
   }
 

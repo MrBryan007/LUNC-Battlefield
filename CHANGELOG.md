@@ -1,5 +1,17 @@
 # Changelog
 
+## v12.0.39 — Positional battle audio: stereo position, air absorption, sound delay and Doppler (2026-10-29, AI build)
+- Battle sounds only knew how far away they were, not where. Several newer systems (flak, SAM sites, the ridge, ASW) also passed metres where the sound code expected 0 to 1, so their booms always played at the quietest level. This covers the realism-checklist audio items "Doppler on more than jets" and "positional gunfire pan".
+- Explosions and gunfire can now carry a world position. With one, the sound is panned left or right from the camera's point of view, sounds behind the camera are duller (a simple head-shadow cut of the highs), distant sounds lose their highs first (air absorption), and far blasts arrive late at the speed of sound (340 m/s, capped at 2.5 s).
+- Distances above 1 are now read as metres and scaled, which fixes the near-silent flak, SAM, ridge and ASW booms.
+- New Doppler whoosh for passing objects: its pitch rises as the object comes toward the camera and drops as it moves away. SAM launches use it.
+- Positions are wired into battle-engine impacts and small-arms fire, the realism-pass far blasts, flak, SAM, forts, the ridge, base invasions and ASW.
+- API: `sfx.spatialState()`. Audio only: it never touches market data, army counts, the price-driven front or data-truth labels. The market-driven frontline, Moon Shot, Commander, the v11.4 HUD/dock, Hide UI, the v12.x systems and all `?flags` are unchanged. Kill switch: `?spatial=0` (old flat sound).
+- This slice was written on 10/26 but not shipped then; the 10/27 and 10/28 runs did not deploy, and it was finished and shipped today.
+- Version bump to v12.0.39 (BUILD, quality api, index tags, cache-bust `?v=20261029v12039` on all 87 local css/js tags).
+- Tested: `node --check` on all JS files, asset-lifecycle and stabilization-smoke all passing (smoke now also checks the spatial-audio wiring), headless HIGH / MEDIUM / LOW / iPhone 390x844 with 0 page errors. Audio probe on HIGH: a blast 30 m to the right pans +0.85 and 30 m to the left pans -0.85, a sound behind is duller than the same sound ahead (7.1 kHz vs 12.8 kHz cutoff), a blast 250 m away arrives 0.74 s late with a 1.5 kHz cutoff, and a missile coming at the camera plays about 21% higher. `?spatial=0` on iPhone loads with 0 errors. Screenshots in `docs/v12039-shots/`. SwiftShader only, so this isn't measured on a real iPhone/Mac yet.
+- Build hours (real timestamps): day total 0.08 h before the cycle-1 deploy, under the 2-4 h target. The run continues.
+
 ## v12.0.38 — Sea surface: whitecaps, rolling breakers and wet sand (2026-10-26, AI build)
 - The sea had no foam on its wave crests, the surf was a single flat white strip that pulsed, and the beach was one flat colour right up to the water. Where the swell met the beach, the wave crests also poked up through the sand as a jagged, flickering staircase. This covers the realism-checklist gaps "no foam on wave crests and shoreline breakers are a pulsing strip", "shoreline foam upgrade" and "wet shoreline PBR".
 - New module `js/fx/shoreline.js`, hooked from the theaters ocean build.

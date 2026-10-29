@@ -443,7 +443,7 @@
               distScale = distScale * distScale;
             }
             try {
-              if (LUNCBattle.sfx) LUNCBattle.sfx.explosion((power || 1) * (kind === 'bomb' ? 1.5 : 1), 1 - Math.sqrt(Math.max(0, distScale)));
+              if (LUNCBattle.sfx) LUNCBattle.sfx.explosion((power || 1) * (kind === 'bomb' ? 1.5 : 1), 1 - Math.sqrt(Math.max(0, distScale)), info ? { x: info.x || 0, y: info.y || 0, z: info.z || 0 } : null);   // v12.0.39 positional
             } catch (_) {}
             if (distScale < 0.08) return;
             const add = Math.min(0.42, (amp || 0) * Math.min(1.2, power || 1) * distScale);
@@ -1964,7 +1964,7 @@
         const muz = muzzleWorld(u);
         if (kind === 'tracer' && window.LUNCBattle && LUNCBattle.sfx && Math.random() < 0.35) {
           const ddx = camera.position.x - muz.x, ddz = camera.position.z - muz.z;
-          LUNCBattle.sfx.gunfire(Math.min(1, Math.sqrt(ddx * ddx + ddz * ddz) / 90));
+          LUNCBattle.sfx.gunfire(Math.min(1, Math.sqrt(ddx * ddx + ddz * ddz) / 90), { x: muz.x, y: muz.y, z: muz.z });   // v12.0.39 positional
         }
         if (effectsApi && effectsApi.fireWeapon) {
           effectsApi.fireWeapon({
