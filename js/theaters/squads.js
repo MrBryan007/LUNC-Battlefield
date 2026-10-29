@@ -13,7 +13,7 @@
   var NAMES = ['Alpha', 'Bravo', 'Charlie'], RANGE = 24, SPEED = 5.5;
   var THREE, root, ready = false, last = 0, uiT = 0, aiT = 12, el = {}, geo = {}, mat = {}, squads = [], sel = null, moveArmed = false;
   var stats = { orders: 0, aiOrders: 0, shots: 0, flanks: 0, covers: 0, hits: 0, kia: 0, wiped: 0, noLos: 0, fallbacks: 0, last: '' };
-  var RESPAWN_S = 45, DOWN_S = 12;
+  var RESPAWN_S = 45, DOWN_S = 12, kitT = 0;
   function LOS() { return LB.los && LB.los.isEnabled && LB.los.isEnabled() ? LB.los : null; }   // v12.0.23: off → v12.0.22 behaviour (no LOS, no casualties)
   function aliveN(S) { var n = 0; for (var i = 0; i < S.men.length; i++) if (S.men[i].alive) n++; return n; }
   function G(x, z) { var L = LOS(); return L ? L.ground(x, z) : H(x, z); }
@@ -35,8 +35,14 @@
     mat.skin = new THREE.MeshStandardMaterial({ color: 0xc9a27e, roughness: 0.8 }); mat.gun = new THREE.MeshStandardMaterial({ color: 0x222222 });
     mat.sel = new THREE.MeshBasicMaterial({ color: 0xffd36a, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false });
     mat.wp = new THREE.MeshBasicMaterial({ color: 0xffd36a, transparent: true, opacity: 0.7 });
+    geo.beret = new THREE.CylinderGeometry(0.26, 0.29, 0.08, 8); geo.pack = new THREE.BoxGeometry(0.42, 0.5, 0.2); geo.crossH = new THREE.BoxGeometry(0.22, 0.07, 0.02); geo.crossV = new THREE.BoxGeometry(0.07, 0.22, 0.02); geo.shovel = new THREE.BoxGeometry(0.05, 0.75, 0.05);
+    geo.hole = new THREE.TorusGeometry(2.6, 0.45, 5, 18);   // v12.0.41 engineer foxhole berm
+    mat.beret = new THREE.MeshStandardMaterial({ color: 0x5a1f24, roughness: 0.9 }); mat.medic = new THREE.MeshStandardMaterial({ color: 0xe8e4da, roughness: 0.8 }); mat.red = new THREE.MeshBasicMaterial({ color: 0xc8202a }); mat.pack = new THREE.MeshStandardMaterial({ color: 0x4d4632, roughness: 0.9 });
+    mat.hole = new THREE.MeshStandardMaterial({ color: 0x5b4a33, roughness: 1 });
     var n = low() ? 3 : 5, fx = frontX();
     [-1, 1].forEach(function (side) { NAMES.forEach(function (nm, i) { var S0 = makeSquad(side, nm, n, fx + side * (26 + i * 6), -24 + i * 24); S0.slotI = i; squads.push(S0); }); });
+    squads.forEach(function (S) { var h = new THREE.Mesh(geo.hole, mat.hole); h.rotation.x = -Math.PI / 2; h.scale.z = 0.35; h.visible = false; root.add(h); S.hole = h; });
+    refreshKits();
     buildUi();
     global.addEventListener('pointerdown', function (e) {
       if (!moveArmed || !sel || !e.target || e.target.tagName !== 'CANVAS' || e.target.id === 'worldInset') return;
@@ -50,11 +56,49 @@
       var m = new THREE.Group(), b = new THREE.Mesh(geo.body, mat.side[String(side)]), h = new THREE.Mesh(geo.head, mat.skin), gun = new THREE.Mesh(geo.gun, mat.gun);
       b.position.y = 0.6; h.position.y = 1.45; gun.position.set(0.3, 0.95, 0.35); m.add(b); m.add(h); m.add(gun); g.add(m);
       if (RZ()) { b.material = RZ().material(side, 'uniform') || b.material; RZ().figure(m, side, side < 0 ? 0x2f9a66 : 0xb4473f, 1.08, 0.33); }   // v12.0.14 camo + IFF band
-      men.push({ g: m, ox: ((i % 3) - 1) * 1.6, oz: (Math.floor(i / 3) - 0.5) * 1.8, ph: Math.random() * 6.28, hp: 2, alive: true, fall: 0, t: 0, x: x, z: z });
+      men.push({ gun: gun, head: h, g: m, ox: ((i % 3) - 1) * 1.6, oz: (Math.floor(i / 3) - 0.5) * 1.8, ph: Math.random() * 6.28, hp: 2, alive: true, fall: 0, t: 0, x: x, z: z });
     }
     var ring = new THREE.Mesh(geo.ring, mat.sel); ring.rotation.x = -Math.PI / 2; ring.visible = false; root.add(ring);
     var wp = new THREE.Mesh(geo.mark, mat.wp); wp.rotation.x = Math.PI; wp.visible = false; root.add(wp);
-    return { side: side, name: name, g: g, men: men, ring: ring, wp: wp, x: x, z: z, tx: x, tz: z, path: [], mode: 'hold', cover: false, sup: 0, cd: Math.random() * 2, n: n, dead: false, respawn: 0, fb: false, noLos: false, kills: 0, lost: 0 };
+    return { maxHp: 2, kit: null, medT: 0, digT: 0, side: side, name: name, g: g, men: men, ring: ring, wp: wp, x: x, z: z, tx: x, tz: z, path: [], mode: 'hold', cover: false, sup: 0, cd: Math.random() * 2, n: n, dead: false, respawn: 0, fb: false, noLos: false, kills: 0, lost: 0 };
+  }
+  // ---------------------------------------------------------------- v12.0.41 squad specialists (rank unlocks, your squads only)
+  function kitId(S) { return S.kit ? S.kit.id : 'rifle'; }
+  function rangeOf(S) { return kitId(S) === 'marksman' ? 28 : RANGE; }
+  var kitStats = { revives: 0, foxholes: 0, refreshes: 0 };
+  function refreshKits() {
+    var A = LB.achievements, me = playerSide(); kitStats.refreshes++;
+    squads.forEach(function (S) {
+      var k = null; if (S.side === me && A && A.squadKit) try { k = A.squadKit(S.slotI || 0); } catch (_) {}
+      if ((k ? k.id : 'rifle') === kitId(S) && S._kitDone) return;
+      S.kit = k; S._kitDone = true; var oldMax = S.maxHp; S.maxHp = kitId(S) === 'veteran' ? 3 : 2;
+      S.men.forEach(function (M) { if (M.alive) M.hp = Math.max(1, Math.min(S.maxHp, M.hp + (S.maxHp - oldMax))); });
+      dressKit(S);
+    });
+  }
+  function dressKit(S) {   // visible kit: longer rifle, bigger gun, medic pack, engineer pack + shovel, veteran beret
+    var id = kitId(S);
+    S.men.forEach(function (M, i) {
+      if (M.acc) { M.acc.forEach(function (o) { if (o.parent) o.parent.remove(o); }); } M.acc = [];
+      if (M.gun) M.gun.scale.set(1, 1, 1);
+      var add = function (geom, material, x, y, z, rx) { var o = new THREE.Mesh(geom, material); o.position.set(x, y, z); if (rx) o.rotation.x = rx; M.g.add(o); M.acc.push(o); return o; };
+      if (id === 'veteran') add(geo.beret, mat.beret, 0, 1.66, 0);
+      if (i !== 0) return;   // the specialist is the first man
+      if (id === 'marksman' && M.gun) M.gun.scale.set(0.8, 0.8, 1.7);
+      else if (id === 'mg' && M.gun) M.gun.scale.set(2.0, 2.0, 1.25);
+      else if (id === 'medic') { add(geo.pack, mat.medic, 0, 1.0, -0.36); add(geo.crossH, mat.red, 0, 1.05, -0.5); add(geo.crossV, mat.red, 0, 1.05, -0.5); }
+      else if (id === 'engineer') { add(geo.pack, mat.pack, 0, 1.0, -0.36); add(geo.shovel, mat.gun, 0.22, 1.25, -0.42, 0.25); }
+    });
+  }
+  function kitStep(S, dt) {
+    if (S.dead) return;
+    if (kitId(S) === 'medic') {
+      var down = null; for (var i = 0; i < S.men.length; i++) if (!S.men[i].alive) { down = S.men[i]; break; }
+      if (down && !S.fb) { S.medT += dt; if (S.medT >= 25) { S.medT = 0; down.alive = true; down.hp = 1; down.fall = 0; down.t = 0; down.g.visible = true; down.g.rotation.set(0, 0, 0); kitStats.revives++; if (S.side === playerSide()) stats.last = S.name + ': medic has a man back on his feet'; radio(S.side, sideName(S.side) + ' ' + S.name.toUpperCase() + ': "Medic! He\'s patched up and back in the fight." (SIMULATED · game FX)'); } }
+      else S.medT = 0;
+    }
+    if (S.digT > 0) { S.digT -= dt; if (S.digT <= 0 && !S.path.length) { S.cover = true; kitStats.foxholes++; } }
+    if (S.hole) { var showHole = S.cover && kitId(S) === 'engineer' && !S.path.length; S.hole.visible = showHole; if (showHole) S.hole.position.set(S.x, H(S.x, S.z) + 0.06, S.z); }
   }
   function nearestCover(S) {
     var best = null, bd = 1e9;
@@ -65,15 +109,17 @@
   function order(S, kind, x, z) {
     var me = S.side === playerSide(), fx = frontX();
     if (S.dead) { if (me) { stats.last = S.name + ' is out of action — a fresh squad is on the way'; renderUi(); } return false; }
-    S.cover = false; S.path = [];
+    S.cover = false; S.path = []; S.digT = 0;
     if (kind === 'hold') { S.mode = 'hold'; S.tx = S.x; S.tz = S.z; }
     else if (kind === 'move') { S.mode = 'move'; S.path = [{ x: Math.max(-200, Math.min(200, x)), z: Math.max(-80, Math.min(55, z)) }]; }
     else if (kind === 'flank') {
       var edge = S.z >= 0 ? 48 : -70; S.mode = 'flank'; stats.flanks++;
       S.path = [{ x: S.x, z: edge }, { x: fx - S.side * 18, z: edge }, { x: fx - S.side * 26, z: edge * 0.45 }];
     } else if (kind === 'cover') {
-      var c = nearestCover(S); if (!c) { if (me) { stats.last = S.name + ': no friendly cover — build a wall or bunker'; renderUi(); } return false; }
-      S.mode = 'cover'; S.path = [c]; stats.covers++;
+      var c = nearestCover(S);
+      if ((!c || Math.hypot(c.x - S.x, c.z - S.z) > 40) && kitId(S) === 'engineer') { S.mode = 'cover'; S.path = []; S.digT = 4; stats.covers++; c = null; if (me) stats.last = S.name + ': engineers digging in'; }
+      else if (!c) { if (me) { stats.last = S.name + ': no friendly cover — build a wall or bunker'; renderUi(); } return false; }
+      else { S.mode = 'cover'; S.path = [c]; stats.covers++; }
     }
     if (me) { stats.orders++; moveArmed = false; if (LB.sfx && LB.sfx.ui) try { LB.sfx.ui('arm'); } catch (_) {} } else stats.aiOrders++;
     stats.last = sideName(S.side) + ' ' + S.name + ': ' + kind.toUpperCase();
@@ -98,7 +144,7 @@
   }
   function hideRoute() { if (route) route.visible = false; }
   function enemyTarget(S) {
-    var best = null, bd = RANGE * RANGE;
+    var best = null, bd = rangeOf(S) * rangeOf(S);
     var L = LOS(); S.noLos = false;
     squads.forEach(function (o) { if (o.side === S.side || o.dead) return; var d = (o.x - S.x) * (o.x - S.x) + (o.z - S.z) * (o.z - S.z); if (d >= bd) return; if (L && !L.clear(S.x, S.z, o.x, o.z, null, o.cover ? 0.7 : 1.1)) { S.noLos = true; return; } bd = d; best = { x: o.x, z: o.z, sq: o, d: Math.sqrt(d) }; });
     if (!best && LB.forts && LB.forts.targetsFor && LB.forts.dmgEnabled && LB.forts.dmgEnabled()) try {   // v12.0.27: no enemy squad in sight → suppress an enemy bunker / turret crew
@@ -110,9 +156,10 @@
   }
   // v12.0.23 hit model: range falloff, high ground, moving shooter, cover, shooter suppression, weather / night
   function hitChance(S, T, d) {
-    var r = d <= 12 ? 0.26 : 0.26 * (1 - (d - 12) / 12 * 0.67), dh = G(S.x, S.z) - G(T.x, T.z);
+    var R = rangeOf(S), r = d <= 12 ? 0.26 : 0.26 * (1 - (d - 12) / (R - 12) * 0.67), dh = G(S.x, S.z) - G(T.x, T.z);
     if (dh > 2) r *= 1.25; else if (dh < -2) r *= 0.85;
-    if (S.path.length) r *= 0.6; if (T.cover) r *= 0.5; r *= 1 - S.sup * 0.5;
+    if (kitId(S) === 'marksman' && d > 12) r *= 1.2;   // v12.0.41
+    if (S.path.length) r *= 0.6; if (T.cover) r *= kitId(T) === 'engineer' ? 0.35 : 0.5; r *= 1 - S.sup * 0.5;
     if (LB.wxCombat && LB.wxCombat.mod) try { r *= LB.wxCombat.mod('gun') * LB.wxCombat.mod('sight'); } catch (_) {}
     return Math.max(0.02, Math.min(0.6, r));
   }
@@ -134,7 +181,7 @@
   function respawn(S) {
     var fx = frontX(); S.dead = false; S.fb = false; S.sup = 0; S.cover = false; S.path = []; S.mode = 'hold';
     S.x = S.tx = fx + S.side * (26 + (S.slotI || 0) * 6 + 20); S.z = S.tz = -24 + (S.slotI || 0) * 24;
-    S.men.forEach(function (M) { M.alive = true; M.hp = 2; M.fall = 0; M.t = 0; M.g.visible = true; M.g.rotation.set(0, 0, 0); });
+    S.men.forEach(function (M) { M.alive = true; M.hp = S.maxHp || 2; M.fall = 0; M.t = 0; M.g.visible = true; M.g.rotation.set(0, 0, 0); });
     radio(S.side, sideName(S.side) + ' ' + S.name.toUpperCase() + ': "Fresh squad up from HQ, ready for orders." (SIMULATED · game FX)');
     order(S, 'move', fx + S.side * (26 + (S.slotI || 0) * 6), S.z);
   }
@@ -147,9 +194,10 @@
     var F = LB.heavyFx, me = playerSide();
     for (var i = 0; i < squads.length; i++) {
       var S = squads[i];
-      S.sup = Math.max(0, S.sup - dt * 0.12);
+      S.sup = Math.max(0, S.sup - dt * 0.12 * (kitId(S) === 'veteran' ? 1.5 : 1));
+      kitStep(S, dt);
       if (S.dead) { S.respawn -= dt; if (S.respawn <= 0) respawn(S); }
-      if (S.fb && !S.dead && !S.path.length) { S.regroup = (S.regroup || 0) + dt; if (S.regroup > 20) { S.regroup = 0; S.fb = false; S.men.forEach(function (M) { if (!M.alive) { M.alive = true; M.hp = 2; M.fall = 0; M.t = 0; M.g.visible = true; M.g.rotation.set(0, 0, 0); } }); radio(S.side, sideName(S.side) + ' ' + S.name.toUpperCase() + ': "Replacements joined, back to full strength." (SIMULATED · game FX)'); renderUi(); } }
+      if (S.fb && !S.dead && !S.path.length) { S.regroup = (S.regroup || 0) + dt; if (S.regroup > 20) { S.regroup = 0; S.fb = false; S.men.forEach(function (M) { if (!M.alive) { M.alive = true; M.hp = S.maxHp || 2; M.fall = 0; M.t = 0; M.g.visible = true; M.g.rotation.set(0, 0, 0); } }); radio(S.side, sideName(S.side) + ' ' + S.name.toUpperCase() + ': "Replacements joined, back to full strength." (SIMULATED · game FX)'); renderUi(); } }
       if (S.path.length && !S.dead) {
         var p = S.path[0], dx = p.x - S.x, dz = p.z - S.z, d = Math.hypot(dx, dz), sp = SPEED * (1 - S.sup * 0.6) * slopeK(S, dx, dz, d) * dt;
         if (d <= sp) { S.x = p.x; S.z = p.z; S.path.shift(); if (!S.path.length) { if (S.mode === 'cover') S.cover = true; S.mode = S.mode === 'cover' ? 'cover' : 'hold'; } }
@@ -157,7 +205,7 @@
       }
       var tg = S.dead ? null : enemyTarget(S);
       S.cd -= dt;
-      if (tg) { S.hd = Math.atan2(tg.x - S.x, tg.z - S.z); if (S.cd <= 0) { var an = aliveN(S); S.cd = (1.2 + Math.random() * 0.8 + S.sup) * (LOS() ? Math.max(1, S.n / Math.max(1, an)) * 0.8 : 1); stats.shots++; if (F && F.tracers && !fogHidden(S.x, S.z)) try { F.tracers(S.x, S.z, tg.x, tg.z, 2, 1.0); } catch (_) {} if (tg.sq) { tg.sq.sup = Math.min(1, tg.sq.sup + (tg.sq.cover ? 0.06 : 0.12)); if (LOS() && Math.random() < hitChance(S, tg.sq, tg.d)) wound(tg.sq, S); } else if (tg.fort && LB.forts.suppress) { LB.forts.suppress(tg.fort, 0.12); stats.fortSup = (stats.fortSup || 0) + 1; } } }
+      if (tg) { S.hd = Math.atan2(tg.x - S.x, tg.z - S.z); if (S.cd <= 0) { var an = aliveN(S); S.cd = (1.2 + Math.random() * 0.8 + S.sup) * (LOS() ? Math.max(1, S.n / Math.max(1, an)) * 0.8 : 1) * (kitId(S) === 'mg' ? 0.85 : 1); stats.shots++; if (F && F.tracers && !fogHidden(S.x, S.z)) try { F.tracers(S.x, S.z, tg.x, tg.z, 2, 1.0); } catch (_) {} if (tg.sq) { tg.sq.sup = Math.min(1, tg.sq.sup + (tg.sq.cover ? 0.06 : 0.12) * (kitId(S) === 'mg' ? 1.6 : 1)); if (LOS() && Math.random() < hitChance(S, tg.sq, tg.d)) wound(tg.sq, S); } else if (tg.fort && LB.forts.suppress) { LB.forts.suppress(tg.fort, 0.12); stats.fortSup = (stats.fortSup || 0) + 1; } } }
       var hide = S.side !== me && fogHidden(S.x, S.z);
       S.g.visible = !hide;
       for (var m = 0, k = 0; m < S.men.length; m++) {
@@ -181,7 +229,7 @@
     if (!sel || !sel.path.length) hideRoute();
     aiT -= dt; if (aiT <= 0) { aiT = 14 + Math.random() * 12; var ai = squads.filter(function (s) { return s.side !== me && !s.dead && !s.fb; }), S2 = ai[(Math.random() * ai.length) | 0], r = Math.random(), fx = frontX();
       if (S2) { if (r < 0.3) order(S2, 'flank'); else if (r < 0.5 && nearestCover(S2)) order(S2, 'cover'); else if (r < 0.8) order(S2, 'move', fx + S2.side * (8 + Math.random() * 16), -40 + Math.random() * 80); else order(S2, 'hold'); } }
-    uiT -= dt; if (uiT <= 0) { uiT = 0.4; renderUi(); }
+    uiT -= dt; if (uiT <= 0) { uiT = 0.4; renderUi(); kitT = (kitT || 0) + 1; if (kitT % 5 === 0) refreshKits(); }
   }
 
   function buildUi() {
@@ -212,7 +260,7 @@
     mine.forEach(function (S, i) {
       var b = el.list.querySelector('[data-i="' + i + '"]'); if (!b) return;
       b.classList.toggle('sel', S === sel);
-      b.querySelector('.sq-st').textContent = S.dead ? 'OUT · back in ' + Math.ceil(S.respawn) + ' s' : (S.cover ? 'IN COVER' : S.fb ? 'FALLING BACK' : S.mode.toUpperCase()) + (LOS() ? ' · ' + aliveN(S) + '/' + S.n : '') + (S.sup > 0.5 ? ' · SUPPRESSED' : '') + (S.noLos ? ' · NO LOS' : '');
+      b.querySelector('.sq-st').textContent = (S.kit ? S.kit.icon + ' ' + S.kit.name + ' · ' : '') + (S.dead ? 'OUT · back in ' + Math.ceil(S.respawn) + ' s' : (S.cover ? 'IN COVER' : S.digT > 0 ? 'DIGGING IN' : S.fb ? 'FALLING BACK' : S.mode.toUpperCase()) + (LOS() ? ' · ' + aliveN(S) + '/' + S.n : '') + (S.sup > 0.5 ? ' · SUPPRESSED' : '') + (S.noLos ? ' · NO LOS' : ''));
       b.querySelector('.sq-sup span').style.width = Math.round(S.sup * 100) + '%';
     });
     el.p.querySelectorAll('button[data-o]').forEach(function (b) { b.disabled = !sel; b.classList.toggle('armed', b.getAttribute('data-o') === 'move' && moveArmed); });
@@ -246,6 +294,7 @@
     woundAt: function (k, bySide) { var T = squads[k]; if (!T || T.dead || !LOS() || T.side === bySide) return false; wound(T, null, bySide); return true; },
     _place: function (k, x, z) { var S = squads[k]; if (!S) return false; S.x = S.tx = x; S.z = S.tz = z; S.path = []; S.mode = 'hold'; return true; },
     _hitChance: function (a, b) { var S = squads[a], T = squads[b]; return S && T ? hitChance(S, T, Math.hypot(S.x - T.x, S.z - T.z)) : 0; },
+    refreshKits: function () { if (ready) refreshKits(); }, kitState: function () { var me = playerSide(); return { stats: Object.assign({}, kitStats), squads: squads.filter(function (S) { return S.side === me; }).map(function (S) { return { name: S.name, kit: kitId(S), maxHp: S.maxHp, range: rangeOf(S), cover: S.cover, digT: +S.digT.toFixed(1), hole: !!(S.hole && S.hole.visible), medT: +S.medT.toFixed(1), alive: aliveN(S) }; }) }; },
     _step: function (sec) { if (!ready) return; for (var t = 0; t < sec; t += 0.1) step(0.1); }
   };
 })(window);
