@@ -71,8 +71,8 @@
     if (side !== me) return;
     stats.procedure++;
     var named = { arty: 'Artillery', air: 'Air', cluster: 'Cluster', emp: 'E M P', flare: 'Illumination', moab: 'Heavy' }[ability] || 'Fire';
-    if (!emit('fire', side, FDC, FDC + ', ' + named + ' mission, shot, over.', { force: true, pri: 2 })) return;
-    timers.push({ at: T + 5, fn: function () { emit('fire', side, FDC, FDC + ', splash, over.', { force: true, pri: 2 }); } });
+    if (!emit('fire', side, FDC, FDC + ', ' + named + ' mission, shot, over.', { force: true, pri: 3 })) return;
+    timers.push({ at: T + 5, fn: function () { emit('fire', side, FDC, FDC + ', splash, over.', { force: true, pri: 3 }); } });
     timers.push({ at: T + 11, fn: function () { emit('fire', side, FDC, FDC + ', rounds complete, over.', { force: true, pri: 1 }); } });
   }
 
@@ -105,7 +105,7 @@
   function update() {
     if (!enabled) return;
     var e = LB.engine; if (!e || !e.THREE) return;
-    var now = performance.now(), dt = Math.min(0.1, (now - (lastF || now)) / 1000); lastF = now;
+    var now = performance.now(), dt = Math.min(1, (now - (lastF || now)) / 1000); lastF = now;   // real seconds (slow frames still count)
     if (e.isPaused && e.isPaused()) return;
     T += dt; scanT -= dt; gT -= dt;
     if (scanT <= 0) { scanT = 0.25; try { scan(); } catch (_) {} }
@@ -114,6 +114,6 @@
   }
   LB.brevity = {
     isEnabled: function () { return enabled; }, update: update, air: air, fireMission: fireMission, glossary: function () { return Object.assign({}, GLOSS); },
-    getState: function () { return Object.assign({ enabled: enabled, heard: Object.assign({}, heard), pending: timers.length }, stats, { byKind: Object.assign({}, stats.byKind) }); }
+    getState: function () { return Object.assign({ enabled: enabled, t: Math.round(T * 10) / 10, heard: Object.assign({}, heard), pending: timers.length }, stats, { byKind: Object.assign({}, stats.byKind) }); }
   };
 })(window);
