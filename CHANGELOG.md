@@ -1,5 +1,21 @@
 # Changelog
 
+## v12.0.41 — Squad specialists: rank-unlocked kits for your squads (2026-10-29, AI build)
+- Rank unlocks so far were only looks (fort camo since v12.0.28, HQ banners since v12.0.32). This is part 4 of v12.3 achievements and unlocks, the roadmap's "still open: unlocks for squads".
+- Cmd, service record, has a new row "Unlocks · Squad specialists". Pick a squad tab (Alpha, Bravo or Charlie), then a kit. Kits unlock with your rank:
+  - Rifle team (Recruit): the squad as before.
+  - Marksman (Private): reaches 28 m instead of 24 and aims better past 12 m.
+  - Machine gunner (Corporal): puts 60% more suppression on its target and fires about 15% faster.
+  - Medic (Sergeant): gets one downed man back on his feet (with 1 hp) every 25 s while the squad is still in the fight.
+  - Engineer (Lieutenant): when there's no wall, bunker or depot within 40 m, Cover digs a foxhole where the squad stands (about 4 s, with a dirt berm), and the squad's cover stops more fire (incoming x0.35 instead of x0.5).
+  - Veteran (Captain): 3 hp a man instead of 2, and shakes off suppression 50% faster.
+- Kits show on the squad: the specialist carries a longer rifle, a heavy machine gun, a white medic pack with a red cross, or an engineer pack and shovel, and a veteran squad wears maroon berets. The squad panel shows each squad's kit next to its status, plus DIGGING IN while the foxhole goes in.
+- Your squads only; the enemy AI squads stay rifle teams. If an achievement reset drops your rank below a kit, that squad goes back to a rifle team.
+- API: `achievements.kits()`, `achievements.setKit(i, id)`, `squads.kitState()`. Game layer only: it never touches market data, army counts, the price-driven front or data-truth labels. The market-driven frontline, Moon Shot, Commander, the v11.4 HUD/dock, Hide UI, the v12.x systems and all `?flags` are unchanged. Kill switch: `?squadkits=0` (also off with `?cosmetics=0`).
+- Version bump to v12.0.41 (BUILD, quality api, achievements api, index tags, cache-bust `?v=20261029v12041` on all 88 local css/js tags).
+- Tested: `node --check` on all JS files, asset-lifecycle 33/33, stabilization-smoke all passing (now also checks the kit wiring), headless HIGH / MEDIUM / LOW / iPhone 390x844 with 0 page errors. Kit probe on MEDIUM and iPhone: at Captain all six kits can be picked, Alpha marksman reaches 28 m, Charlie the engineer dug a foxhole in open ground and showed the berm, and Bravo's medic got a downed man back up (3 men back from 2). With `?squadkits=0` no kit can be set and all squads stay rifle teams, with 0 errors. Screenshots in `docs/v12041-shots/`. SwiftShader only, so this isn't measured on a real iPhone/Mac yet.
+- Build hours (real timestamps): day total 0.61 h before the cycle-3 deploy, under the 2-4 h target. The run continues.
+
 ## v12.0.40 — Brevity codes and call-for-fire procedure on the radio (2026-10-29, AI build)
 - The radio only reported big events, so the air war was silent on the channel, and the Commander's fire missions got a generic "rounds out" line. This covers the realism-checklist audio and radio item "authentic brevity codes".
 - New module `js/theaters/brevity.js`. Real dogfight events in the air theater now produce real brevity calls: TALLY / MERGED / BANDIT when a fight starts, FOX TWO on an infrared missile launch, DEFENDING and FLARES when the target drops decoys, TRASHED when a missile misses or is decoyed, SPLASH ONE on a kill, BINGO and RTB when a sortie heads home, and a "hit, going down" call when one of your own jets is shot down by a missile, flak, a SAM or gun AA. The dogfight sim itself is unchanged; it only reports what happened.
@@ -9,7 +25,7 @@
 - API: `brevity.getState()`, `brevity.glossary()`. Radio and UI only: it never touches market data, army counts, the price-driven front or data-truth labels. The market-driven frontline, Moon Shot, Commander, the v11.4 HUD/dock, Hide UI, the v12.x systems and all `?flags` are unchanged. Kill switch: `?brevity=0` (also off with `?voice=0` or `?theaters=0`), which brings back the old strike line.
 - Version bump to v12.0.40 (BUILD, quality api, index tags, cache-bust `?v=20261029v12040` on all 88 local css/js tags, including the new module).
 - Tested: `node --check` on all JS files, asset-lifecycle 33/33, stabilization-smoke all passing (now also checks the brevity wiring), headless HIGH / MEDIUM / LOW / iPhone 390x844 with 0 page errors. Brevity probe on iPhone over about 75 s of play: 16 calls (12 own, 4 intercepted, 14 throttled), covering tally, Fox Two, defending, trashed, bingo, an own jet going down, splash, and the shot / splash / rounds complete sequence, with the glossary filled in. `?brevity=0` loads clean with no brevity calls. Changed while testing: timers ran on capped frame time, so on slow frames the SPLASH call came late (now real seconds); SHOT and SPLASH got higher priority so they aren't dropped behind other chatter. Screenshots in `docs/v12040-shots/`. SwiftShader only, so this isn't measured on a real iPhone/Mac yet, and speech depends on the browser's built-in voices.
-- Build hours (real timestamps): day total 0.47 h before the cycle-2 deploy, under the 2-4 h target. The run continues.
+- Build hours (real timestamps): day total 0.44 h before the cycle-2 deploy, under the 2-4 h target. The run continues.
 
 ## v12.0.39 — Positional battle audio: stereo position, air absorption, sound delay and Doppler (2026-10-29, AI build)
 - Battle sounds only knew how far away they were, not where. Several newer systems (flak, SAM sites, the ridge, ASW) also passed metres where the sound code expected 0 to 1, so their booms always played at the quietest level. This covers the realism-checklist audio items "Doppler on more than jets" and "positional gunfire pan".

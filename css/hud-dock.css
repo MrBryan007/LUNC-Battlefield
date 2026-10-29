@@ -398,3 +398,10 @@ body.ui-hidden .hs-chip { display: flex; }
 .radio-strip .rs-gloss:empty { display: none; }
 .radio-strip .rs-gloss b { display: block; color: #d7e3da; margin-bottom: 3px; }
 .radio-strip .rs-gloss code { font: 700 10px Rajdhani, Inter, monospace; letter-spacing: .5px; color: #ffd27a; margin-right: 6px; }
+/* v12.0.41 squad specialists (Cmd → service record) */
+.ach-kit-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-bottom: 5px; }
+.ach-kit-tab { padding: 5px 6px; border-radius: 7px; border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.03); color: #e8efe9; font: 600 11px Inter, sans-serif; cursor: pointer; text-align: left; }
+.ach-kit-tab small { display: block; font-weight: 500; font-size: 9.5px; color: #8d9a92; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ach-kit-tab.on { border-color: #ffd36a; background: rgba(255,211,106,.1); }
+.ach-kit i { display: grid; place-items: center; font-style: normal; font-size: 14px; background: rgba(255,255,255,.06); }
+.ach-kits { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }

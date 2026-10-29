@@ -3,7 +3,8 @@
  * saved in localStorage ('luncBattle.achievements', id → unlock time). Your service-record title rises with the count.
  * Never touches market data, armies, the front or data-truth labels. ?ach=0 turns it off.
  * v12.0.28: 3 fort achievements (22 total, General of the Army at 22) and rank-unlocked camo for your defenses (?cosmetics=0 → off).
- * v12.0.32: rank-unlocked banners for your HQ flagpole (drawn by js/fx/hq-banners.js). */
+ * v12.0.32: rank-unlocked banners for your HQ flagpole (drawn by js/fx/hq-banners.js).
+ * v12.0.41: rank-unlocked specialist kits for your three squads (applied by js/theaters/squads.js; ?squadkits=0 → off). */
 (function (global) {
   'use strict';
   var LB = global.LUNCBattle = global.LUNCBattle || {}, doc = global.document;
@@ -25,6 +26,16 @@
     { id: 'star', name: 'Star', need: 7, rank: 'Lieutenant', sw: ['#24384f', '#e8e2cf', '#24384f'] },
     { id: 'laurel', name: 'Laurel', need: 13, rank: 'Major', sw: ['#3b2a1a', '#d7b56d', '#5a7a3a'] },
     { id: 'general', name: "General's", need: 22, rank: 'General of the Army', sw: ['#7a1f1f', '#ffd36a', '#7a1f1f'] }
+  ];
+  // v12.0.41 squad specialists: rank-unlocked kits for your three squads (?squadkits=0 → off)
+  var KITS_ON = COSM && qs.get('squadkits') !== '0', SQN = ['Alpha', 'Bravo', 'Charlie'], kitTab = 0;
+  var KITS = [
+    { id: 'rifle', name: 'Rifle team', icon: '🎯', need: 0, rank: 'Recruit', desc: 'The standard squad.' },
+    { id: 'marksman', name: 'Marksman', icon: '🔭', need: 1, rank: 'Private', desc: 'Reach 28 m instead of 24, better aim past 12 m.' },
+    { id: 'mg', name: 'Machine gunner', icon: '🔥', need: 3, rank: 'Corporal', desc: 'Heavier suppression, slightly faster fire.' },
+    { id: 'medic', name: 'Medic', icon: '✚', need: 5, rank: 'Sergeant', desc: 'Gets a downed man back up every 25 s.' },
+    { id: 'engineer', name: 'Engineer', icon: '⛏', need: 7, rank: 'Lieutenant', desc: 'Cover digs a foxhole anywhere; cover stops more fire.' },
+    { id: 'veteran', name: 'Veteran', icon: '★', need: 10, rank: 'Captain', desc: '3 hp a man, shakes off suppression faster.' }
   ];
   var cosm = loadC();
   var KEY = 'luncBattle.achievements';
@@ -68,6 +79,18 @@
   function banById(id) { return BANNERS.filter(function (c) { return c.id === id; })[0]; }
   function curBanner() { if (!COSM) return null; var c = banById(cosm.banner); return camoOk(c) && c.id !== 'std' ? c : null; }
   function setBanner(id) { var c = banById(id); if (!COSM || !camoOk(c)) return false; cosm.banner = id; saveC(); uiDirty = true; render(); if (LB.sfx && LB.sfx.ui) try { LB.sfx.ui('arm'); } catch (_) {} return true; }
+  function kitById(id) { return KITS.filter(function (k) { return k.id === id; })[0]; }
+  function squadKit(i) { if (!KITS_ON) return null; var k = kitById(((cosm.kits || {})[SQN[i]]) || 'rifle'); return k && count() >= k.need && k.id !== 'rifle' ? k : null; }   // lost unlock → rifle team
+  function setKit(i, id) { var k = kitById(id); if (!KITS_ON || !k || count() < k.need || !SQN[i]) return false; cosm.kits = cosm.kits || {}; cosm.kits[SQN[i]] = id; saveC(); uiDirty = true; render(); if (LB.squads && LB.squads.refreshKits) try { LB.squads.refreshKits(); } catch (_) {} if (LB.sfx && LB.sfx.ui) try { LB.sfx.ui('arm'); } catch (_) {} return true; }
+  function renderKits() {
+    if (!el.kit) return; var n = count();
+    el.kitTabs.innerHTML = SQN.map(function (nm, i) { var k = squadKit(i); return '<button type="button" class="ach-kit-tab' + (i === kitTab ? ' on' : '') + '" data-kt="' + i + '">' + nm + '<small>' + esc(k ? k.name : 'Rifle team') + '</small></button>'; }).join('');
+    var cur = squadKit(kitTab), curId = cur ? cur.id : 'rifle';
+    el.kit.innerHTML = KITS.map(function (k) {
+      var ok = n >= k.need, on = curId === k.id;
+      return '<button type="button" class="ach-camo ach-kit' + (on ? ' on' : '') + '" data-kit="' + k.id + '"' + (ok ? '' : ' disabled') + ' title="' + esc(k.name + ' · ' + k.desc) + (ok ? '' : ' · unlocks at ' + k.rank) + '"><i>' + k.icon + '</i><b>' + esc(k.name) + '</b><small>' + (ok ? esc(k.desc) : '🔒 ' + esc(k.rank)) + '</small></button>';
+    }).join('');
+  }
   function renderBanner() {
     if (!el.ban) return; var cur = curBanner(), n = count();
     el.ban.innerHTML = BANNERS.map(function (c) {
@@ -127,11 +150,13 @@
     p.innerHTML = '<div class="th-title">SERVICE RECORD · ACHIEVEMENTS <span class="qual sim">GAME LAYER</span></div>' +
       '<div class="ach-rank"><b id="achTitle"></b><span id="achCount"></span><i class="ach-bar"><span id="achBar"></span></i><small id="achNext"></small></div>' +
       (COSM ? '<div class="ach-unlocks"><small>UNLOCKS · CAMO FOR YOUR BUNKERS AND TURRETS</small><div id="achCamo" class="ach-camos"></div></div>' +
-        '<div class="ach-unlocks"><small>UNLOCKS · BANNER FOR YOUR HQ</small><div id="achBanner" class="ach-camos"></div></div>' : '') +
+        '<div class="ach-unlocks"><small>UNLOCKS · BANNER FOR YOUR HQ</small><div id="achBanner" class="ach-camos"></div></div>' +
+        (KITS_ON ? '<div class="ach-unlocks"><small>UNLOCKS · SQUAD SPECIALISTS</small><div id="achKitTabs" class="ach-kit-tabs"></div><div id="achKits" class="ach-camos ach-kits"></div></div>' : '') : '') +
       '<div class="ach-list" id="achList"></div>' +
       '<div class="ach-foot"><span class="th-note">Saved on this device. Achievements only read the game layer, never market data.</span><button type="button" id="achReset">Reset</button></div>';
-    el.p = p; el.list = p.querySelector('#achList'); el.camo = p.querySelector('#achCamo'); el.ban = p.querySelector('#achBanner');
+    el.p = p; el.list = p.querySelector('#achList'); el.camo = p.querySelector('#achCamo'); el.ban = p.querySelector('#achBanner'); el.kit = p.querySelector('#achKits'); el.kitTabs = p.querySelector('#achKitTabs');
     if (el.ban) el.ban.addEventListener('click', function (e) { var b = e.target.closest('button[data-banner]'); if (b && !b.disabled) setBanner(b.getAttribute('data-banner')); });
+    if (el.kit) { el.kit.addEventListener('click', function (e) { var b = e.target.closest('button[data-kit]'); if (b && !b.disabled) setKit(kitTab, b.getAttribute('data-kit')); }); el.kitTabs.addEventListener('click', function (e) { var b = e.target.closest('button[data-kt]'); if (b) { kitTab = +b.getAttribute('data-kt'); renderKits(); } }); }
     if (el.camo) el.camo.addEventListener('click', function (e) { var b = e.target.closest('button[data-camo]'); if (b && !b.disabled) setCamo(b.getAttribute('data-camo')); });
     p.querySelector('#achReset').addEventListener('click', function () {
       var b = this; if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = 'Tap again to reset'; setTimeout(function () { b.dataset.armed = ''; b.textContent = 'Reset'; }, 3000); return; }
@@ -151,7 +176,7 @@
     el.p.querySelector('#achCount').textContent = n + ' / ' + DEFS.length;
     el.p.querySelector('#achBar').style.width = Math.round(n / DEFS.length * 100) + '%';
     el.p.querySelector('#achNext').textContent = nt ? 'Next: ' + nt[1] + ' at ' + nt[0] : 'Top rank reached';
-    renderCamo(); renderBanner();
+    renderCamo(); renderBanner(); renderKits();
     el.list.innerHTML = DEFS.map(function (d) {
       var on = !!got[d.id], p = [0, 1]; try { p = d.p(); } catch (_) {}
       var f = on ? 1 : Math.max(0, Math.min(1, p[0] / p[1]));
@@ -165,12 +190,13 @@
     iv = setInterval(function () { try { tick(); } catch (err) { console.warn('[achievements]', err); } }, 1000);
   }
   LB.achievements = {
-    version: 'v12.0.32', isEnabled: function () { return enabled && ready; },
+    version: 'v12.0.41', isEnabled: function () { return enabled && ready; },
     list: function () { return DEFS.map(function (d) { var p = [0, 1]; try { p = d.p(); } catch (_) {} return { id: d.id, name: d.name, on: !!got[d.id], cur: p[0], goal: p[1] }; }); },
     count: count, title: function () { return title(count()); },
     getState: function () { return { enabled: enabled && ready, count: count(), total: DEFS.length, title: title(count()), ev: Object.assign({}, ev), queued: queue.length, showing: showing }; },
     cosmetics: function () { var n = count(), cur = curCamo(); return { enabled: COSM, camo: cur ? cur.id : 'std', camos: CAMOS.map(function (c) { return { id: c.id, name: c.name, rank: c.rank, unlocked: n >= c.need }; }) }; },
     camo: curCamo, setCamo: setCamo,
+    squadKit: squadKit, setKit: setKit, kits: function () { var n = count(); return { enabled: KITS_ON, squads: SQN.map(function (nm, i) { var k = squadKit(i); return { squad: nm, kit: k ? k.id : 'rifle' }; }), list: KITS.map(function (k) { return { id: k.id, name: k.name, rank: k.rank, unlocked: n >= k.need }; }) }; },
     banner: curBanner, setBanner: setBanner, banners: function () { var n = count(), cur = curBanner(); return { enabled: COSM, banner: cur ? cur.id : 'std', list: BANNERS.map(function (c) { return { id: c.id, name: c.name, rank: c.rank, unlocked: n >= c.need }; }) }; },
     reset: function () { got = {}; save(); uiDirty = true; render(); },
     _tick: tick, _unlock: function (id) { var d = DEFS.filter(function (x) { return x.id === id; })[0]; return d ? unlock(d) : false; }
