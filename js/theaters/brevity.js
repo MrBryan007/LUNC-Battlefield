@@ -27,7 +27,7 @@
 
   function playerSide() { try { return LB.commander.getState().profile.side === 'bull' ? -1 : 1; } catch (_) { return -1; } }
   function cs(J) {
-    if (J && J._ao && J._ao.cs) return J._ao.cs;
+    if (J && J._ao && J._ao.cs) return J._ao.cs.replace(/^Bandit\b/, 'Talon');   // 'Bandit' is a brevity word, not a callsign
     var a = CS[String(J && J.side || -1)] || CS['-1'], s = (J && J.slot) || 0;
     return a[s % a.length] + ' ' + (1 + (s >> 2));
   }
@@ -110,7 +110,7 @@
     T += dt; scanT -= dt; gT -= dt;
     if (scanT <= 0) { scanT = 0.25; try { scan(); } catch (_) {} }
     for (var i = timers.length - 1; i >= 0; i--) if (T >= timers[i].at) { var f = timers[i].fn; timers.splice(i, 1); try { f(); } catch (_) {} }
-    if (gT <= 0) { gT = 1; try { renderGlossary(); } catch (_) {} }
+    if (gT <= 0) { gT = 0.3; try { renderGlossary(); } catch (_) {} }
   }
   LB.brevity = {
     isEnabled: function () { return enabled; }, update: update, air: air, fireMission: fireMission, glossary: function () { return Object.assign({}, GLOSS); },
