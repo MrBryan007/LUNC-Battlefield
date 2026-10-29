@@ -295,3 +295,15 @@ body.cmd-heavy-open .cmd-heavy { display: flex; }
 body.cutscene #topHud, body.cutscene #leftPanel, body.cutscene #rightPanel, body.cutscene #hudTabs, body.cutscene #tokenBar, body.cutscene #hint,
 body.cutscene #dataTruthLegend, body.cutscene #statusTray, body.cutscene #buildTag, body.cutscene #battleBadge, body.cutscene .minimap-wrap,
 body.cutscene .cmd-layer, body.cutscene #btnRestoreUi, body.cutscene .intel-float, body.cutscene #qualityPicker { visibility: hidden !important; }
+/* v12.0.42 power-ups: active chips under the top bar + a pickup banner */
+.pu-chips { position: absolute; left: 50%; top: calc(max(8px, env(safe-area-inset-top)) + 78px); transform: translateX(-50%); display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; max-width: 92vw; pointer-events: none; z-index: 2; }
+.pu-chip { position: relative; display: flex; align-items: center; gap: 5px; padding: 3px 9px 4px 6px; border-radius: 999px; overflow: hidden; background: rgba(12,16,14,.72); border: 1px solid color-mix(in srgb, var(--pu) 55%, transparent); color: #e8efe9; font: 600 11px Inter, system-ui, sans-serif; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.pu-chip b { color: var(--pu); font: 700 12px Rajdhani, sans-serif; min-width: 14px; text-align: center; }
+.pu-chip em { font-style: normal; color: #9fb0a5; font-size: 10px; }
+.pu-chip i { position: absolute; left: 0; bottom: 0; height: 2px; background: var(--pu); }
+.pu-chip.pu-field { border-style: dashed; }
+.pu-banner { position: absolute; left: 50%; top: 32%; transform: translate(-50%, -8px) scale(.96); opacity: 0; padding: 9px 16px; border-radius: 12px; background: rgba(12,16,14,.82); border: 1px solid rgba(255,211,106,.45); color: #f3f6f2; font: 700 14px Rajdhani, sans-serif; letter-spacing: .8px; text-align: center; pointer-events: none; transition: opacity .25s, transform .25s; }
+.pu-banner b { font-size: 18px; margin-right: 6px; }
+.pu-banner small { display: block; font: 500 11px Inter, sans-serif; letter-spacing: 0; color: #b9c4bc; margin-top: 2px; }
+.pu-banner.on { opacity: 1; transform: translate(-50%, 0) scale(1); }
+body[data-ui="clean"] .pu-chips, body[data-ui="clean"] .pu-banner { display: none; }

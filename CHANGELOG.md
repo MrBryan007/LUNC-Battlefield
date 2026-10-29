@@ -1,5 +1,16 @@
 # Changelog
 
+## v12.0.42 — Power-ups: Double Points, Rapid Reload, Combo Lock and Moon Fuel (2026-10-29, AI build)
+- The combo already multiplied the Commander's score, but the only power-up in the game was "+25 Moon Shot charge" from a power crate. This covers the open v12.1 War Systems item "Power-ups and score multipliers".
+- New module `js/theaters/powerups.js` with four power-ups: Double Points (30 s, score x2 on top of the combo), Rapid Reload (20 s, all strike cooldowns run twice as fast), Combo Lock (20 s, your combo doesn't time out between hits) and Moon Fuel (+25 Moon Shot charge right away). Picking up the same one again adds its time.
+- Where they come from: a power crate your side wins now gives a random one of the four, and a glowing beacon appears on the land battlefield about every 75 s (90 s on LOW and phones). It has a coloured ring and a light beam and stays for 25 s; land any Commander strike within 5 m of it to collect it. Watchtower calls it out on the radio.
+- HUD: active power-ups show as small chips under the top bar with a countdown bar, a chip shows your total score multiplier (combo times Double Points) when it's above x1, and a field beacon shows as a dashed chip with its time left. A short banner pops up when you collect one. Hide UI's clean mode hides them.
+- Power-ups belong to the Commander session, so in hot-seat each player keeps their own.
+- API: `powerups.getState()`, `powerups.grant(id)`. Game layer only: power-ups change score, cooldowns and combo timing, and never touch market data, army counts, the price-driven front or data-truth labels. The market-driven frontline, Moon Shot, Commander, the v11.4 HUD/dock, Hide UI, the v12.x systems and all `?flags` are unchanged. Kill switch: `?powerups=0` (power crates go back to +25 Moon Shot charge).
+- Version bump to v12.0.42 (BUILD, quality api, index tags, cache-bust `?v=20261029v12042` on all 89 local css/js tags, including the new module).
+- Tested: `node --check` on all JS files, asset-lifecycle 33/33, stabilization-smoke all passing (now also checks the power-up wiring), headless HIGH / MEDIUM / LOW / iPhone 390x844 with 0 page errors. Power-up probe on MEDIUM and iPhone: all four grant correctly (score multiplier 1 to 2, cooldown rate 1 to 2, combo lock on, Moon Shot charge 0 to 25), a field beacon spawned and an artillery strike next to it collected it, and the chips and banner rendered. With `?powerups=0` nothing is granted and no chips show, with 0 errors. Screenshots in `docs/v12042-shots/`. SwiftShader only, so this isn't measured on a real iPhone/Mac yet.
+- Build hours (real timestamps): day total 0.76 h before the cycle-4 deploy, under the 2-4 h target. The run continues.
+
 ## v12.0.41 — Squad specialists: rank-unlocked kits for your squads (2026-10-29, AI build)
 - Rank unlocks so far were only looks (fort camo since v12.0.28, HQ banners since v12.0.32). This is part 4 of v12.3 achievements and unlocks, the roadmap's "still open: unlocks for squads".
 - Cmd, service record, has a new row "Unlocks · Squad specialists". Pick a squad tab (Alpha, Bravo or Charlie), then a kit. Kits unlock with your rank:
