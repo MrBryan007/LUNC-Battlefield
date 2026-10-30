@@ -88,9 +88,9 @@
   // Single source of truth for current release metadata.
   // Historical comments and changelog entries are left untouched.
   const BUILD = Object.freeze({
-    version: 'v12.0.42',
-    codename: 'Power-ups',
-    date: '2026-10-29'
+    version: 'v12.0.43',
+    codename: 'Army line of sight',
+    date: '2026-10-30'
   });
 
   const config = {

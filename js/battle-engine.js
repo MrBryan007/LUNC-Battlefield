@@ -1955,8 +1955,20 @@
       const chance = isAir ? 0.48 : 0.42;
       if(rangeOk && Math.random()<chance) {
         const side=u.userData.side;
-        const toX=targetX + (isAir ? (Math.random()-.5)*10 : side*(Math.random()*5-2.5));
-        const z=u.position.z+(Math.random()-.5)*(isAir?8:4);
+        let toX=targetX + (isAir ? (Math.random()-.5)*10 : side*(Math.random()*5-2.5));
+        let z=u.position.z+(Math.random()-.5)*(isAir?8:4);
+        // v12.0.43: army line of sight — rifles/MBTs engage a visible enemy or hold; SPGs scatter without a spotter
+        const ALOS = !isAir && window.LUNCBattle && LUNCBattle.armyLos && LUNCBattle.armyLos.isEnabled() ? LUNCBattle.armyLos : null;
+        if (ALOS) {
+          if (type===0 || type===1) {
+            const aim = ALOS.direct(u, type);
+            if (aim.mode === 'hold') { u.userData.shot = 0.6; return false; }
+            if (aim.mode === 'engage') { toX = aim.x; z = aim.z; }
+          } else if (type===2) {
+            const m = ALOS.indirect(u, toX, z);
+            if (m > 1) { toX += (Math.random()-.5)*5*(m-1); z += (Math.random()-.5)*5*(m-1); }
+          }
+        }
         let kind, power;
         if (type===3) { kind = Math.random() < 0.55 ? 'rocket' : 'tracer'; power = kind==='rocket' ? 0.9 : 0.55; }
         else if (type===2) { kind='arty'; power=1.15; }
