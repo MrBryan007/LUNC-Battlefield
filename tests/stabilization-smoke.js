@@ -51,7 +51,7 @@ const checks = [
   ['squad kits wired', read('js/ui/achievements.js').includes("qs.get('squadkits') !== '0'") && read('js/ui/achievements.js').includes('squadKit: squadKit') && read('js/theaters/squads.js').includes('function refreshKits()') && read('js/theaters/squads.js').includes('kitStep(S, dt)')],
   ['army line of sight wired', index.includes('js/theaters/army-los.js') && read('js/theaters/army-los.js').includes("qs.get('armylos') !== '0'") && read('js/battle-engine.js').includes('ALOS.direct(u, type)') && read('js/battle-engine.js').includes('ALOS.indirect(u, toX, z)')],
   ['power-ups wired', index.includes('js/theaters/powerups.js') && read('js/theaters/powerups.js').includes("qs.get('powerups') !== '0'") && read('js/commander.js').includes('PU.scoreMult()') && read('js/commander.js').includes('LB.powerups.strikeAt(') && read('js/theaters/supply.js').includes("LB.powerups.grant(null, 'crate')")],
-  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.42')]
+  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.43')]
 ];
 
 let failed = 0;

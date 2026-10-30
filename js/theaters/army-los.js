@@ -35,7 +35,7 @@
     var px = u.position.x, pz = u.position.z, cand = [], n = foes.length, start = (Math.random() * n) | 0, tries = Math.min(n, SAMPLES * 6);
     for (var i = 0; i < tries && cand.length < SAMPLES; i++) {
       var f = foes[(start + i * 7) % n]; if (!f || !f.position || !ground(f)) continue;
-      var dx = f.position.x - px, dz = f.position.z - pz, d = dx * dx + dz * dz; if (d > REACH * REACH) continue;
+      var dx = f.position.x - px, dz = f.position.z - pz, d = dx * dx + dz * dz; if (!(d <= REACH * REACH)) continue;
       cand.push({ u: f, d: d });
     }
     if (!cand.length) { stats.fallback++; return { mode: 'fallback' }; }
@@ -60,7 +60,7 @@
     for (var i = 0; i < Math.min(n, 60) && looked < 6; i++) {
       var o = own[(start + i * 5) % n]; if (!o || !o.position || !ground(o)) continue;
       var ty = o.userData.type | 0; if (ty > 1) continue;
-      var dx = toX - o.position.x, dz = toZ - o.position.z; if (dx * dx + dz * dz > 30 * 30) continue;
+      var dx = toX - o.position.x, dz = toZ - o.position.z; if (!(dx * dx + dz * dz <= 30 * 30)) continue;
       looked++;
       if (see(los, o.position.x, o.position.z, toX, toZ, SIGHT[ty])) { stats.observed++; return 1; }
     }
