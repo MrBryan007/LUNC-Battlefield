@@ -423,3 +423,4 @@ body.ui-hidden .hs-chip { display: flex; }
 .me-banner.show { opacity: 1; transform: translate(-50%, 0); }
 body[data-ui="clean"] .me-banner { display: none; }
 @media (max-width: 600px) { .me-panel input, .me-panel select { font-size: 16px; } }   /* no iOS focus zoom */
+.me-pt { display: flex; gap: 6px; align-items: center; margin: -1px 0 2px 23px; font-size: 11px; color: #9aa59d; } .me-pt select { flex: 1; }
