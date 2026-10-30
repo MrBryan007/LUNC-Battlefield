@@ -92,8 +92,13 @@
   }
 
   // ---------------- Missions (difficulty ramp) ----------------
-  function nextMission() {
+  function nextMission(outcome) {
     var L = session.level;
+    // v12.0.44 mission editor: a custom mission chain supplies the next orders first
+    if (LB.missionEditor && LB.missionEditor.isEnabled() && LB.missionEditor.next) {
+      var cm = null; try { cm = LB.missionEditor.next(outcome || 'new', session, mission); } catch (e) { console.warn('[editor] next', e); }
+      if (cm) { mission = cm; toast(cm.chainTag || 'CUSTOM ORDERS', mission.text, 'info'); if (sfx()) sfx().radio(); return; }
+    }
     var live = E() && E().isPriceLive && E().isPriceLive();
     var pool = [
       { id: 'inf', text: 'Hit {n} enemy infantry', type: 0, n: 5 + 2 * L },
@@ -129,6 +134,8 @@
     if (kind === 'hit' && mission.type === val) mission.got++;
     if (kind === 'combo' && mission.combo) mission.got = Math.max(mission.got, val);
     if (kind === 'call' && mission.call) mission.got += val;
+    if (kind === 'score' && mission.score) mission.got += val;   // v12.0.44 editor objectives
+    if (kind === 'pu' && mission.pu) mission.got += val;
     if (mission.got >= mission.n) completeMission();
   }
 
@@ -141,7 +148,7 @@
     toast('MISSION COMPLETE', '+' + reward + ' · Level ' + session.level, 'win');
     if (sfx()) sfx().success();
     if (E()) E().flash(0.12);
-    nextMission();
+    nextMission('done');
   }
 
   function failMission() {
@@ -149,7 +156,7 @@
     toast('MISSION FAILED', mission.text + ' — new orders incoming', 'bad');
     if (sfx()) sfx().fail();
     session.streak = 0;
-    nextMission();
+    nextMission('fail');
   }
 
   // ---------------- Scoring ----------------
@@ -158,6 +165,7 @@
     var PU = (LB.powerups && LB.powerups.isEnabled() ? LB.powerups : null);   // v12.0.42 power-ups
     if (PU && !noCombo) mult *= PU.scoreMult();
     var gained = Math.round(points * mult);
+    if (gained > 0 && !noCombo && mission && mission.score) { mission.got += gained; if (mission.got >= mission.n) { try { completeMission(); } catch (_) {} } }   // v12.0.44 editor: score objective
     if (PU && !noCombo) try { PU.noteScore(points, gained); } catch (_) {}
     session.score += gained;
     var before = rankFor(profile.xp);
@@ -1000,6 +1008,8 @@
     // v12.0.31 hot-seat: switch the commanded side (not saved unless keep) and swap per-player session + cooldowns
     setSide: function (sd, keep) { if (sd !== 'bull' && sd !== 'bear') return false; profile.side = sd; if (keep) save(); renderSide(); return true; },
     // v12.0.35 hot-seat: swap the active ORDERS per player (mission, progress, time left). null → fresh orders unless noNew.
+    missionProgress: function (kind, val) { if (started && session) missionProgress(kind, val); },   // v12.0.44 editor hooks
+    restartOrders: function () { if (started && session) { nextMission('new'); renderMission(); } },
     useMission: function (m, noNew) { var o = mission; mission = m || null; if (!mission && !noNew && started) { try { nextMission(); } catch (_) {} } try { renderMission(); } catch (_) {} return o; },
     useSession: function (s, c) { var o = { session: session, cds: cds }; if (s) session = s; if (c) cds = c; try { disarm(); } catch (_) {} renderAll(); return o; },
     freshSession: function () { return { session: { score: 0, combo: 0, comboT: 0, level: 1, charge: 0, nuke: 0, hits: 0, strikes: 0, streak: 0, missionsDone: 0 }, cds: { arty: 0, air: 0, moon: 0, cluster: 0, emp: 0, flare: 0, moab: 0, cbomb: 0, napalm: 0, gas: 0, a10: 0, nuke: 0 } }; },

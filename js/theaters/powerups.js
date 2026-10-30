@@ -36,6 +36,7 @@
     if (id === 'moon') s.charge = Math.min(100, (s.charge || 0) + 25);
     else { var a = act(); a[id] = Math.max(a[id] || 0, 0) + d.dur; }
     stats.granted++; stats.byId[id] = (stats.byId[id] || 0) + 1;
+    if (source !== 'test' && LB.commander && LB.commander.missionProgress) try { LB.commander.missionProgress('pu', 1); } catch (_) {}   // v12.0.44 editor objective
     if (source === 'crate') stats.fromCrates++; else if (source === 'field') stats.fromField++;
     banner(d);
     if (LB.sfx && LB.sfx.success) try { LB.sfx.success(); } catch (_) {}
