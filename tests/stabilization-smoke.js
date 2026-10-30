@@ -49,8 +49,9 @@ const checks = [
   ['spatial audio wired', read('js/sfx.js').includes("get('spatial') !== '0'") && read('js/sfx.js').includes('function whoosh(') && read('js/fx/realism-pass.js').includes('if (pos && LB.sfx.whoosh) return raw.call(LB.sfx, power, dist, pos)') && read('js/fx/sam.js').includes('LB.sfx.whoosh(')],
   ['brevity wired', index.includes('js/theaters/brevity.js') && read('js/theaters/brevity.js').includes("qs.get('brevity') !== '0'") && read('js/theaters/theaters.js').includes("LB.brevity.air('fox', J, o)") && read('js/commander.js').includes('LB.brevity.fireMission(') && read('js/battle-engine.js').includes('LUNCBattle.brevity.update()')],
   ['squad kits wired', read('js/ui/achievements.js').includes("qs.get('squadkits') !== '0'") && read('js/ui/achievements.js').includes('squadKit: squadKit') && read('js/theaters/squads.js').includes('function refreshKits()') && read('js/theaters/squads.js').includes('kitStep(S, dt)')],
+  ['army line of sight wired', index.includes('js/theaters/army-los.js') && read('js/theaters/army-los.js').includes("qs.get('armylos') !== '0'") && read('js/battle-engine.js').includes('ALOS.direct(u, type)') && read('js/battle-engine.js').includes('ALOS.indirect(u, toX, z)')],
   ['power-ups wired', index.includes('js/theaters/powerups.js') && read('js/theaters/powerups.js').includes("qs.get('powerups') !== '0'") && read('js/commander.js').includes('PU.scoreMult()') && read('js/commander.js').includes('LB.powerups.strikeAt(') && read('js/theaters/supply.js').includes("LB.powerups.grant(null, 'crate')")],
-  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.42')]
+  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.43')]
 ];
 
 let failed = 0;
