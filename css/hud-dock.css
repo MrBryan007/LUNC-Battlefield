@@ -405,3 +405,21 @@ body.ui-hidden .hs-chip { display: flex; }
 .ach-kit-tab.on { border-color: #ffd36a; background: rgba(255,211,106,.1); }
 .ach-kit i { display: grid; place-items: center; font-style: normal; font-size: 14px; background: rgba(255,255,255,.06); }
 .ach-kits { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+/* v12.0.44 mission editor */
+.me-panel .me-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; align-items: center; }
+.me-panel input, .me-panel select { background: rgba(0,0,0,.35); color: #eef3ef; border: 1px solid rgba(255,255,255,.14); border-radius: 6px; padding: 5px 6px; font: 500 12px Inter, sans-serif; min-height: 30px; }
+.me-panel #meName { flex: 1 1 140px; } .me-panel #meCode { flex: 1 1 160px; }
+.me-panel button { background: rgba(255,255,255,.07); color: #eef3ef; border: 1px solid rgba(255,255,255,.16); border-radius: 6px; padding: 5px 9px; font: 600 12px Inter, sans-serif; min-height: 30px; cursor: pointer; }
+.me-panel button:disabled { opacity: .4; cursor: default; }
+.me-panel button.me-go { background: rgba(215,181,109,.22); border-color: rgba(215,181,109,.6); color: #ffe2a0; }
+.me-objs { display: grid; gap: 5px; }
+.me-obj { display: grid; grid-template-columns: 18px 1fr 64px 54px 10px 30px; gap: 5px; align-items: center; }
+.me-obj input { width: 100%; box-sizing: border-box; } .me-num, .me-s { color: #9aa59d; font-size: 11px; }
+.me-saved { display: grid; gap: 4px; margin-top: 4px; }
+.me-sv { display: grid; grid-template-columns: 1fr auto auto 30px; gap: 5px; align-items: center; font-size: 11px; color: #cfd8d2; }
+.me-banner { position: fixed; left: 50%; top: 140px; transform: translate(-50%, -12px); z-index: 61; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 18px; border-radius: 10px; background: rgba(12,16,13,.92); border: 1px solid rgba(228,103,95,.6); color: #eef3ef; font: 500 12px Inter, sans-serif; opacity: 0; pointer-events: none; transition: opacity .3s, transform .3s; }
+.me-banner b { font: 700 15px Rajdhani, Inter, sans-serif; letter-spacing: 1.5px; color: #ffb3ad; }
+.me-banner.win { border-color: rgba(255,211,106,.6); } .me-banner.win b { color: #ffd36a; }
+.me-banner.show { opacity: 1; transform: translate(-50%, 0); }
+body[data-ui="clean"] .me-banner { display: none; }
+@media (max-width: 600px) { .me-panel input, .me-panel select { font-size: 16px; } }   /* no iOS focus zoom */
