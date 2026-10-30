@@ -422,3 +422,4 @@ body.ui-hidden .hs-chip { display: flex; }
 .me-banner.win { border-color: rgba(255,211,106,.6); } .me-banner.win b { color: #ffd36a; }
 .me-banner.show { opacity: 1; transform: translate(-50%, 0); }
 body[data-ui="clean"] .me-banner { display: none; }
+@media (max-width: 600px) { .me-panel input, .me-panel select { font-size: 16px; } }   /* no iOS focus zoom */
