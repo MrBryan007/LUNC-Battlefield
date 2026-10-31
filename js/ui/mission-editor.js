@@ -18,14 +18,14 @@
   var enabled = qs.get('editor') !== '0';
   var KEY = 'luncBattle.missions.v1', MAX_SAVED = 6, MAX_OBJ = 5;
   var KINDS = {
-    inf: { label: 'Hit enemy infantry', text: 'Hit {n} enemy infantry', min: 1, max: 60, def: 8, mk: function (n) { return { type: 0 }; } },
-    armor: { label: 'Hit enemy armor', text: 'Hit {n} enemy armor', min: 1, max: 30, def: 4, mk: function () { return { type: 1 }; } },
-    arty: { label: 'Silence enemy artillery', text: 'Silence {n} enemy artillery', min: 1, max: 15, def: 2, mk: function () { return { type: 2 }; } },
-    combo: { label: 'Reach a combo', text: 'Reach a x{n} combo', min: 2, max: 12, def: 4, mk: function () { return { combo: true }; } },
-    score: { label: 'Score points', text: 'Score {n} points', min: 100, max: 20000, def: 1500, mk: function () { return { score: true }; } },
-    pu: { label: 'Collect power-ups', text: 'Collect {n} power-ups', min: 1, max: 6, def: 1, mk: function () { return { pu: true }; } },
-    hold: { label: 'Hold a point', text: 'Hold {p} for {n} s with a squad', min: 10, max: 90, def: 20, map: true, mk: function () { return { hold: true }; } },
-    hit: { label: 'Strike a point', text: 'Land {n} strikes on {p}', min: 1, max: 10, def: 3, map: true, mk: function () { return { spot: true }; } }
+    inf: { short: 'Infantry', label: 'Hit enemy infantry', text: 'Hit {n} enemy infantry', min: 1, max: 60, def: 8, mk: function (n) { return { type: 0 }; } },
+    armor: { short: 'Armor', label: 'Hit enemy armor', text: 'Hit {n} enemy armor', min: 1, max: 30, def: 4, mk: function () { return { type: 1 }; } },
+    arty: { short: 'Artillery', label: 'Silence enemy artillery', text: 'Silence {n} enemy artillery', min: 1, max: 15, def: 2, mk: function () { return { type: 2 }; } },
+    combo: { short: 'Combo', label: 'Reach a combo', text: 'Reach a x{n} combo', min: 2, max: 12, def: 4, mk: function () { return { combo: true }; } },
+    score: { short: 'Score', label: 'Score points', text: 'Score {n} points', min: 100, max: 20000, def: 1500, mk: function () { return { score: true }; } },
+    pu: { short: 'Power-ups', label: 'Collect power-ups', text: 'Collect {n} power-ups', min: 1, max: 6, def: 1, mk: function () { return { pu: true }; } },
+    hold: { short: 'Hold', label: 'Hold a point', text: 'Hold {p} for {n} s with a squad', min: 10, max: 90, def: 20, map: true, mk: function () { return { hold: true }; } },
+    hit: { short: 'Strike', label: 'Strike a point', text: 'Land {n} strikes on {p}', min: 1, max: 10, def: 3, map: true, mk: function () { return { spot: true }; } }
   };
   var POINTS = { front: 'Front centre', ridge: 'Hill 402', north: 'North flank', south: 'South flank' };
   var TODS = { '': 'Time as it is', noon: 'Noon', dusk: 'Dusk', night: 'Night' }, TOD_K = { noon: 0.5, dusk: 0.88, night: 0.98 };
@@ -320,7 +320,7 @@
   }
   function summary(m) {
     var c = [m.wx ? WX[m.wx] : '', m.tod ? TODS[m.tod] : '', m.side ? (m.side === 'bull' ? 'Bulls' : 'Bears') : ''].filter(Boolean);
-    return m.obj.map(function (o) { return KINDS[o.k].label.replace(/^(Hit|Silence) enemy /, '').replace(/^(Reach|Score|Collect) (a )?/, ''); }).join(' → ') + (c.length ? ' · ' + c.join(', ') : '');
+    return m.obj.map(function (o) { return KINDS[o.k].short + (o.p ? ' ' + POINTS[o.p] : ''); }).join(' → ') + (c.length ? ' · ' + c.join(', ') : '');
   }
   function linkFor(m) { var u = new URL(global.location.href); u.search = ''; u.hash = ''; return u.toString() + '?mission=' + encode(m); }
   function share(m) {

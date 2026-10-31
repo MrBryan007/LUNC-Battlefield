@@ -54,7 +54,7 @@ const checks = [
   ['mission editor map objectives wired', read('js/ui/mission-editor.js').includes('function strikeAt(') && read('js/ui/mission-editor.js').includes('function applyConditions(') && read('js/commander.js').includes('LB.missionEditor.strikeAt(')],
   ['mission editor part 2 polish wired', read('js/ui/mission-editor.js').includes('function sendSquad(') && read('js/ui/mission-editor.js').includes('setTimeLock(TOD_K[m.tod])') && read('js/theaters/extras.js').includes('setTimeLock: function (k)') && read('js/theaters/extras.js').includes('if (timeLock != null) setDay(timeLock)')],
   ['power-ups wired', index.includes('js/theaters/powerups.js') && read('js/theaters/powerups.js').includes("qs.get('powerups') !== '0'") && read('js/commander.js').includes('PU.scoreMult()') && read('js/commander.js').includes('LB.powerups.strikeAt(') && read('js/theaters/supply.js').includes("LB.powerups.grant(null, 'crate')")],
-  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.44')]
+  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.45')]
 ];
 
 let failed = 0;
