@@ -25,7 +25,8 @@
     score: { short: 'Score', label: 'Score points', text: 'Score {n} points', min: 100, max: 20000, def: 1500, mk: function () { return { score: true }; } },
     pu: { short: 'Power-ups', label: 'Collect power-ups', text: 'Collect {n} power-ups', min: 1, max: 6, def: 1, mk: function () { return { pu: true }; } },
     hold: { short: 'Hold', label: 'Hold a point', text: 'Hold {p} for {n} s with a squad', min: 10, max: 90, def: 20, map: true, mk: function () { return { hold: true }; } },
-    hit: { short: 'Strike', label: 'Strike a point', text: 'Land {n} strikes on {p}', min: 1, max: 10, def: 3, map: true, mk: function () { return { spot: true }; } }
+    hit: { short: 'Strike', label: 'Strike a point', text: 'Land {n} strikes on {p}', min: 1, max: 10, def: 3, map: true, mk: function () { return { spot: true }; } },
+    escort: { short: 'Escort', label: 'Escort a convoy', text: 'Escort {n} of 3 trucks to the front', min: 1, max: 3, def: 2, mk: function () { return { escort: true }; } }
   };
   var POINTS = { front: 'Front centre', ridge: 'Hill 402', north: 'North flank', south: 'South flank' };
   var TODS = { '': 'Any time', noon: 'Noon', dusk: 'Dusk', night: 'Night' }, TOD_K = { noon: 0.5, dusk: 0.88, night: 0.98 };
@@ -38,7 +39,8 @@
     { name: 'Take Hill 402', wx: 'fog', obj: [{ k: 'hit', n: 3, t: 60, p: 'ridge' }, { k: 'hold', n: 20, t: 90, p: 'ridge' }] },
     { name: 'Hold the line', obj: [{ k: 'hold', n: 15, t: 75, p: 'front' }, { k: 'hit', n: 2, t: 45, p: 'north' }, { k: 'armor', n: 3, t: 60 }] },
     { name: 'Night raid', tod: 'night', obj: [{ k: 'hit', n: 2, t: 60, p: 'south' }, { k: 'arty', n: 1, t: 75 }, { k: 'hold', n: 15, t: 90, p: 'south' }] },
-    { name: 'Fog hold', wx: 'fog', tod: 'dusk', obj: [{ k: 'hold', n: 25, t: 100, p: 'north' }, { k: 'inf', n: 8, t: 60 }] }
+    { name: 'Fog hold', wx: 'fog', tod: 'dusk', obj: [{ k: 'hold', n: 25, t: 100, p: 'north' }, { k: 'inf', n: 8, t: 60 }] },
+    { name: 'Convoy run', obj: [{ k: 'escort', n: 2, t: 90 }, { k: 'hold', n: 15, t: 75, p: 'front' }] }
   ];
   var saved = [], draft = null, run = null, queued = null, el = {}, stats = { played: 0, won: 0, lost: 0, last: '' };
 
@@ -100,6 +102,8 @@
     g.position.set(x, y, z); g.renderOrder = 5; e.scene.add(g); mark = { g: g, ring: ring, disc: disc, x: x, z: z, flash: 0 };
     try { if (LB.tacmap && LB.tacmap.ping) LB.tacmap.ping(x, z); } catch (_) {}
   }
+  function escortOn() { return !!(LB.escort && LB.escort.isEnabled && LB.escort.isEnabled()); }
+  function stopEscort() { try { if (LB.escort && LB.escort.stop) LB.escort.stop(); } catch (_) {} }
   function hideMark() {
     if (!mark) return; try { mark.g.parent && mark.g.parent.remove(mark.g); mark.g.traverse(function (o) { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); }); } catch (_) {}
     mark = null;
@@ -114,6 +118,12 @@
       var pr = cur.n > 0 ? Math.min(1, (cur.got || 0) / cur.n) : 0; mark.disc.scale.setScalar(0.05 + 0.95 * pr); mark.disc.material.opacity = 0.12 + 0.18 * pr;
       mark.disc.material.color.setHex(cur.hold ? 0x6aff8f : 0xffd36a);
     }
+    if (cur.skipEscort && !cur.got) { cur.got = cur.n; try { C().missionProgress('tick', 0); } catch (_) {} return; }
+    if (cur.escort && LB.escort) {
+      var es = LB.escort.state();
+      if (es.active) { if (es.arrived !== cur.got) { cur.got = es.arrived; try { C().missionProgress('tick', 0); } catch (_) {} }
+        else if (es.result === 'lost' && cur.left > 0.01) { cur.left = 0.01; cur.lostConvoy = true; } }
+    }
     renderChip();
     if (!cur.hold) return;
     var paused = false; try { paused = LB.engine.isPaused(); } catch (_) {}
@@ -126,6 +136,7 @@
   }
   /** commander fireAt hook: a Commander strike landed at x/z */
   function strikeAt(x, z) {
+    if (run && run.cur && run.cur.escort && LB.escort && LB.escort.aimAt) { try { LB.escort.aimAt(x, z); } catch (_) {} return false; }
     if (!run || !run.cur || !run.cur.spot) return false;
     var d = Math.hypot(x - run.cur.px, z - run.cur.pz);
     if (d > STRIKE_R) { if (d <= NEAR_R) { stats.near = (stats.near || 0) + 1; flashChip('MISSED THE RING · ' + Math.round(d) + ' m off'); } return false; }
@@ -162,7 +173,7 @@
   }
   function flashChip(t) { if (!el.chip) return; el.chipMsg = t; el.chipMsgT = performance.now() + 2200; renderChip(); }
   function renderChip() {
-    var cur = run && run.cur, show = !!(cur && (cur.hold || cur.spot));
+    var cur = run && run.cur, show = !!(cur && (cur.hold || cur.spot || cur.escort));
     if (!show) { if (el.chip) el.chip.classList.remove('show'); return; }
     if (!el.chip) {
       var c = el.chip = doc.createElement('button'); c.type = 'button'; c.id = 'meChip'; c.className = 'me-chip';
@@ -170,7 +181,12 @@
       doc.body.appendChild(c);
     }
     var b = el.chip.firstChild, s = el.chip.lastChild, msg = el.chipMsg && performance.now() < el.chipMsgT ? el.chipMsg : '';
-    if (cur.hold) {
+    if (cur.escort) {
+      var es = LB.escort ? LB.escort.state() : { active: false };
+      b.textContent = 'ESCORT ' + (es.arrived | 0) + '/' + cur.n + (es.active && es.forming ? ' · FORMING UP' : '');
+      s.textContent = msg || (es.active ? (es.ambushes ? es.ambushes + ' ambush' + (es.ambushes > 1 ? 'es' : '') + ' on the road · tap to look' : 'road clear') + ' · ' + es.alive + ' of 3 trucks left' + (es.leadDist ? ' · ' + es.leadDist + ' m to go' : '') : 'convoy not available');
+      el.chip.setAttribute('aria-label', 'Fly the camera to the next ambush');
+    } else if (cur.hold) {
       var q = nearestSquad();
       b.textContent = run.holding ? 'HOLDING ' + Math.min(cur.n, cur.got || 0) + '/' + cur.n + ' s' : 'SEND SQUAD';
       s.textContent = msg || (q ? q.name + ' · ' + Math.round(q.d) + ' m from the ring' : 'no squad available') + ' · ' + POINTS[run.m.obj[run.i].p];
@@ -184,16 +200,18 @@
   }
   function chipTap() {
     if (!run || !run.cur) return;
+    if (run.cur.escort) { var a = LB.escort && LB.escort.nextAmbush ? LB.escort.nextAmbush() : null; if (!a) { try { var es = LB.escort.state(), tr = es.trucks.filter(function (t) { return t.hp > 0; })[0]; if (tr && LB.theaters) LB.theaters.flyToPoint(tr.x, -32, 70); } catch (_) {} } else try { LB.theaters.flyToPoint(a.x, a.z, 60); } catch (_) {} return; }
     if (run.cur.hold) sendSquad();
     else { try { if (LB.theaters && LB.theaters.flyToPoint) LB.theaters.flyToPoint(run.cur.px, run.cur.pz, 70); } catch (_) {} }
   }
   function mkOrders() {
     var o = run.m.obj[run.i], K = KINDS[o.k], base = K.mk(o.n);
     var m = { id: 'custom:' + o.k, text: objText(o), type: base.type, n: o.n, got: 0, combo: !!base.combo, call: false, score: !!base.score, pu: !!base.pu,
-      hold: !!base.hold, spot: !!base.spot, time: o.t + (base.hold ? o.n : 0), left: o.t + (base.hold ? o.n : 0), reward: 150 + 50 * run.i, custom: true,
+      hold: !!base.hold, spot: !!base.spot, escort: !!base.escort, time: o.t + (base.hold ? o.n : 0), left: o.t + (base.hold ? o.n : 0), reward: 150 + 50 * run.i, custom: true,
       chainTag: 'CUSTOM ORDERS ' + (run.i + 1) + '/' + run.m.obj.length };
     run.acc = 0; run.holding = false; run.cur = m;
     if (KINDS[o.k].map) { var P = pointXZ(o.p); m.px = P.x; m.pz = P.z; showMark(P.x, P.z); } else hideMark();
+    stopEscort(); if (base.escort) { if (!(LB.escort && LB.escort.start(mySide(), o.n))) { m.escort = false; m.skipEscort = true; m.text += ' (convoys are off here: skipped)'; } }
     return m;
   }
   /** commander.nextMission hook. outcome: 'new' | 'done' | 'fail'. Returns custom orders or null (random orders). */
@@ -203,7 +221,7 @@
     if (!run) return null;
     if (!prev || !prev.custom) { if (outcome === 'new' && run.i === 0 && !run.begun) { run.begun = true; return mkOrders(); } return run.begun ? mkOrders() : null; }
     run.begun = true;
-    if (outcome === 'fail') { finish(false, 'failed: ' + prev.text); return null; }
+    if (outcome === 'fail') { finish(false, prev.lostConvoy ? 'convoy lost: ' + prev.text : 'failed: ' + prev.text); return null; }
     if (outcome === 'done') {
       run.i++;
       if (run.i >= run.m.obj.length) { finish(true); return null; }
@@ -240,7 +258,7 @@
       banner('MISSION OVER', m.name + ' · ' + (why || 'stopped'), false);
     }
     try { if (LB.replay && LB.replay.event) LB.replay.event('mission', m.name, null, null, !!won); } catch (_) {}   // v12.0.46
-    restoreConditions(run.prev); hideMark(); run = null; renderChip(); render();
+    restoreConditions(run.prev); hideMark(); stopEscort(); run = null; renderChip(); render();
   }
   function stop() { if (!run) return false; finish(false, 'stopped'); var c = C(); if (c && c.restartOrders) c.restartOrders(); return true; }
   function banner(title, body, win) {
@@ -292,7 +310,7 @@
       var row = doc.createElement('div'); row.className = 'me-obj';
       var num = doc.createElement('span'); num.className = 'me-num'; num.textContent = (i + 1) + '.';
       var k = doc.createElement('select'); k.setAttribute('aria-label', 'Objective ' + (i + 1));
-      Object.keys(KINDS).forEach(function (id) { if (id === 'pu' && !(LB.powerups && LB.powerups.isEnabled && LB.powerups.isEnabled())) return; k.appendChild(opt(id, KINDS[id].label, id === o.k)); });
+      Object.keys(KINDS).forEach(function (id) { if (id === 'pu' && !(LB.powerups && LB.powerups.isEnabled && LB.powerups.isEnabled())) return; if (id === 'escort' && !escortOn() && o.k !== 'escort') return; k.appendChild(opt(id, KINDS[id].label, id === o.k)); });
       var n = doc.createElement('input'); n.type = 'number'; n.value = o.n; n.min = KINDS[o.k].min; n.max = KINDS[o.k].max; n.setAttribute('aria-label', 'Target');
       var t = doc.createElement('input'); t.type = 'number'; t.value = o.t; t.min = 20; t.max = 180; t.step = 5; t.setAttribute('aria-label', 'Seconds');
       var ts = doc.createElement('span'); ts.className = 'me-s'; ts.textContent = 's';

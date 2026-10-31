@@ -1,5 +1,28 @@
 # Changelog
 
+## v12.0.47 — Mission editor, part 3: escort a convoy through ambushes (2026-10-31, AI build)
+- Adds the last open objective kind for the v12.3 mission editor: **Escort a convoy**, "Escort N of 3 trucks to the front" (N 1-3).
+- New module `js/theaters/escort.js`. When the objective starts, 3 trucks of your side form up on your HQ supply road about 140 m behind the live front. Each truck has a cab, a cargo bed, six wheels, headlights at night and a spinning gold marker so you can pick it out among the armies. After 5 s they drive to 12 m behind the front, following the terrain, keeping their spacing and braking at the end.
+- **Ambushes**: 2 enemy teams (3 when you need all 3 trucks) are dug in beside the road. Each one shows as a pulsing red ring with a red beacon and a tactical-map ping.
+  - Within 14 m the team fires at the nearest truck every ~1.1 s, with muzzle flashes, tracers and positional gunfire.
+  - Each truck takes 3 hits. A destroyed truck explodes and stays as a burning wreck until the run ends.
+  - A Commander strike within 9 m clears an ambush: the ring greys out and the team goes down. It counts on impact, or 1.5 s after an aimed strike, so long artillery arcs still count.
+  - One of your squads within 14 m suppresses the team and halves its hit chance.
+- The chip shows ESCORT x/N, FORMING UP, the ambushes left, the trucks left and the distance to go. Tapping it flies the camera to the next live ambush. The run fails early ("convoy lost") once too few trucks are left to finish.
+- New "Convoy run" preset. The replay records convoy events (convoy rolling, ambush cleared, truck reached the front, truck lost), and they show in the AFTER-ACTION event list. Share codes stay compatible (escort is just a new kind).
+- The convoy and ambushes are removed from the scene when the objective ends, fails, is stopped or the run ends. Shared geometry and materials are reused between runs.
+- Kill switch: `?escort=0`. The Escort choice disappears from the editor, and an escort objective from a shared code is skipped instead of failing. Game layer only: never changes army counts, market data, the price-driven front or data-truth labels. The market-driven frontline, Moon Shot, Commander, the v11.4 HUD/dock, Hide UI, the v12.x systems and all `?flags` are unchanged.
+- Version bump to v12.0.47 (BUILD, quality api, index tags, cache-bust `?v=20261031v12047` on all 93 local css/js tags, including the new module).
+- Tested: `node --check` on all 97 JS files, stabilization-smoke 33/33 passing (adds an escort wiring check), asset-lifecycle passing, headless HIGH / MEDIUM / LOW / iPhone 390x844 with 0 page errors. Escort probe on MEDIUM, LOW and iPhone:
+  - 2 of 3 trucks, with both ambushes struck: cleared 2/2 and delivered 2, so the mission was accomplished and everything was removed from the scene.
+  - 3 of 3 trucks with ambushes left alone: trucks were hit and lost, and the run ended "convoy lost".
+  - Stop cleaned up the convoy, the ambushes and the chip.
+  - A code asking for 9 trucks was clamped to 3.
+  - With `?escort=0` there's no Escort option, and an escort objective was skipped to the next one.
+  - The v12.0.45 editor probe and the v12.0.46 replay probe still pass.
+  - Screenshots in `docs/v12047-shots/`. SwiftShader only, so this isn't measured on a real iPhone/Mac yet.
+- Build hours (real timestamps): see the last entry of the day for the running total.
+
 ## v12.0.46 — After-action replay, part 1: watch the last 10 minutes back (2026-10-31, AI build)
 - Starts the v12.3 "replay system" item, which hadn't been started. The roadmap asked for a command log plus an RNG seed played back deterministically. That can't be exact in this game: the battle follows live market prices and almost every system is randomised, so a re-simulation would drift off immediately. Part 1 is a **recorded** replay instead, labelled RECORDED in the viewer.
 - New module `js/ui/replay.js`. Every 2 s it records a compact frame and keeps the last 10 minutes (300 frames). Each frame has:
