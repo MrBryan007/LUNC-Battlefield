@@ -28,8 +28,8 @@
     hit: { short: 'Strike', label: 'Strike a point', text: 'Land {n} strikes on {p}', min: 1, max: 10, def: 3, map: true, mk: function () { return { spot: true }; } }
   };
   var POINTS = { front: 'Front centre', ridge: 'Hill 402', north: 'North flank', south: 'South flank' };
-  var TODS = { '': 'Time as it is', noon: 'Noon', dusk: 'Dusk', night: 'Night' }, TOD_K = { noon: 0.5, dusk: 0.88, night: 0.98 };
-  var WX = { '': 'Weather as it is', clear: 'Clear', rain: 'Rain', fog: 'Fog' }, SIDES = { '': 'Side as it is', bull: 'Play Bulls', bear: 'Play Bears' };
+  var TODS = { '': 'Any time', noon: 'Noon', dusk: 'Dusk', night: 'Night' }, TOD_K = { noon: 0.5, dusk: 0.88, night: 0.98 };
+  var WX = { '': 'Any weather', clear: 'Clear', rain: 'Rain', fog: 'Fog' }, SIDES = { '': 'Either side', bull: 'Play Bulls', bear: 'Play Bears' };
   var HOLD_R = 8, STRIKE_R = 7, NEAR_R = 25, mark = null, tickIv = null;
   var PRESETS = [
     { name: 'Tank hunter', obj: [{ k: 'armor', n: 3, t: 60 }, { k: 'armor', n: 5, t: 75 }, { k: 'combo', n: 4, t: 60 }] },

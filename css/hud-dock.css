@@ -434,3 +434,6 @@ body[data-ui="clean"] .me-banner { display: none; }
 .me-chip:active { transform: scale(.97); }
 body[data-ui="clean"] .me-chip, body.ui-hidden .me-chip { display: none; }
 @media (max-width: 600px) { .me-chip { right: 8px; top: 38%; max-width: 170px; padding: 8px 10px; min-height: 44px; } }
+.me-obj { grid-template-columns: 18px minmax(0, 1fr) 64px 54px 10px 30px; } .me-obj select, .me-pt select { min-width: 0; width: 100%; box-sizing: border-box; }
+.me-pt { min-width: 0; } .me-panel .me-row select { flex: 1 1 100px; min-width: 0; }
+@media (max-width: 600px) { .me-obj { grid-template-columns: 16px minmax(0, 1fr) 50px 50px 30px; gap: 4px; } .me-obj .me-s { display: none; } .me-panel input[type=number] { padding: 5px 3px; } }
