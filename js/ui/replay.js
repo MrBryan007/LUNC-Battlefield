@@ -6,13 +6,16 @@
  * plus events (Commander strikes, orders complete / failed, custom missions). The AFTER-ACTION viewer draws it top-down
  * with a front chart, Play / Pause, 1x / 4x / 16x, a scrubber, previous / next event and an event list; tapping an event
  * while the game runs flies the live camera there. Up to 2 replays saved on the device, export as .json.
+ * Part 2 (v12.0.48): AFTER-ACTION REPORT card (strikes by ability, orders, missions, convoy, score + best 10 s burst, front
+ * range and LIVE share, market-driven unit counts), .json import (sanitized, 600 KB cap), viewer keyboard (Space, ←/→,
+ * [ / ], 1/2/3, Esc) and a Follow toggle that flies the live camera to strikes / convoy events as the replay reaches them.
  * Only reads the engine; never touches market data, armies, the front or data-truth labels. ?replay=0 → off. */
 (function (global) {
   'use strict';
   var LB = global.LUNCBattle = global.LUNCBattle || {}, doc = global.document;
   var qs = new URLSearchParams(global.location.search);
   var enabled = qs.get('replay') !== '0';
-  var KEY = 'luncBattle.replays.v1', DT = 2, MAX_FRAMES = 300, MAX_EVENTS = 400, MAX_SAVED = 2;
+  var KEY = 'luncBattle.replays.v1', MAX_IMPORT = 600000, DT = 2, MAX_FRAMES = 300, MAX_EVENTS = 400, MAX_SAVED = 2;
   var VIEW = { minX: -160, maxX: 160, minZ: -110, maxZ: 80 };
   var TYPE_N = ['inf', 'armor', 'arty'], ABIL_SHORT = { arty: 'Artillery', air: 'Air strike', moon: 'Moon Shot', cluster: 'Cluster', emp: 'EMP', flare: 'Flare', moab: 'MOAB', cbomb: 'Carpet bomb', napalm: 'Napalm', gas: 'Gas', a10: 'A-10 run', nuke: 'Mini nuke' };
   var rec = { t0: Date.now(), frames: [], events: [] }, sampleIv = null, saved = [], el = {}, view = null, stats = { frames: 0, events: 0, saves: 0, opened: 0, last: '' };
@@ -112,6 +115,62 @@
     var px = Math.max(12, (b.maxX - b.minX) * 0.12), pz = Math.max(12, (b.maxZ - b.minZ) * 0.12);
     return { minX: Math.max(VIEW.minX, b.minX - px), maxX: Math.min(VIEW.maxX, b.maxX + px), minZ: Math.max(VIEW.minZ, b.minZ - pz), maxZ: Math.min(VIEW.maxZ, b.maxZ + pz) };
   }
+  /** AFTER-ACTION REPORT numbers for a (sanitized) replay */
+  function report(r) {
+    var F = r.frames, E2 = r.events, a = F[0], z = F[F.length - 1], o = { span: z.t - a.t, strikes: 0, byAbility: {}, done: 0, fail: 0, won: 0, lost: 0, convoy: { delivered: 0, lost: 0, cleared: 0 } };
+    E2.forEach(function (ev) {
+      if (ev.k === 'strike') { o.strikes++; o.byAbility[ev.a] = (o.byAbility[ev.a] || 0) + 1; }
+      else if (ev.k === 'done') o.done++; else if (ev.k === 'fail') o.fail++;
+      else if (ev.k === 'mission') { if (ev.w) o.won++; else o.lost++; }
+      else if (ev.k === 'escort') { if (/reached/.test(ev.a)) o.convoy.delivered++; else if (/lost/.test(ev.a)) o.convoy.lost++; else if (/cleared/.test(ev.a)) o.convoy.cleared++; }
+    });
+    o.score = Math.max(0, z.sc - a.sc);
+    var best = 0, bestT = a.t;
+    for (var i = 0, j = 0; i < F.length; i++) { while (F[i].t - F[j].t > 10) j++; var g = F[i].sc - F[j].sc; if (g > best) { best = g; bestT = F[j].t; } }
+    o.burst = best; o.burstAt = bestT - a.t;
+    var lo = Infinity, hi = -Infinity, liveT = 0;
+    for (var k = 0; k < F.length; k++) { lo = Math.min(lo, F[k].fx); hi = Math.max(hi, F[k].fx); if (k && F[k - 1].live) liveT += F[k].t - F[k - 1].t; }
+    o.front = { start: a.fx, end: z.fx, lo: lo, hi: hi, livePct: o.span > 0 ? Math.round(liveT / o.span * 100) : (a.live ? 100 : 0) };
+    o.units = { start: a.n.slice(), end: z.n.slice() };
+    return o;
+  }
+  function renderReport() {
+    var box = el.rpReport; if (!box || !view) return; box.textContent = '';
+    var o = report(view.r), rows = [];
+    var abil = Object.keys(o.byAbility).sort(function (x, y) { return o.byAbility[y] - o.byAbility[x]; }).map(function (k) { return (ABIL_SHORT[k] || k) + ' ×' + o.byAbility[k]; }).join(', ');
+    rows.push(['Length', fmtT(o.span) + ' recorded']);
+    rows.push(['Strikes', o.strikes ? o.strikes + ' · ' + abil : 'none']);
+    rows.push(['Orders', o.done + ' completed · ' + o.fail + ' failed']);
+    if (o.won || o.lost) rows.push(['Missions', o.won + ' accomplished · ' + o.lost + ' over']);
+    if (o.convoy.delivered || o.convoy.lost || o.convoy.cleared) rows.push(['Convoy', o.convoy.delivered + ' trucks delivered · ' + o.convoy.lost + ' lost · ' + o.convoy.cleared + ' ambushes cleared']);
+    rows.push(['Score', '+' + o.score + (o.burst ? ' · best 10 s: +' + o.burst + ' at ' + fmtT(o.burstAt) : '')]);
+    var sg = function (v) { return (v >= 0 ? '+' : '') + v.toFixed(1); };
+    rows.push(['Front', sg(o.front.start) + ' → ' + sg(o.front.end) + ' (range ' + sg(o.front.lo) + ' … ' + sg(o.front.hi) + ') · price LIVE ' + o.front.livePct + ' % of the time, SIMULATED the rest']);
+    var u = o.units, us = function (n, b) { return (n[b] | 0) + ' inf, ' + (n[b + 1] | 0) + ' armor, ' + (n[b + 2] | 0) + ' arty'; };
+    rows.push(['Bulls', us(u.start, 0) + ' → ' + us(u.end, 0)]); rows.push(['Bears', us(u.start, 3) + ' → ' + us(u.end, 3)]);
+    rows.forEach(function (p) { var r = doc.createElement('div'); r.className = 'rp-rrow'; var b = doc.createElement('b'); b.textContent = p[0]; var sp = doc.createElement('span'); sp.textContent = p[1]; r.appendChild(b); r.appendChild(sp); box.appendChild(r); });
+    var n = doc.createElement('div'); n.className = 'rp-rnote'; n.textContent = 'Unit counts are market-driven (the order book sets army size), not your kills. Score and strikes are your play.'; box.appendChild(n);
+  }
+  function setTab(t) {
+    if (!el.v) return; view && (view.tab = t);
+    el.rpEvents.hidden = t !== 'events'; el.rpReport.hidden = t !== 'report';
+    el.v.querySelectorAll('.rp-tab').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-tab') === t); b.setAttribute('aria-selected', b.getAttribute('data-tab') === t ? 'true' : 'false'); });
+    if (t === 'report') renderReport();
+  }
+  function importFile(file, cb) {
+    if (!file) return cb && cb(null, 'No file');
+    if (file.size > MAX_IMPORT) { stats.last = 'That file is too big for a replay (max 600 KB)'; render(); return cb && cb(null, stats.last); }
+    var fr = new FileReader();
+    fr.onload = function () { var r = null; try { r = sanitize(JSON.parse(String(fr.result))); } catch (_) {} if (!r || r.frames.length < 2) { stats.last = 'That file is not a LUNC Battlefield replay'; render(); return cb && cb(null, stats.last); } r.name = (r.name + ' (imported)').slice(0, 40); stats.imported = (stats.imported || 0) + 1; stats.last = 'Imported "' + r.name + '"'; view && close(); el.lastImport = r; open(r); render(); cb && cb(r); };
+    fr.onerror = function () { stats.last = 'Could not read that file'; render(); cb && cb(null, stats.last); };
+    fr.readAsText(file);
+  }
+  function importText(txt) { if (String(txt).length > MAX_IMPORT) return null; var r = null; try { r = sanitize(JSON.parse(txt)); } catch (_) {} if (!r || r.frames.length < 2) return null; r.name = (r.name + ' (imported)').slice(0, 40); el.lastImport = r; open(r); return r; }
+  function saveViewed() {
+    if (!view) return null; var r = sanitize(view.r); if (!r) return null;
+    saved.unshift(r); if (saved.length > MAX_SAVED) saved.length = MAX_SAVED;
+    if (store()) { stats.saves++; stats.last = 'Saved "' + r.name + '"'; } render(); return r;
+  }
   function fmtT(s) { s = Math.max(0, Math.round(s)); return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2); }
   function buildViewer() {
     if (el.v) return;
@@ -122,18 +181,33 @@
       '<input type="range" id="rpScrub" class="rp-scrub" min="0" max="1000" value="0" aria-label="Replay position">' +
       '<div class="rp-ctl"><button type="button" id="rpPrev" aria-label="Previous event">⏮</button><button type="button" id="rpPlay" class="rp-go">▶ Play</button><button type="button" id="rpNext" aria-label="Next event">⏭</button>' +
       '<button type="button" data-sp="1" class="rp-sp">1x</button><button type="button" data-sp="4" class="rp-sp on">4x</button><button type="button" data-sp="16" class="rp-sp">16x</button><span id="rpTime" class="rp-time"></span></div>' +
-      '<div id="rpEvents" class="rp-events"></div>' +
+      '<div class="rp-tabs" role="tablist"><button type="button" class="rp-tab on" data-tab="events" role="tab" aria-selected="true">Events</button><button type="button" class="rp-tab" data-tab="report" role="tab" aria-selected="false">Report</button>' +
+      '<label class="rp-follow"><input type="checkbox" id="rpFollow"> Follow in 3D</label><button type="button" id="rpKeep" class="rp-keep">Save</button><span class="rp-keys">Space play · ←/→ 5 s · [ ] events · 1/2/3 speed · Esc</span></div>' +
+      '<div id="rpEvents" class="rp-events"></div><div id="rpReport" class="rp-report" hidden></div>' +
       '<div class="th-note">Recorded every ' + DT + ' s, not re-simulated: the front line is the market-driven position at that moment, with the price source it had (LIVE or SIMULATED). Up to 24 sampled units per side are shown. Tap an event to look at that spot in the live battle.</div>';
     doc.body.appendChild(v);
-    ['rpName', 'rpClose', 'rpMap', 'rpHud', 'rpChart', 'rpScrub', 'rpPrev', 'rpPlay', 'rpNext', 'rpTime', 'rpEvents'].forEach(function (id) { el[id] = v.querySelector('#' + id); });
+    ['rpName', 'rpClose', 'rpMap', 'rpHud', 'rpChart', 'rpScrub', 'rpPrev', 'rpPlay', 'rpNext', 'rpTime', 'rpEvents', 'rpReport', 'rpFollow', 'rpKeep'].forEach(function (id) { el[id] = v.querySelector('#' + id); });
     el.rpClose.addEventListener('click', close);
+    v.querySelectorAll('.rp-tab').forEach(function (b) { b.addEventListener('click', function () { setTab(b.getAttribute('data-tab')); }); });
+    el.rpFollow.addEventListener('change', function () { if (view) { view.follow = el.rpFollow.checked; view.lastFly = 0; } });
+    el.rpKeep.addEventListener('click', function () { var r = saveViewed(); el.rpKeep.textContent = r ? 'Saved' : 'Save'; });
     el.rpPlay.addEventListener('click', function () { if (!view) return; if (view.t >= view.t1 - 0.01) view.t = view.t0; view.playing = !view.playing; view.last = performance.now(); draw(); });
     el.rpPrev.addEventListener('click', function () { jump(-1); });
     el.rpNext.addEventListener('click', function () { jump(1); });
     v.querySelectorAll('.rp-sp').forEach(function (b) { b.addEventListener('click', function () { if (!view) return; view.speed = +b.getAttribute('data-sp'); v.querySelectorAll('.rp-sp').forEach(function (o) { o.classList.toggle('on', o === b); }); }); });
     el.rpScrub.addEventListener('input', function () { if (!view) return; view.playing = false; view.t = view.t0 + (view.t1 - view.t0) * (+el.rpScrub.value / 1000); draw(); });
     el.rpChart.addEventListener('click', function (ev) { if (!view) return; var r = el.rpChart.getBoundingClientRect(); view.playing = false; view.t = view.t0 + (view.t1 - view.t0) * Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width)); draw(); });
-    v.addEventListener('keydown', function (ev) { if (ev.key === 'Escape') { ev.stopPropagation(); close(); } else if (ev.key === ' ' && ev.target === v) { ev.preventDefault(); el.rpPlay.click(); } });
+    v.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Escape') { ev.stopPropagation(); close(); return; }
+      if (ev.target && /INPUT|SELECT|TEXTAREA/.test(ev.target.tagName) && ev.target.type !== 'checkbox' && ev.target.type !== 'range') return;
+      var k = ev.key, hit = true;
+      if (k === ' ' || k === 'Spacebar') el.rpPlay.click();
+      else if (k === 'ArrowRight' || k === 'ArrowLeft') { if (view) { view.playing = false; view.t = Math.max(view.t0, Math.min(view.t1, view.t + (k === 'ArrowRight' ? 5 : -5))); draw(); } }
+      else if (k === ']') jump(1); else if (k === '[') jump(-1);
+      else if (k === '1' || k === '2' || k === '3') { var b = v.querySelector('.rp-sp[data-sp="' + ({ 1: 1, 2: 4, 3: 16 })[k] + '"]'); if (b) b.click(); }
+      else hit = false;
+      if (hit) { ev.preventDefault(); ev.stopPropagation(); }
+    });
     global.addEventListener('resize', function () { if (view) draw(); });
   }
   function open(r) {
@@ -143,7 +217,7 @@
     buildViewer();
     view = { r: r, t0: r.frames[0].t, t1: r.frames[r.frames.length - 1].t, t: r.frames[0].t, playing: true, speed: 4, last: performance.now(), fi: 0, box: contentBox(r) };
     el.v.querySelectorAll('.rp-sp').forEach(function (o) { o.classList.toggle('on', o.getAttribute('data-sp') === '4'); });
-    el.rpName.textContent = r.name + ' · ' + dur(r);
+    el.rpName.textContent = r.name + ' · ' + dur(r); view.follow = !!el.rpFollow.checked; view.lastFly = 0; view.flown = -1; el.rpKeep.textContent = 'Save'; setTab('events');
     el.rpEvents.textContent = '';
     r.events.forEach(function (ev, i) {
       var b = doc.createElement('button'); b.type = 'button'; b.className = 'rp-ev rp-' + ev.k; b.setAttribute('data-i', i);
@@ -237,6 +311,10 @@
     el.rpTime.textContent = fmtT(view.t - view.t0) + ' / ' + fmtT(view.t1 - view.t0);
     el.rpPlay.textContent = view.playing ? '❚❚ Pause' : '▶ Play';
     var cur = -1; view.r.events.forEach(function (ev, i) { if (ev.t <= view.t + 0.01) cur = i; });
+    if (cur !== view.cur && view.follow && view.playing && cur >= 0 && cur > view.flown) {
+      var fe = view.r.events[cur], nowMs = performance.now();
+      if (fe && fe.x != null && nowMs - view.lastFly > 2500) { view.lastFly = nowMs; view.flown = cur; stats.follows = (stats.follows || 0) + 1; lookAt(fe); }
+    }
     if (cur !== view.cur) { view.cur = cur; el.rpEvents.querySelectorAll('.rp-ev').forEach(function (bt) { var on = +bt.getAttribute('data-i') === cur; bt.classList.toggle('on', on); if (on && view.playing) try { bt.scrollIntoView({ block: 'nearest' }); } catch (_) {} }); }
   }
   function drawChart() {
@@ -256,13 +334,15 @@
   function buildUi() {
     var p = el.p = doc.createElement('div'); p.id = 'replayPanel'; p.className = 'supply-panel rp-panel';
     p.innerHTML = '<div class="th-title">AFTER-ACTION REPLAY <span class="qual sim">RECORDED</span></div>' +
-      '<div class="me-row"><button type="button" id="rpWatch" class="me-go">Watch the last minutes</button><button type="button" id="rpSave">Save replay</button></div>' +
+      '<div class="me-row"><button type="button" id="rpWatch" class="me-go">Watch the last minutes</button><button type="button" id="rpSave">Save replay</button><button type="button" id="rpImport">Import .json</button><input type="file" id="rpFile" accept=".json,application/json" hidden></div>' +
       '<div id="rpSaved" class="me-saved"></div><div id="rpStatus" class="sup-status"></div>';
     var host = doc.querySelector('#sheet-command .sheet-body') || doc.querySelector('.sheet-command .sheet-body') || doc.body, me = doc.getElementById('missionEditor');
     if (me && me.parentNode === host) host.insertBefore(p, me.nextSibling); else host.appendChild(p);
     el.rpWatch = p.querySelector('#rpWatch'); el.rpSaved = p.querySelector('#rpSaved'); el.rpStatus = p.querySelector('#rpStatus');
     el.rpWatch.addEventListener('click', function () { open(null); });
     p.querySelector('#rpSave').addEventListener('click', function () { save(); });
+    var fi = p.querySelector('#rpFile'); p.querySelector('#rpImport').addEventListener('click', function () { fi.value = ''; fi.click(); });
+    fi.addEventListener('change', function () { importFile(fi.files && fi.files[0]); });
     render();
   }
   function render() {
@@ -294,10 +374,10 @@
     global.addEventListener('keydown', function (ev) { if (ev.key === 'Escape' && view) { ev.stopImmediatePropagation(); ev.preventDefault(); close(); } }, true);
   }
   LB.replay = {
-    version: 'v12.0.46', isEnabled: function () { return enabled; }, event: event, sample: sample, open: open, close: close, save: save, sanitize: sanitize,
+    version: 'v12.0.48', isEnabled: function () { return enabled; }, event: event, sample: sample, open: open, close: close, save: save, sanitize: sanitize,
     saved: function () { return saved.map(function (r) { return { name: r.name, frames: r.frames.length, events: r.events.length }; }); }, exportJson: exportJson,
-    snapshot: function () { return snapshot('test'); }, seek: function (t) { if (view) { view.playing = false; view.t = Math.max(view.t0, Math.min(view.t1, view.t0 + t)); draw(); } },
-    getState: function () { return { enabled: enabled, frames: rec.frames.length, events: rec.events.length, open: !!view, t: view ? +(view.t - view.t0).toFixed(1) : null, playing: !!(view && view.playing), speed: view ? view.speed : null, saved: saved.length, stats: Object.assign({}, stats) }; }
+    snapshot: function () { return snapshot('test'); }, report: function (r) { r = sanitize(r || snapshot('report')); return r ? report(r) : null; }, importText: importText, importFile: importFile, tab: setTab, saveViewed: saveViewed, seek: function (t) { if (view) { view.playing = false; view.t = Math.max(view.t0, Math.min(view.t1, view.t0 + t)); draw(); } },
+    getState: function () { return { enabled: enabled, frames: rec.frames.length, events: rec.events.length, open: !!view, t: view ? +(view.t - view.t0).toFixed(1) : null, playing: !!(view && view.playing), speed: view ? view.speed : null, follow: !!(view && view.follow), tab: view ? view.tab || 'events' : null, name: view ? view.r.name : null, saved: saved.length, stats: Object.assign({}, stats) }; }
   };
   if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', init); else init();
 })(window);

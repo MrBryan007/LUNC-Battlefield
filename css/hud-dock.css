@@ -461,3 +461,15 @@ body[data-ui="clean"] .me-chip, body.ui-hidden .me-chip { display: none; }
 .rp-viewer .th-note { font-size: 10px; color: #8f9a93; }
 body.replay-open .me-chip { display: none; }
 @media (max-width: 600px) { .rp-hud { font-size: 10px; max-width: 78%; } .rp-events { max-height: 18vh; } .rp-viewer .th-note { display: none; } }
+/* v12.0.48 replay part 2 */
+.rp-tabs { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; flex: 0 0 auto; }
+.rp-tab { min-height: 34px; padding: 0 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.05); color: #cfd8d2; font: 600 12px Inter, sans-serif; cursor: pointer; }
+.rp-tab.on { border-color: #ffd36a; color: #ffd36a; background: rgba(255,211,106,.08); }
+.rp-follow { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #cfd8d2; min-height: 34px; cursor: pointer; } .rp-follow input { width: 18px; height: 18px; accent-color: #ffd36a; }
+.rp-keep { min-height: 34px; padding: 0 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.07); color: #eef3ef; font: 600 12px Inter, sans-serif; cursor: pointer; }
+.rp-keys { margin-left: auto; color: #6f7a73; font-size: 10px; }
+.rp-report { flex: 0 0 auto; max-height: 26vh; overflow: auto; display: grid; gap: 3px; padding: 6px 8px; border-radius: 6px; background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.06); }
+.rp-report[hidden], .rp-events[hidden] { display: none; }
+.rp-rrow { display: grid; grid-template-columns: 74px 1fr; gap: 8px; font-size: 11px; color: #dfe6e1; } .rp-rrow b { color: #ffd36a; font-size: 10px; letter-spacing: .6px; text-transform: uppercase; }
+.rp-rnote { font-size: 10px; color: #8f9a93; margin-top: 3px; }
+@media (max-width: 600px), (pointer: coarse) { .rp-keys { display: none; } .rp-report { max-height: 22vh; } }
