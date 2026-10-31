@@ -1,5 +1,21 @@
 # Changelog
 
+## v12.0.45 — Mission editor, part 2: map objectives, start conditions and a SEND SQUAD chip (2026-10-31, AI build)
+- Carried over from 2026-10-30: that day's cycle 3 (this version) was built but never tested or deployed, and its hours were never logged. It's finished and shipped today; the 10/30 hour entries are left exactly as they were.
+- Two map objectives for the v12.3 mission editor. **Hold a point**: keep one of your squads within 8 m of the point for N seconds (10-90). **Strike a point**: land N Commander strikes within 7 m of it. Points are Front centre, Hill 402, North flank and South flank, worked out from the live front when the objective starts. The active point shows as a gold ring and light beam in 3D, plus a ping on the tactical map. The ring turns green while you hold it, its inner disc fills as the objective progresses, and it flashes when a strike lands inside.
+- **SEND SQUAD chip** (right edge, bigger tap target on phones) while a map objective is running. During a hold it shows your nearest squad and how far it is from the ring, and one tap orders that squad to move onto the ring. Once a squad is there it reads HOLDING x/N s. During a strike objective it shows hits so far, and tapping it flies the camera to the ring. A strike that lands within 25 m but outside the ring shows MISSED THE RING with how far off it was. The chip is hidden with Hide UI and the clean UI.
+- **Start conditions** for each mission: weather (any / clear / rain / fog), time of day (any / noon / dusk / night) and side (either / Bulls / Bears). They're applied when you press Play and put back the way they were when the run ends. The time of day uses a new `v12extras.setTimeLock(k)`, which holds the sun for the run without changing your day/night cycle setting. `setWeather` now also updates the Settings weather picker.
+- Two new presets, Night raid and Fog hold, on top of Take Hill 402 and Hold the line. Saved missions now show a one-line summary such as "Strike South flank → Artillery → Hold South flank · Night". On phones the objective rows fit 390 px: the selects shrink instead of overflowing, and the condition labels are shorter.
+- Share codes carry the new fields, and part-1 codes still load. A bad time-of-day value is dropped when a mission is checked. Game layer only: never touches market data, armies, the price-driven front or data-truth labels. The market-driven frontline, Moon Shot, Commander, the v11.4 HUD/dock, Hide UI, the v12.x systems and all `?flags` are unchanged. Kill switch: `?editor=0`.
+- Version bump to v12.0.45 (BUILD, quality api, index tags, cache-bust `?v=20261031v12045` on all 91 local css/js tags).
+- Tested: `node --check` on all 95 JS files, stabilization-smoke 33/33 passing (adds a part-2 wiring check), asset-lifecycle passing, headless HIGH / MEDIUM / LOW / iPhone 390x844 with 0 page errors. Probe on MEDIUM and iPhone:
+  - Hold: SEND SQUAD moved Bravo from 32 m to 4 m and the hold completed, after which the ring and chip were removed.
+  - Strike: with rain, night and the other side applied, a 15 m miss showed MISSED THE RING and two hits on the ring completed the objective. Weather, time and side (and the Settings picker) were then restored.
+  - An old part-1 code decoded, and an encode/decode round-trip kept tod, weather, side and point.
+  - With `?editor=0` there's no editor, no chip and 0 errors.
+  - Screenshots in `docs/v12045-shots/`. SwiftShader only, so this isn't measured on a real iPhone/Mac yet.
+- Build hours (real timestamps): see the last entry of the day for the running total.
+
 ## v12.0.44 — Mission editor, part 1: build, play, save and share your own orders (2026-10-30, AI build)
 - Commander orders were always picked at random from a fixed pool. This starts the v12.3 "Mission editor" item, which hadn't been started.
 - New module `js/ui/mission-editor.js` with a MISSION EDITOR panel at the top of the Cmd sheet. A mission has a name and a chain of 1 to 5 objectives, each with a target and a time limit from 20 to 180 s. Objective kinds: hit enemy infantry, hit enemy armor, silence enemy artillery, reach a combo, score points, and collect power-ups (when power-ups are on). Three presets to start from: Tank hunter, Artillery raid and Combo master.
