@@ -424,3 +424,13 @@ body.ui-hidden .hs-chip { display: flex; }
 body[data-ui="clean"] .me-banner { display: none; }
 @media (max-width: 600px) { .me-panel input, .me-panel select { font-size: 16px; } }   /* no iOS focus zoom */
 .me-pt { display: flex; gap: 6px; align-items: center; margin: -1px 0 2px 23px; font-size: 11px; color: #9aa59d; } .me-pt select { flex: 1; }
+/* v12.0.45 mission editor part 2: objective chip + saved summaries */
+.me-sv .me-svn small { display: block; color: #8f9a93; font-size: 10px; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.me-sv .me-svn { min-width: 0; }
+.me-chip { position: fixed; right: 12px; top: 46%; z-index: 58; display: none; flex-direction: column; align-items: flex-end; gap: 2px; max-width: 220px; padding: 8px 12px; border-radius: 10px; background: rgba(12,16,13,.88); border: 1px solid rgba(255,211,106,.6); color: #eef3ef; font: 500 11px Inter, sans-serif; text-align: right; cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,.35); }
+.me-chip.show { display: flex; }
+.me-chip b { font: 700 14px Rajdhani, Inter, sans-serif; letter-spacing: 1.2px; color: #ffd36a; }
+.me-chip.held { border-color: rgba(106,255,143,.7); } .me-chip.held b { color: #8dffa8; }
+.me-chip:active { transform: scale(.97); }
+body[data-ui="clean"] .me-chip, body.ui-hidden .me-chip { display: none; }
+@media (max-width: 600px) { .me-chip { right: 8px; top: 38%; max-width: 170px; padding: 8px 10px; min-height: 44px; } }

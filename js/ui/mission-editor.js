@@ -2,7 +2,9 @@
  * Part 2: map objectives (Hold a point: a squad of yours within 8 m for N s; Strike a point: N Commander strikes within
  * 7 m) on a picked point (Front centre / Hill 402 / North flank / South flank, resolved against the live front when the
  * objective starts), shown as a gold 3D ring + beam and a tactical-map ping; start conditions (weather, side) applied
- * on Play and put back when the run ends.
+ * on Play and put back when the run ends. Also time of day (Noon / Dusk / Night held for the run via v12extras.setTimeLock),
+ * a SEND SQUAD chip during a hold (nearest squad's distance, one tap moves it onto the ring; ring turns green and fills
+ * while held), ring flash on a hit and MISSED THE RING on a near miss, objective summaries in the saved list.
  * Cmd sheet → MISSION EDITOR: a name and a chain of 1-5 objectives (hit N infantry / armor / artillery, reach a xN combo,
  * score N points, collect N power-ups), each with a time limit of 20-180 s. Play runs the chain through the normal ORDERS
  * card (commander.nextMission asks LB.missionEditor.next first); each objective done moves on, one failure ends the run.
@@ -26,14 +28,17 @@
     hit: { label: 'Strike a point', text: 'Land {n} strikes on {p}', min: 1, max: 10, def: 3, map: true, mk: function () { return { spot: true }; } }
   };
   var POINTS = { front: 'Front centre', ridge: 'Hill 402', north: 'North flank', south: 'South flank' };
+  var TODS = { '': 'Time as it is', noon: 'Noon', dusk: 'Dusk', night: 'Night' }, TOD_K = { noon: 0.5, dusk: 0.88, night: 0.98 };
   var WX = { '': 'Weather as it is', clear: 'Clear', rain: 'Rain', fog: 'Fog' }, SIDES = { '': 'Side as it is', bull: 'Play Bulls', bear: 'Play Bears' };
-  var HOLD_R = 8, STRIKE_R = 7, mark = null, tickIv = null;
+  var HOLD_R = 8, STRIKE_R = 7, NEAR_R = 25, mark = null, tickIv = null;
   var PRESETS = [
     { name: 'Tank hunter', obj: [{ k: 'armor', n: 3, t: 60 }, { k: 'armor', n: 5, t: 75 }, { k: 'combo', n: 4, t: 60 }] },
     { name: 'Artillery raid', obj: [{ k: 'arty', n: 1, t: 60 }, { k: 'inf', n: 10, t: 60 }, { k: 'arty', n: 2, t: 90 }] },
     { name: 'Combo master', obj: [{ k: 'combo', n: 3, t: 45 }, { k: 'combo', n: 5, t: 60 }, { k: 'score', n: 3000, t: 90 }] },
     { name: 'Take Hill 402', wx: 'fog', obj: [{ k: 'hit', n: 3, t: 60, p: 'ridge' }, { k: 'hold', n: 20, t: 90, p: 'ridge' }] },
-    { name: 'Hold the line', obj: [{ k: 'hold', n: 15, t: 75, p: 'front' }, { k: 'hit', n: 2, t: 45, p: 'north' }, { k: 'armor', n: 3, t: 60 }] }
+    { name: 'Hold the line', obj: [{ k: 'hold', n: 15, t: 75, p: 'front' }, { k: 'hit', n: 2, t: 45, p: 'north' }, { k: 'armor', n: 3, t: 60 }] },
+    { name: 'Night raid', tod: 'night', obj: [{ k: 'hit', n: 2, t: 60, p: 'south' }, { k: 'arty', n: 1, t: 75 }, { k: 'hold', n: 15, t: 90, p: 'south' }] },
+    { name: 'Fog hold', wx: 'fog', tod: 'dusk', obj: [{ k: 'hold', n: 25, t: 100, p: 'north' }, { k: 'inf', n: 8, t: 60 }] }
   ];
   var saved = [], draft = null, run = null, queued = null, el = {}, stats = { played: 0, won: 0, lost: 0, last: '' };
 
@@ -50,12 +55,12 @@
       return r;
     }).filter(Boolean);
     if (!obj.length) return null;
-    return { name: cleanName(m.name), obj: obj, wx: WX[m.wx] && m.wx ? m.wx : '', side: SIDES[m.side] && m.side ? m.side : '',
+    return { name: cleanName(m.name), obj: obj, wx: WX[m.wx] && m.wx ? m.wx : '', side: SIDES[m.side] && m.side ? m.side : '', tod: TODS[m.tod] && m.tod ? m.tod : '',
       best: m.best != null && isFinite(+m.best) ? Math.max(0, +(+m.best).toFixed(1)) : null };
   }
   function encode(m) {
     var c = { v: 1, name: m.name, obj: m.obj.map(function (o) { return o.p ? [o.k, o.n, o.t, o.p] : [o.k, o.n, o.t]; }) };
-    if (m.wx) c.wx = m.wx; if (m.side) c.side = m.side;
+    if (m.wx) c.wx = m.wx; if (m.side) c.side = m.side; if (m.tod) c.tod = m.tod;
     var j = JSON.stringify(c);
     return btoa(unescape(encodeURIComponent(j))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   }
@@ -64,7 +69,7 @@
       code = String(code || '').trim(); if (!code || code.length > 2000) return null;
       var j = JSON.parse(decodeURIComponent(escape(atob(code.replace(/-/g, '+').replace(/_/g, '/')))));
       if (!j || j.v !== 1 || !Array.isArray(j.obj)) return null;
-      return sanitize({ name: j.name, wx: j.wx, side: j.side, obj: j.obj.map(function (a) { return Array.isArray(a) ? { k: a[0], n: a[1], t: a[2], p: a[3] } : null; }) });
+      return sanitize({ name: j.name, wx: j.wx, side: j.side, tod: j.tod, obj: j.obj.map(function (a) { return Array.isArray(a) ? { k: a[0], n: a[1], t: a[2], p: a[3] } : null; }) });
     } catch (_) { return null; }
   }
   function load() { try { var a = JSON.parse(localStorage.getItem(KEY) || '[]'); saved = (Array.isArray(a) ? a : []).map(sanitize).filter(Boolean).slice(0, MAX_SAVED); } catch (_) { saved = []; } }
@@ -92,7 +97,7 @@
     disc.rotation.x = -Math.PI / 2; disc.position.y = 0.2; g.add(disc);
     var beam = new T.Mesh(new T.CylinderGeometry(0.35, 0.9, 26, 12, 1, true), new T.MeshBasicMaterial({ color: 0xffd36a, transparent: true, opacity: 0.22, depthWrite: false, side: T.DoubleSide }));
     beam.position.y = 13; g.add(beam);
-    g.position.set(x, y, z); g.renderOrder = 5; e.scene.add(g); mark = { g: g, ring: ring, x: x, z: z };
+    g.position.set(x, y, z); g.renderOrder = 5; e.scene.add(g); mark = { g: g, ring: ring, disc: disc, x: x, z: z, flash: 0 };
     try { if (LB.tacmap && LB.tacmap.ping) LB.tacmap.ping(x, z); } catch (_) {}
   }
   function hideMark() {
@@ -102,7 +107,14 @@
   function tickMap() {
     if (!run || !run.cur) { if (mark) hideMark(); return; }
     var cur = run.cur, now = performance.now(), dt = Math.min(0.5, (now - (run.lastT || now)) / 1000); run.lastT = now;
-    if (mark) mark.ring.material.opacity = 0.55 + 0.25 * Math.sin(now / 250);
+    if (mark) {
+      mark.flash = Math.max(0, (mark.flash || 0) - dt * 2.5);
+      mark.ring.material.opacity = Math.min(1, 0.55 + 0.25 * Math.sin(now / 250) + mark.flash * 0.5);
+      mark.ring.material.color.setHex(run.holding || mark.flash > 0.05 ? 0x6aff8f : 0xffd36a);
+      var pr = cur.n > 0 ? Math.min(1, (cur.got || 0) / cur.n) : 0; mark.disc.scale.setScalar(0.05 + 0.95 * pr); mark.disc.material.opacity = 0.12 + 0.18 * pr;
+      mark.disc.material.color.setHex(cur.hold ? 0x6aff8f : 0xffd36a);
+    }
+    renderChip();
     if (!cur.hold) return;
     var paused = false; try { paused = LB.engine.isPaused(); } catch (_) {}
     if (paused) return;
@@ -115,7 +127,9 @@
   /** commander fireAt hook: a Commander strike landed at x/z */
   function strikeAt(x, z) {
     if (!run || !run.cur || !run.cur.spot) return false;
-    if (Math.hypot(x - run.cur.px, z - run.cur.pz) > STRIKE_R) return false;
+    var d = Math.hypot(x - run.cur.px, z - run.cur.pz);
+    if (d > STRIKE_R) { if (d <= NEAR_R) { stats.near = (stats.near || 0) + 1; flashChip('MISSED THE RING · ' + Math.round(d) + ' m off'); } return false; }
+    if (mark) mark.flash = 1;
     run.cur.got++; try { C().missionProgress('tick', 0); } catch (_) {}
     return true;
   }
@@ -123,12 +137,55 @@
     var prev = { wx: null, side: null }, X = LB.v12extras;
     if (m.wx && X && X.setWeather && X.getOptions) { prev.wx = X.getOptions().weather; if (prev.wx !== m.wx) X.setWeather(m.wx); else prev.wx = null; }
     if (m.side && C() && C().setSide) { var cs = C().getState().profile.side; if (cs !== m.side) { prev.side = cs; C().setSide(m.side); } }
+    if (m.tod && X && X.setTimeLock) { prev.tod = X.getTimeLock ? X.getTimeLock() : null; prev.todSet = true; X.setTimeLock(TOD_K[m.tod]); }
     return prev;
   }
   function restoreConditions(prev) {
     if (!prev) return;
     try { if (prev.wx && LB.v12extras && LB.v12extras.setWeather) LB.v12extras.setWeather(prev.wx); } catch (_) {}
     try { if (prev.side && C() && C().setSide) C().setSide(prev.side); } catch (_) {}
+    try { if (prev.todSet && LB.v12extras && LB.v12extras.setTimeLock) LB.v12extras.setTimeLock(prev.tod); } catch (_) {}
+  }
+  // ---- objective chip (hold: nearest squad + SEND SQUAD; strike: count + fly the camera to the ring) ----
+  function nearestSquad() {
+    if (!run || !run.cur) return null; var me = mySide(), list = [], best = null, bi = -1, k = -1;
+    try { list = LB.squads && LB.squads.list ? LB.squads.list() : []; } catch (_) {}
+    for (var i = 0; i < list.length; i++) { var q = list[i]; if (q.side !== me) continue; k++; if (q.dead || !(q.alive > 0)) continue; var d = Math.hypot(q.x - run.cur.px, q.z - run.cur.pz); if (!best || d < best.d) { best = { d: d, name: q.name, i: k }; } }
+    return best;
+  }
+  function sendSquad() {
+    if (!run || !run.cur || !run.cur.hold) return false; var q = nearestSquad();
+    if (!q || !LB.squads || !LB.squads.order) { flashChip('NO SQUAD AVAILABLE'); return false; }
+    var ok = false; try { ok = LB.squads.order('move', run.cur.px, run.cur.pz, q.i); } catch (_) {}
+    if (ok) { stats.sent = (stats.sent || 0) + 1; flashChip(q.name + ' MOVING TO THE RING'); try { if (LB.sfx && LB.sfx.radio) LB.sfx.radio(); } catch (_) {} }
+    return ok;
+  }
+  function flashChip(t) { if (!el.chip) return; el.chipMsg = t; el.chipMsgT = performance.now() + 2200; renderChip(); }
+  function renderChip() {
+    var cur = run && run.cur, show = !!(cur && (cur.hold || cur.spot));
+    if (!show) { if (el.chip) el.chip.classList.remove('show'); return; }
+    if (!el.chip) {
+      var c = el.chip = doc.createElement('button'); c.type = 'button'; c.id = 'meChip'; c.className = 'me-chip';
+      c.innerHTML = '<b></b><span></span>'; c.addEventListener('click', function (ev) { ev.stopPropagation(); chipTap(); });
+      doc.body.appendChild(c);
+    }
+    var b = el.chip.firstChild, s = el.chip.lastChild, msg = el.chipMsg && performance.now() < el.chipMsgT ? el.chipMsg : '';
+    if (cur.hold) {
+      var q = nearestSquad();
+      b.textContent = run.holding ? 'HOLDING ' + Math.min(cur.n, cur.got || 0) + '/' + cur.n + ' s' : 'SEND SQUAD';
+      s.textContent = msg || (q ? q.name + ' · ' + Math.round(q.d) + ' m from the ring' : 'no squad available') + ' · ' + POINTS[run.m.obj[run.i].p];
+      el.chip.setAttribute('aria-label', 'Send the nearest squad to ' + POINTS[run.m.obj[run.i].p]);
+    } else {
+      b.textContent = 'STRIKE THE RING ' + cur.got + '/' + cur.n;
+      s.textContent = msg || 'tap to look at ' + POINTS[run.m.obj[run.i].p] + ' · hits within ' + STRIKE_R + ' m count';
+      el.chip.setAttribute('aria-label', 'Fly the camera to ' + POINTS[run.m.obj[run.i].p]);
+    }
+    el.chip.classList.toggle('held', !!run.holding); el.chip.classList.add('show');
+  }
+  function chipTap() {
+    if (!run || !run.cur) return;
+    if (run.cur.hold) sendSquad();
+    else { try { if (LB.theaters && LB.theaters.flyToPoint) LB.theaters.flyToPoint(run.cur.px, run.cur.pz, 70); } catch (_) {} }
   }
   function mkOrders() {
     var o = run.m.obj[run.i], K = KINDS[o.k], base = K.mk(o.n);
@@ -182,7 +239,7 @@
       stats.lost++; stats.last = 'Mission "' + m.name + '" ended (' + (why || 'stopped') + ')';
       banner('MISSION OVER', m.name + ' · ' + (why || 'stopped'), false);
     }
-    restoreConditions(run.prev); hideMark(); run = null; render();
+    restoreConditions(run.prev); hideMark(); run = null; renderChip(); render();
   }
   function stop() { if (!run) return false; finish(false, 'stopped'); var c = C(); if (c && c.restartOrders) c.restartOrders(); return true; }
   function banner(title, body, win) {
@@ -197,7 +254,7 @@
     var p = el.p = doc.createElement('div'); p.id = 'missionEditor'; p.className = 'supply-panel me-panel';
     p.innerHTML = '<div class="th-title">MISSION EDITOR <span class="qual sim">GAME ONLY</span></div>' +
       '<div class="me-row"><input id="meName" maxlength="32" placeholder="Mission name" aria-label="Mission name"><select id="mePreset" aria-label="Start from a preset"></select></div>' +
-      '<div class="me-row"><select id="meWx" aria-label="Start weather"></select><select id="meSide" aria-label="Start side"></select></div>' +
+      '<div class="me-row"><select id="meWx" aria-label="Start weather"></select><select id="meTod" aria-label="Start time of day"></select><select id="meSide" aria-label="Start side"></select></div>' +
       '<div id="meObjs" class="me-objs"></div>' +
       '<div class="me-row"><button type="button" id="meAdd">+ Objective</button><button type="button" id="mePlay" class="me-go">Play</button><button type="button" id="meSave">Save</button><button type="button" id="meShare">Share link</button></div>' +
       '<div class="me-row"><input id="meCode" placeholder="Paste a mission code or link" aria-label="Mission code"><button type="button" id="meImport">Load</button></div>' +
@@ -205,9 +262,11 @@
       '<div class="th-note">Your missions run through the ORDERS card: finish each objective before its timer runs out, one miss ends the run. Saved on this device. Game layer only; the market still drives the battle.</div>';
     var host = doc.querySelector('.sheet-command .sheet-body') || doc.querySelector('#sheet-command .sheet-body') || doc.body;
     host.appendChild(p);
-    ['meWx', 'meSide', 'meName', 'mePreset', 'meObjs', 'meAdd', 'mePlay', 'meSave', 'meShare', 'meCode', 'meImport', 'meSaved', 'meStatus'].forEach(function (id) { el[id] = p.querySelector('#' + id); });
+    ['meWx', 'meTod', 'meSide', 'meName', 'mePreset', 'meObjs', 'meAdd', 'mePlay', 'meSave', 'meShare', 'meCode', 'meImport', 'meSaved', 'meStatus'].forEach(function (id) { el[id] = p.querySelector('#' + id); });
     Object.keys(WX).forEach(function (k) { el.meWx.appendChild(opt(k, WX[k])); });
     Object.keys(SIDES).forEach(function (k) { el.meSide.appendChild(opt(k, SIDES[k])); });
+    Object.keys(TODS).forEach(function (k) { el.meTod.appendChild(opt(k, TODS[k])); });
+    el.meTod.addEventListener('change', function () { draft.tod = TODS[el.meTod.value] ? el.meTod.value : ''; });
     el.meWx.addEventListener('change', function () { draft.wx = WX[el.meWx.value] ? el.meWx.value : ''; });
     el.meSide.addEventListener('change', function () { draft.side = SIDES[el.meSide.value] ? el.meSide.value : ''; });
     el.mePreset.appendChild(opt('', 'Presets…'));
@@ -227,7 +286,7 @@
   }
   function closeSheet() { try { var b = doc.querySelector('#sheet-command .sheet-x'); if (b) b.click(); } catch (_) {} }
   function renderDraft() {
-    el.meName.value = draft.name; el.meObjs.textContent = ''; el.meWx.value = draft.wx || ''; el.meSide.value = draft.side || '';
+    el.meName.value = draft.name; el.meObjs.textContent = ''; el.meWx.value = draft.wx || ''; el.meSide.value = draft.side || ''; el.meTod.value = draft.tod || '';
     draft.obj.forEach(function (o, i) {
       var row = doc.createElement('div'); row.className = 'me-obj';
       var num = doc.createElement('span'); num.className = 'me-num'; num.textContent = (i + 1) + '.';
@@ -259,6 +318,10 @@
     else { if (saved.length >= MAX_SAVED) saved.pop(); saved.unshift(m); }
     store(); stats.last = 'Saved "' + m.name + '"'; render(); return m;
   }
+  function summary(m) {
+    var c = [m.wx ? WX[m.wx] : '', m.tod ? TODS[m.tod] : '', m.side ? (m.side === 'bull' ? 'Bulls' : 'Bears') : ''].filter(Boolean);
+    return m.obj.map(function (o) { return KINDS[o.k].label.replace(/^(Hit|Silence) enemy /, '').replace(/^(Reach|Score|Collect) (a )?/, ''); }).join(' → ') + (c.length ? ' · ' + c.join(', ') : '');
+  }
   function linkFor(m) { var u = new URL(global.location.href); u.search = ''; u.hash = ''; return u.toString() + '?mission=' + encode(m); }
   function share(m) {
     var link = linkFor(sanitize(m)); el.meCode.value = link;
@@ -271,7 +334,8 @@
     el.meSaved.textContent = '';
     saved.forEach(function (s, i) {
       var r = doc.createElement('div'); r.className = 'me-sv';
-      var nm = doc.createElement('span'); nm.textContent = s.name + ' · ' + s.obj.length + ' obj' + (s.best != null ? ' · best ' + s.best + ' s' : '');
+      var nm = doc.createElement('span'); nm.className = 'me-svn'; nm.textContent = s.name + ' · ' + s.obj.length + ' obj' + (s.best != null ? ' · best ' + s.best + ' s' : '');
+      var sm = doc.createElement('small'); sm.textContent = summary(s); nm.appendChild(sm); nm.title = s.obj.map(objText).join(' → ');
       var ld = doc.createElement('button'); ld.type = 'button'; ld.textContent = 'Edit'; ld.addEventListener('click', function () { draft = sanitize(s); renderDraft(); });
       var pl = doc.createElement('button'); pl.type = 'button'; pl.textContent = 'Play'; pl.addEventListener('click', function () { if (run) stop(); if (play(s)) closeSheet(); });
       var dl = doc.createElement('button'); dl.type = 'button'; dl.textContent = '×'; dl.setAttribute('aria-label', 'Delete ' + s.name); dl.addEventListener('click', function () { saved.splice(i, 1); store(); render(); });
@@ -295,11 +359,11 @@
     }, 500);
   }
   LB.missionEditor = {
-    version: 'v12.0.45', isEnabled: function () { return enabled; }, next: next, play: play, stop: stop, strikeAt: strikeAt, points: function () { var o = {}; Object.keys(POINTS).forEach(function (k) { o[k] = pointXZ(k); }); return o; },
+    version: 'v12.0.45', isEnabled: function () { return enabled; }, next: next, play: play, stop: stop, strikeAt: strikeAt, sendSquad: sendSquad, nearest: nearestSquad, summary: function (m) { m = sanitize(m); return m ? summary(m) : ''; }, points: function () { var o = {}; Object.keys(POINTS).forEach(function (k) { o[k] = pointXZ(k); }); return o; },
     marker: function () { return mark ? { x: mark.x, z: mark.z } : null; },
     encode: encode, decode: decode, sanitize: sanitize, save: function (m) { if (m) draft = sanitize(m) || draft; return saveDraft(); }, saved: function () { return saved.map(function (s) { return Object.assign({}, s); }); },
     share: function (m) { return linkFor(sanitize(m || draft)); },
-    getState: function () { return { enabled: enabled, running: !!run, index: run ? run.i : -1, holding: !!(run && run.holding), cur: run && run.cur ? { text: run.cur.text, got: run.cur.got, n: run.cur.n, px: run.cur.px, pz: run.cur.pz } : null, name: run ? run.m.name : null, queued: !!queued, saved: saved.length, stats: Object.assign({}, stats) }; }
+    getState: function () { return { enabled: enabled, running: !!run, index: run ? run.i : -1, holding: !!(run && run.holding), cur: run && run.cur ? { text: run.cur.text, got: run.cur.got, n: run.cur.n, px: run.cur.px, pz: run.cur.pz } : null, name: run ? run.m.name : null, tod: run ? run.m.tod : null, chip: !!(el.chip && el.chip.classList.contains('show')), ringFlash: mark ? +(mark.flash || 0).toFixed(2) : 0, queued: !!queued, saved: saved.length, stats: Object.assign({}, stats) }; }
   };
   if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', init); else init();
 })(window);
