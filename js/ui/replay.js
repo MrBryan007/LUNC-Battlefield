@@ -289,7 +289,8 @@
       var host = doc.querySelector('#sheet-command .sheet-body') || doc.querySelector('.sheet-command .sheet-body');
       if ((host && (doc.getElementById('missionEditor') || tries > 6)) || ++tries > 120) { clearInterval(iv); try { buildUi(); } catch (e) { console.warn('[replay] ui', e); } setInterval(function () { if (!view) render(); }, 3000); }
     }, 500);
-    global.addEventListener('keydown', function (ev) { if (ev.key === 'Escape' && view) close(); });
+    // capture phase so Esc closes the viewer without also pausing the battle (commander listens on window)
+    global.addEventListener('keydown', function (ev) { if (ev.key === 'Escape' && view) { ev.stopImmediatePropagation(); ev.preventDefault(); close(); } }, true);
   }
   LB.replay = {
     version: 'v12.0.46', isEnabled: function () { return enabled; }, event: event, sample: sample, open: open, close: close, save: save, sanitize: sanitize,
