@@ -239,6 +239,7 @@
       stats.lost++; stats.last = 'Mission "' + m.name + '" ended (' + (why || 'stopped') + ')';
       banner('MISSION OVER', m.name + ' · ' + (why || 'stopped'), false);
     }
+    try { if (LB.replay && LB.replay.event) LB.replay.event('mission', m.name, null, null, !!won); } catch (_) {}   // v12.0.46
     restoreConditions(run.prev); hideMark(); run = null; renderChip(); render();
   }
   function stop() { if (!run) return false; finish(false, 'stopped'); var c = C(); if (c && c.restartOrders) c.restartOrders(); return true; }
