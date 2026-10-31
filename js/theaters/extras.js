@@ -99,7 +99,7 @@
   }
 
   // ------------------------------------------------------------------ tick
-  var dayT = 0.5, insetT = 0, fowT = 0;
+  var dayT = 0.5, insetT = 0, fowT = 0, timeLock = null;
   function update() {
     var th = TH(); if (!th || !th.isEnabled()) return;
     var e = E(); if (!ready) { try { build(); } catch (err) { console.warn('[v12-extras]', err); ready = true; return; } }
@@ -113,7 +113,8 @@
     cyberT -= dt; if (cyberT <= 0) { cyberT = rnd(35, 70); cyber(); }
     if (rain && rain.visible) { var cp = e.camera.position; rain.position.set(cp.x, 0, cp.z); var a = rain.geometry.attributes.position; for (var r = 1; r < a.array.length; r += 3) { a.array[r] -= dt * 38; if (a.array[r] < 0) a.array[r] = 60; } a.needsUpdate = true; }
     var f = e.scene.fog; if (f && f.isFog && base.far) { var tf = opt.weather === 'fog' ? 0.35 : opt.weather === 'rain' ? 0.7 : 1; f.far += (base.far * tf - f.far) * Math.min(1, dt); if (f.far < f.near + 10) f.near = f.far * 0.4; }
-    if (opt.daynight) { dayT = (dayT + dt / 240) % 1; setDay(dayT); }
+    if (timeLock != null) setDay(timeLock);   // v12.0.45 mission editor start condition (time of day held for the run)
+    else if (opt.daynight) { dayT = (dayT + dt / 240) % 1; setDay(dayT); }
     insetT -= dt; if (insetT <= 0 && inset && !inset.hidden) { insetT = 0.25; drawInset(); }
     fowT -= dt; if (fowT <= 0) { fowT = 0.5; tickFow(); }
     if (LB.sfx && LB.sfx.setVolume && !opt.music) { /* music level stays 0 via intensity decay */ }
@@ -221,7 +222,10 @@
   }
 
   LB.v12extras = { update: update, getOptions: function () { return Object.assign({}, opt); }, getStats: function () { return Object.assign({}, stats); },
-    setWeather: function (w) { opt.weather = w; save(); applyWeather(); }, setSpectator: function (v) { opt.spectator = !!v; save(); applyFow(); }, cyber: cyber,
+    setWeather: function (w) { opt.weather = w; save(); applyWeather(); var ws = doc.getElementById('v12Weather'); if (ws) ws.value = w; },
+    // v12.0.45: hold the sun at k (0 night … 0.5 noon … 1 night) without changing the day/night setting; null releases it
+    setTimeLock: function (k) { if (k == null || !isFinite(+k)) { timeLock = null; setDay(opt.daynight ? dayT : 0.5); return null; } timeLock = Math.max(0, Math.min(1, +k)); setDay(timeLock); return timeLock; },
+    getTimeLock: function () { return timeLock; }, setSpectator: function (v) { opt.spectator = !!v; save(); applyFow(); }, cyber: cyber,
     launchTest: function () { if (silos[0]) silos[0].t = 0.01; },
     ambushTest: function () { var S = subs[0]; if (!S) return false; S.st = 'deep'; S.t = 0.01; return true; },   // v12.0.5 test hook: next frame surfaces + fires
     _fow: function () { tickFow(); },   // test hook
