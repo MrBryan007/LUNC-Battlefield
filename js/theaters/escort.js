@@ -26,15 +26,15 @@
     if (mat) return; THREE = E().THREE;
     geo = { cab: new THREE.BoxGeometry(1.9, 1.7, 2.1), bed: new THREE.BoxGeometry(2.1, 1.9, 4.2), wheel: new THREE.CylinderGeometry(0.46, 0.46, 0.35, 10),
       ring: new THREE.RingGeometry(AMB_R - 0.8, AMB_R, 48), core: new THREE.RingGeometry(CLEAR_R - 0.5, CLEAR_R, 40), beam: new THREE.CylinderGeometry(0.3, 0.8, 20, 10, 1, true),
-      lamp: new THREE.SphereGeometry(0.16, 6, 5), tracer: new THREE.BoxGeometry(0.08, 0.08, 1), flash: new THREE.SphereGeometry(0.35, 6, 5), man: new THREE.BoxGeometry(0.5, 0.5, 1.1) };
+      lamp: new THREE.SphereGeometry(0.16, 6, 5), tracer: new THREE.BoxGeometry(0.08, 0.08, 1), flash: new THREE.SphereGeometry(0.35, 6, 5), man: new THREE.BoxGeometry(0.5, 0.5, 1.1), tag: new THREE.OctahedronGeometry(0.55, 0) };
     mat = { cab: { '-1': new THREE.MeshStandardMaterial({ color: 0x4f5b3a, roughness: 0.8 }), '1': new THREE.MeshStandardMaterial({ color: 0x5d564a, roughness: 0.8 }) },
       tarp: new THREE.MeshStandardMaterial({ color: 0x6f6a4e, roughness: 0.95 }), wheel: new THREE.MeshStandardMaterial({ color: 0x1b1b1b, roughness: 0.9 }),
       wreck: new THREE.MeshStandardMaterial({ color: 0x1d1a17, roughness: 1 }), lamp: new THREE.MeshBasicMaterial({ color: 0xfff1c4 }),
-      amb: new THREE.MeshBasicMaterial({ color: 0xff5a4f, transparent: true, opacity: 0.7, side: THREE.DoubleSide, depthWrite: false }),
+      amb: new THREE.MeshBasicMaterial({ color: 0xff2a1f, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false }),
       ambCore: new THREE.MeshBasicMaterial({ color: 0xffb0a8, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false }),
-      beam: new THREE.MeshBasicMaterial({ color: 0xff5a4f, transparent: true, opacity: 0.2, depthWrite: false, side: THREE.DoubleSide }),
+      beam: new THREE.MeshBasicMaterial({ color: 0xff3b30, transparent: true, opacity: 0.32, depthWrite: false, side: THREE.DoubleSide }),
       tracer: new THREE.MeshBasicMaterial({ color: 0xffd08a }), flash: new THREE.MeshBasicMaterial({ color: 0xffe2a0, transparent: true, opacity: 0.9 }),
-      man: new THREE.MeshStandardMaterial({ color: 0x3b3a33, roughness: 1 }) };
+      man: new THREE.MeshStandardMaterial({ color: 0x3b3a33, roughness: 1 }), tag: new THREE.MeshBasicMaterial({ color: 0xffd36a }), tagOk: new THREE.MeshBasicMaterial({ color: 0x6aff8f }) };
   }
   function makeTruck(side) {
     var g = new THREE.Group(), body = new THREE.Group(); g.add(body);
@@ -43,7 +43,8 @@
     var wheels = [];
     [[-1, 2.2], [1, 2.2], [-1, -0.4], [1, -0.4], [-1, -2.0], [1, -2.0]].forEach(function (w) { var m = new THREE.Mesh(geo.wheel, mat.wheel); m.rotation.z = Math.PI / 2; m.position.set(w[0] * 1.0, 0.46, w[1]); body.add(m); wheels.push(m); });
     var lamps = [-0.6, 0.6].map(function (lx) { var l = new THREE.Mesh(geo.lamp, mat.lamp); l.position.set(lx, 1.0, 3.38); body.add(l); return l; });
-    return { g: g, body: body, cab: cab, bed: bed, wheels: wheels, lamps: lamps, hp: TRUCK_HP, st: 'form', x: 0, z: ROAD_Z, smokeT: 0 };
+    var tag = new THREE.Mesh(geo.tag, mat.tag); tag.scale.y = 1.6; tag.position.y = 4.6; g.add(tag);   // gold escort marker, readable among the armies
+    return { g: g, body: body, cab: cab, bed: bed, wheels: wheels, lamps: lamps, tag: tag, hp: TRUCK_HP, st: 'form', x: 0, z: ROAD_Z, smokeT: 0 };
   }
   function makeAmbush(x, z) {
     var g = new THREE.Group(), y = H(x, z); g.position.set(x, y, z);
@@ -92,6 +93,13 @@
     });
     return n;
   }
+  /** Commander strike aimed at x/z (fireAt time): clears an ambush ~1.5 s later even if the shells' impact report never
+   *  reaches theaters.onStrike (e.g. long artillery arcs), matching how Strike-a-point counts aimed strikes. */
+  function aimAt(x, z) {
+    if (!run) return false; var R = run, hit = R.ambs.some(function (A) { return A.alive && Math.hypot(A.x - x, A.z - z) <= CLEAR_R; });
+    if (hit) setTimeout(function () { if (run === R) onImpact(x, z, 1); }, 1500);
+    return hit;
+  }
   function loop() {
     if (!run) return; raf = requestAnimationFrame(loop);
     var now = performance.now(), dt = Math.min(0.1, (now - run.last) / 1000); run.last = now;
@@ -105,11 +113,12 @@
     var nightOn = night(), F = FX(), sq = [];
     try { sq = LB.squads && LB.squads.list ? LB.squads.list().filter(function (q) { return q.side === side && !q.dead && q.alive > 0; }) : []; } catch (_) {}
     R.ambs.forEach(function (A) {
-      A.ring.material.opacity = A.alive ? 0.5 + 0.25 * Math.sin(R.t * 4) : 0.25;
+      A.ring.material.opacity = A.alive ? 0.7 + 0.25 * Math.sin(R.t * 4) : 0.25;
       A.sup = A.alive && sq.some(function (q) { return Math.hypot(q.x - A.x, q.z - A.z) <= AMB_R; });
     });
     for (var i = 0; i < R.trucks.length; i++) {
       var T = R.trucks[i]; T.lamps.forEach(function (l) { l.visible = nightOn && T.hp > 0; });
+      T.tag.rotation.y += dt * 2; T.tag.visible = T.hp > 0; if (T.st === 'arrived') T.tag.material = mat.tagOk;
       if (T.hp <= 0) { T.smokeT -= dt; if (F && T.smokeT <= 0) { T.smokeT = 0.35; F.puff({ kind: 'smoke', x: T.x, y: 2.2, z: T.z, vy: 1.4, size: 2.2, grow: 1.4, life: 3, color: 0x2a2724, opacity: 0.5 }); } continue; }
       if (T.st === 'form' && R.t >= FORM_S) { T.st = 'drive'; if (i === 0) note('roll', 'Convoy rolling'); }
       if (T.st === 'drive') {
@@ -175,6 +184,6 @@
       ambs: run.ambs.map(function (A) { return { x: +A.x.toFixed(1), z: +A.z.toFixed(1), alive: A.alive, sup: A.sup }; }),
       trucks: run.trucks.map(function (T) { return { x: +T.x.toFixed(1), hp: T.hp, st: T.st }; }), stats: Object.assign({}, stats) };
   }
-  LB.escort = { version: 'v12.0.47', isEnabled: function () { return enabled; }, start: start, stop: stop, state: state, nextAmbush: nextAmbush, _impact: onImpact,
+  LB.escort = { version: 'v12.0.47', isEnabled: function () { return enabled; }, start: start, stop: stop, state: state, nextAmbush: nextAmbush, aimAt: aimAt, _impact: onImpact,
     _step: function (sec) { if (!run) return; for (var t = 0; t < sec; t += 0.05) { if (run.done) break; step(0.05); } } };
 })(window);

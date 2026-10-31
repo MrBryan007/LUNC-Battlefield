@@ -26,7 +26,7 @@
     pu: { short: 'Power-ups', label: 'Collect power-ups', text: 'Collect {n} power-ups', min: 1, max: 6, def: 1, mk: function () { return { pu: true }; } },
     hold: { short: 'Hold', label: 'Hold a point', text: 'Hold {p} for {n} s with a squad', min: 10, max: 90, def: 20, map: true, mk: function () { return { hold: true }; } },
     hit: { short: 'Strike', label: 'Strike a point', text: 'Land {n} strikes on {p}', min: 1, max: 10, def: 3, map: true, mk: function () { return { spot: true }; } },
-    escort: { short: 'Escort', label: 'Escort a convoy', text: 'Get {n} of 3 convoy trucks to the front', min: 1, max: 3, def: 2, mk: function () { return { escort: true }; } }
+    escort: { short: 'Escort', label: 'Escort a convoy', text: 'Escort {n} of 3 trucks to the front', min: 1, max: 3, def: 2, mk: function () { return { escort: true }; } }
   };
   var POINTS = { front: 'Front centre', ridge: 'Hill 402', north: 'North flank', south: 'South flank' };
   var TODS = { '': 'Any time', noon: 'Noon', dusk: 'Dusk', night: 'Night' }, TOD_K = { noon: 0.5, dusk: 0.88, night: 0.98 };
@@ -121,7 +121,7 @@
     if (cur.escort && LB.escort) {
       var es = LB.escort.state();
       if (es.active) { if (es.arrived !== cur.got) { cur.got = es.arrived; try { C().missionProgress('tick', 0); } catch (_) {} }
-        else if (es.result === 'lost' && cur.left > 0.05) { cur.left = 0.05; cur.lostConvoy = true; } }
+        else if (es.result === 'lost' && cur.left > 0.01) { cur.left = 0.01; cur.lostConvoy = true; } }
     }
     renderChip();
     if (!cur.hold) return;
@@ -135,6 +135,7 @@
   }
   /** commander fireAt hook: a Commander strike landed at x/z */
   function strikeAt(x, z) {
+    if (run && run.cur && run.cur.escort && LB.escort && LB.escort.aimAt) { try { LB.escort.aimAt(x, z); } catch (_) {} return false; }
     if (!run || !run.cur || !run.cur.spot) return false;
     var d = Math.hypot(x - run.cur.px, z - run.cur.pz);
     if (d > STRIKE_R) { if (d <= NEAR_R) { stats.near = (stats.near || 0) + 1; flashChip('MISSED THE RING · ' + Math.round(d) + ' m off'); } return false; }
