@@ -86,8 +86,10 @@
   function showMark(x, z) {
     hideMark(); var e = LB.engine, T = e && e.THREE; if (!T || !e.scene) return;
     var g = new T.Group(), y = 0; try { y = (LB.los && LB.los.ground ? LB.los.ground(x, z) : e.terrainHeight(x, z)) || 0; } catch (_) {}
-    var ring = new T.Mesh(new T.RingGeometry(HOLD_R - 0.6, HOLD_R, 48), new T.MeshBasicMaterial({ color: 0xffd36a, transparent: true, opacity: 0.75, side: T.DoubleSide, depthWrite: false }));
+    var ring = new T.Mesh(new T.RingGeometry(HOLD_R - 1.1, HOLD_R, 48), new T.MeshBasicMaterial({ color: 0xffd36a, transparent: true, opacity: 0.75, side: T.DoubleSide, depthWrite: false }));
     ring.rotation.x = -Math.PI / 2; ring.position.y = 0.25; g.add(ring);
+    var disc = new T.Mesh(new T.CircleGeometry(HOLD_R - 1.1, 40), new T.MeshBasicMaterial({ color: 0xffd36a, transparent: true, opacity: 0.12, side: T.DoubleSide, depthWrite: false }));
+    disc.rotation.x = -Math.PI / 2; disc.position.y = 0.2; g.add(disc);
     var beam = new T.Mesh(new T.CylinderGeometry(0.35, 0.9, 26, 12, 1, true), new T.MeshBasicMaterial({ color: 0xffd36a, transparent: true, opacity: 0.22, depthWrite: false, side: T.DoubleSide }));
     beam.position.y = 13; g.add(beam);
     g.position.set(x, y, z); g.renderOrder = 5; e.scene.add(g); mark = { g: g, ring: ring, x: x, z: z };
