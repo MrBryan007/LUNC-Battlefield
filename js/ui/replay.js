@@ -44,7 +44,7 @@
     if (rec.frames.length > MAX_FRAMES) rec.frames.shift();
     var cut = rec.frames[0].t; while (rec.events.length && rec.events[0].t < cut) rec.events.shift();
   }
-  /** hook: kind 'strike' (a = ability, x, z) | 'done' | 'fail' (a = orders text) | 'mission' (a = name, won) */
+  /** hook: kind 'strike' (a = ability, x, z) | 'done' | 'fail' (a = orders text) | 'mission' (a = name, won) | 'escort' (a = what happened) */
   function event(kind, a, x, z, extra) {
     if (!enabled) return;
     var ev = { t: r1(now()), k: kind, a: String(a == null ? '' : a).slice(0, 60) };
@@ -71,7 +71,7 @@
     }).filter(Boolean);
     if (!frames.length) return null;
     var events = (Array.isArray(r.events) ? r.events : []).slice(-MAX_EVENTS).map(function (ev) {
-      if (!ev || typeof ev !== 'object' || ['strike', 'done', 'fail', 'mission'].indexOf(ev.k) < 0) return null;
+      if (!ev || typeof ev !== 'object' || ['strike', 'done', 'fail', 'mission', 'escort'].indexOf(ev.k) < 0) return null;
       var o = { t: num(ev.t, 0), k: ev.k, a: String(ev.a || '').replace(/[<>]/g, '').slice(0, 60) };
       if (ev.x != null) { o.x = num(ev.x, 0) | 0; o.z = num(ev.z, 0) | 0; } if (ev.w != null) o.w = ev.w ? 1 : 0; return o;
     }).filter(Boolean);
@@ -100,6 +100,7 @@
     if (ev.k === 'strike') return (ABIL_SHORT[ev.a] || ev.a) + (ev.x != null ? ' at ' + ev.x + ', ' + ev.z : '');
     if (ev.k === 'done') return 'Orders complete: ' + ev.a;
     if (ev.k === 'fail') return 'Orders failed: ' + ev.a;
+    if (ev.k === 'escort') return 'Convoy: ' + ev.a;
     return (ev.w ? 'Mission accomplished: ' : 'Mission over: ') + ev.a;
   }
   /** world box around everything recorded (units, squads, strikes, the front), padded, clamped to the battle area */

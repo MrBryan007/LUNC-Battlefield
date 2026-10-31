@@ -456,7 +456,7 @@ body[data-ui="clean"] .me-chip, body.ui-hidden .me-chip { display: none; }
 .rp-events { flex: 0 0 auto; max-height: 22vh; overflow: auto; display: grid; gap: 3px; }
 .rp-ev { display: grid; grid-template-columns: 44px 1fr; gap: 6px; text-align: left; padding: 5px 8px; border-radius: 6px; border: 1px solid rgba(255,255,255,.06); background: rgba(255,255,255,.03); color: #cfd8d2; font: 500 11px Inter, sans-serif; cursor: pointer; }
 .rp-ev span:first-child { color: #9aa59d; font-variant-numeric: tabular-nums; } .rp-ev.on { border-color: rgba(255,211,106,.6); background: rgba(255,211,106,.08); }
-.rp-ev.rp-done span:last-child, .rp-ev.rp-mission span:last-child { color: #8dffa8; } .rp-ev.rp-fail span:last-child { color: #ffb3ad; }
+.rp-ev.rp-done span:last-child, .rp-ev.rp-mission span:last-child { color: #8dffa8; } .rp-ev.rp-fail span:last-child { color: #ffb3ad; } .rp-ev.rp-escort span:last-child { color: #ffd9a0; }
 .rp-none { color: #9aa59d; font-size: 11px; padding: 4px; }
 .rp-viewer .th-note { font-size: 10px; color: #8f9a93; }
 body.replay-open .me-chip { display: none; }
