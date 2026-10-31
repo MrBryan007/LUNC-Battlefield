@@ -53,8 +53,9 @@ const checks = [
   ['mission editor wired', index.includes('js/ui/mission-editor.js') && read('js/ui/mission-editor.js').includes("qs.get('editor') !== '0'") && read('js/ui/mission-editor.js').includes('function sanitize(') && read('js/commander.js').includes('LB.missionEditor.next(') && read('js/commander.js').includes("nextMission('done')")],
   ['mission editor map objectives wired', read('js/ui/mission-editor.js').includes('function strikeAt(') && read('js/ui/mission-editor.js').includes('function applyConditions(') && read('js/commander.js').includes('LB.missionEditor.strikeAt(')],
   ['mission editor part 2 polish wired', read('js/ui/mission-editor.js').includes('function sendSquad(') && read('js/ui/mission-editor.js').includes('setTimeLock(TOD_K[m.tod])') && read('js/theaters/extras.js').includes('setTimeLock: function (k)') && read('js/theaters/extras.js').includes('if (timeLock != null) setDay(timeLock)')],
+  ['after-action replay wired', index.includes('js/ui/replay.js') && read('js/ui/replay.js').includes("qs.get('replay') !== '0'") && read('js/ui/replay.js').includes('function sanitize(') && read('js/commander.js').includes("LB.replay.event('strike'") && read('js/commander.js').includes("LB.replay.event('done'") && read('js/ui/mission-editor.js').includes("LB.replay.event('mission'")],
   ['power-ups wired', index.includes('js/theaters/powerups.js') && read('js/theaters/powerups.js').includes("qs.get('powerups') !== '0'") && read('js/commander.js').includes('PU.scoreMult()') && read('js/commander.js').includes('LB.powerups.strikeAt(') && read('js/theaters/supply.js').includes("LB.powerups.grant(null, 'crate')")],
-  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.45')]
+  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.46')]
 ];
 
 let failed = 0;

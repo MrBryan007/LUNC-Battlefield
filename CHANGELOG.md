@@ -1,5 +1,29 @@
 # Changelog
 
+## v12.0.46 — After-action replay, part 1: watch the last 10 minutes back (2026-10-31, AI build)
+- Starts the v12.3 "replay system" item, which hadn't been started. The roadmap asked for a command log plus an RNG seed played back deterministically. That can't be exact in this game: the battle follows live market prices and almost every system is randomised, so a re-simulation would drift off immediately. Part 1 is a **recorded** replay instead, labelled RECORDED in the viewer.
+- New module `js/ui/replay.js`. Every 2 s it records a compact frame and keeps the last 10 minutes (300 frames). Each frame has:
+  - the market front position, with the price source it had at that moment (LIVE or SIMULATED)
+  - your score and the current ORDERS text
+  - live infantry, armor and artillery counts for each side
+  - up to 24 sampled market-army units per side (16 on LOW and phones)
+  - every squad, and who holds Hill 402
+- It also logs events: every Commander strike (ability and spot), orders complete or failed, and custom missions accomplished or over. The commander and the mission editor each got one-line hooks for this.
+- **AFTER-ACTION viewer** (Cmd sheet → AFTER-ACTION REPLAY → Watch the last N min). It's a top-down map that fits itself to the action, with equal x/z scale and a 10 m scale bar. Bulls and Bears show as blue and red units (squares for infantry and armor, triangles for artillery), squads as chevrons with your squad names, strikes as expanding rings with their name, and Hill 402 in the holder's colour. The front line is solid while the price is LIVE and dashed while SIMULATED.
+- Below the map: a front-position chart with event ticks (tap it to seek), a scrubber, Play / Pause, 1x / 4x / 16x, and previous / next event. A live HUD shows front, score, unit counts, Hill 402 and orders. The event list highlights the current event, and tapping one jumps there and flies the live camera to that spot. Esc closes the viewer without pausing the battle. On phones it's full screen with 40-44 px buttons.
+- Save keeps up to 2 replays on the device (about 7-8 KB per 40 s), with Watch, Export (.json download) and Delete. Anything loaded from storage is checked first: numbers are coerced, names and labels are stripped to plain text, and unknown event kinds are dropped.
+- Read-only: never touches market data, armies, the price-driven front or data-truth labels. The market-driven frontline, Moon Shot, Commander, the v11.4 HUD/dock, Hide UI, the v12.x systems, the mission editor and all `?flags` are unchanged. Kill switch: `?replay=0`.
+- Version bump to v12.0.46 (BUILD, quality api, index tags, cache-bust `?v=20261031v12046` on all 92 local css/js tags, including the new module).
+- Tested: `node --check` on all 96 JS files, stabilization-smoke 33/33 passing (adds a replay wiring check), asset-lifecycle passing, headless HIGH / MEDIUM / LOW / iPhone 390x844 with 0 page errors. Replay probe on MEDIUM, LOW and iPhone:
+  - 3 strikes, one custom mission and one more strike were recorded in order: strike, strike, strike, done, mission, strike.
+  - 48 sampled units per frame on MEDIUM and 32 on LOW / iPhone.
+  - The viewer opened and played at 4x; Next event jumped ahead; 16x played; Save stored "Probe battle".
+  - A crafted replay with `<img onerror>` in its name and a bad event kind was cleaned: no element was injected and the bad event was dropped.
+  - Esc closed the viewer with the battle still running.
+  - With `?replay=0` there's no recorder, no panel and 0 errors. The v12.0.45 editor probe still passes.
+  - Screenshots in `docs/v12046-shots/`. SwiftShader only, so this isn't measured on a real iPhone/Mac yet.
+- Build hours (real timestamps): see the last entry of the day for the running total.
+
 ## v12.0.45 — Mission editor, part 2: map objectives, start conditions and a SEND SQUAD chip (2026-10-31, AI build)
 - Carried over from 2026-10-30: that day's cycle 3 (this version) was built but never tested or deployed, and its hours were never logged. It's finished and shipped today; the 10/30 hour entries are left exactly as they were.
 - Two map objectives for the v12.3 mission editor. **Hold a point**: keep one of your squads within 8 m of the point for N seconds (10-90). **Strike a point**: land N Commander strikes within 7 m of it. Points are Front centre, Hill 402, North flank and South flank, worked out from the live front when the objective starts. The active point shows as a gold ring and light beam in 3D, plus a ping on the tactical map. The ring turns green while you hold it, its inner disc fills as the objective progresses, and it flashes when a strike lands inside.
