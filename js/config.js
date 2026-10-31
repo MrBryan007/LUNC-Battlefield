@@ -1,4 +1,4 @@
-/* LUNC Battlefield v9.4.13 — shared config (GitHub Pages safe) */
+/* LUNC Battlefield shared config (GitHub Pages safe) — current build from BUILD_META */
 (function (global) {
   'use strict';
   const DataTruth = Object.freeze({
@@ -17,21 +17,51 @@
     } catch (_) { return null; }
   }
 
+  // Approved production API origins. Empty until an official gateway is owned.
+  // Arbitrary HTTPS origins are rejected unless developer mode is active.
+  const ALLOWED_API_ORIGINS = Object.freeze([
+    // 'https://api.luncbattlefield.com'  // future official gateway — do not invent
+  ]);
+
+  function isDeveloperMode() {
+    try {
+      const params = new URLSearchParams(location.search);
+      if (params.get('debug') === '1' || params.get('dev') === '1') return true;
+      const host = location.hostname || '';
+      return host === 'localhost' || host === '127.0.0.1' || host === '[::1]';
+    } catch (_) { return false; }
+  }
+
+  function isAllowedApiOrigin(url) {
+    if (!url) return false;
+    try {
+      const u = new URL(url, location.href);
+      if (u.protocol !== 'https:') return false;
+      if (isDeveloperMode()) return true;
+      return ALLOWED_API_ORIGINS.indexOf(u.origin) !== -1;
+    } catch (_) { return false; }
+  }
+
   function resolveApiBase() {
-    const q = new URLSearchParams(location.search).get('api');
-    if (q) return httpsOnly(q);
-    if (typeof global.LUNC_API_BASE === 'string' && global.LUNC_API_BASE) {
-      return httpsOnly(global.LUNC_API_BASE);
+    const params = new URLSearchParams(location.search);
+    const q = params.get('api');
+    if (q) {
+      const candidate = httpsOnly(q);
+      return isAllowedApiOrigin(candidate) ? candidate : null;
     }
-    const bridge = new URLSearchParams(location.search).get('bridge');
+    if (typeof global.LUNC_API_BASE === 'string' && global.LUNC_API_BASE) {
+      const candidate = httpsOnly(global.LUNC_API_BASE);
+      return isAllowedApiOrigin(candidate) ? candidate : null;
+    }
+    const bridge = params.get('bridge');
     if (bridge && /^https:\/\//i.test(bridge)) {
       try {
         const u = new URL(bridge);
         if (u.pathname.endsWith('/snapshot')) {
           u.pathname = u.pathname.replace(/\/snapshot\/?$/, '');
-          return httpsOnly(u.toString());
         }
-        return httpsOnly(bridge.replace(/\/$/, ''));
+        const candidate = httpsOnly(u.toString());
+        return isAllowedApiOrigin(candidate) ? candidate : null;
       } catch (_) {}
     }
     return null;
@@ -55,9 +85,18 @@
     }
   };
 
+  // Single source of truth for current release metadata.
+  // Historical comments and changelog entries are left untouched.
+  const BUILD = Object.freeze({
+    version: 'v12.0.47',
+    codename: 'Escort a convoy',
+    date: '2026-10-31'
+  });
+
   const config = {
-    BUILD: 'v11.0',
-    TITLE: 'LUNC Ecosystem Battlefield v9.4.16 — iOS playability (WebGL r128)',
+    BUILD: BUILD.version,
+    BUILD_META: BUILD,
+    TITLE: 'LUNC Ecosystem Battlefield ' + BUILD.version + ' — ' + BUILD.codename,
     DataTruth,
     tokens,
     apiBase: resolveApiBase(),
@@ -81,6 +120,11 @@
   };
 
   global.LUNCBattle = global.LUNCBattle || {};
+  // v12.0.11 wide front: HQs farther apart (visual layout only; price->X mapping untouched)
+  try {
+    var wq = new URLSearchParams(global.location ? global.location.search : '').get('wide');
+    config.layout = wq === '0' ? { wide: false, hqX: 48, spread: 1 } : { wide: true, hqX: 96, spread: 2 };
+  } catch (e) { config.layout = { wide: true, hqX: 96, spread: 2 }; }
   global.LUNCBattle.config = config;
   global.LUNCBattle.DataTruth = DataTruth;
 })(window);

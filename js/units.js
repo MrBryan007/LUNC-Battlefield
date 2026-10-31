@@ -5,6 +5,7 @@
 
   function createUnitsApi(ctx) {
     const { THREE, scene, terrainHeight, mat } = ctx;
+    const mobile = !!ctx.mobile;
     const Anim = (LB && LB.animations) || null;
     const STATES = (Anim && Anim.STATES) || {
       IDLE: 'IDLE', WALK: 'WALK', RUN: 'RUN', AIM: 'AIM', FIRE: 'FIRE',
@@ -33,6 +34,12 @@
           : mat(color, 0.55, 0.2, color, emissiveBoost != null ? emissiveBoost : 0.07);
       }
       return accentCache[key];
+    }
+    // v12.0.14 realism pass 2 (armies): camo PBR materials + IFF markers; ?realism=0 → null → old look
+    const AR = (LB && LB.armyRealism && LB.armyRealism.isEnabled && LB.armyRealism.isEnabled() && LB.armyRealism.material) ? LB.armyRealism : null;
+    function camoOr(side, kind, fallback) {
+      if (!AR) return fallback;
+      try { return AR.material(side, kind) || fallback; } catch (_) { return fallback; }
     }
 
     // ---- Shared geometries (low segment counts) ----
@@ -97,16 +104,19 @@
       shadowJet: new THREE.CircleGeometry(0.95, 12)
     };
 
+    // v12.0.13: soft grey-brown contact shadows (pure black discs stacked into a front-line strip)
+    const _shadowMap = (global.LUNCBattle && LUNCBattle.proctex && LUNCBattle.proctex.softDot) ? LUNCBattle.proctex.softDot(THREE) : null;
+    const _shadowOp = mobile ? 0.08 : 0.12;
     const shadowMat = (Mats && Mats.basic)
-      ? Mats.basic({ color: 0x000000, transparent: true, opacity: 0.18, depthWrite: false })
+      ? Mats.basic({ color: 0x2a241c, transparent: true, opacity: _shadowOp, depthWrite: false, map: _shadowMap })
       : new THREE.MeshBasicMaterial({
-          color: 0x000000, transparent: true, opacity: 0.18, depthWrite: false
+          color: 0x2a241c, transparent: true, opacity: _shadowOp, depthWrite: false, map: _shadowMap
         });
     // Shared transparent mats (avoid per-unit .clone() — unique mats break batching / inflate counts)
     const shadowMatAir = (Mats && Mats.basic)
-      ? Mats.basic({ color: 0x000000, transparent: true, opacity: 0.12, depthWrite: false })
+      ? Mats.basic({ color: 0x2a241c, transparent: true, opacity: mobile ? 0.05 : 0.08, depthWrite: false, map: _shadowMap })
       : new THREE.MeshBasicMaterial({
-          color: 0x000000, transparent: true, opacity: 0.12, depthWrite: false
+          color: 0x2a241c, transparent: true, opacity: mobile ? 0.05 : 0.08, depthWrite: false, map: _shadowMap
         });
     const rotorDiscMat = (Mats && Mats.basic)
       ? Mats.basic({ color: 0x3a4640, transparent: true, opacity: 0.55, depthWrite: false })
@@ -394,9 +404,9 @@
     function createInfantry(color, side) {
       const g = new THREE.Group();
       const isBull = side < 0;
-      const accent = accentMat(color, isBull ? 0.08 : 0.1);
-      const body = isBull ? bodyMatBull : bodyMatBear;
-      const cloth = isBull ? clothMat : clothMatBear;
+      const accent = camoOr(side, 'uniform', accentMat(color, isBull ? 0.08 : 0.1));
+      const body = camoOr(side, 'gear', isBull ? bodyMatBull : bodyMatBear);
+      const cloth = camoOr(side, 'trousers', isBull ? clothMat : clothMatBear);
       const parts = {};
 
       // Hips / pelvis
@@ -544,14 +554,15 @@
         rootBob: 0
       });
       g.scale.setScalar(0.95);
+      if (AR && AR.decorate) AR.decorate(g, side, 0, color, parts);
       return g;
     }
 
     function createArmor(color, side) {
       const g = new THREE.Group();
       const isBull = side < 0;
-      const accent = accentMat(color, 0.08);
-      const body = isBull ? bodyMatBull : bodyMatBear;
+      const accent = camoOr(side, 'armor', accentMat(color, 0.08));
+      const body = camoOr(side, 'armorDark', isBull ? bodyMatBull : bodyMatBear);
       const parts = {};
 
       const casters = [];
@@ -639,20 +650,21 @@
         rootBob: 0,
         recoil: 0
       });
+      if (AR && AR.decorate) AR.decorate(g, side, 1, color, parts);
       return g;
     }
 
     function createArtillery(color, side) {
       const g = new THREE.Group();
       const isBull = side < 0;
-      const accent = accentMat(color, 0.06);
-      const body = isBull ? bodyMatBull : bodyMatBear;
+      const accent = camoOr(side, 'art', accentMat(color, 0.06));
+      const body = camoOr(side, 'armorDark', isBull ? bodyMatBull : bodyMatBear);
       const parts = {};
 
       const casters = [];
       const carriage = new THREE.Group();
       // Longer thinner SPG chassis + open mount/shield (NOT closed MBT turret)
-      const chassis = trackCaster(casters, meshFrom(geoArtyChassisBody(), darkMat, true));
+      const chassis = trackCaster(casters, meshFrom(geoArtyChassisBody(), camoOr(side, 'armorDark', darkMat), true));
       const mountShield = meshFrom(geoArtyMountShield(), accent);
       const trailsMerged = meshFrom(geoArtyTrails(), darkMat);
       const feetMerged = meshFrom(geoArtyFeet(), metalMatDark);
@@ -715,6 +727,7 @@
         rootBob: 0,
         recoil: 0
       });
+      if (AR && AR.decorate) AR.decorate(g, side, 2, color, parts);
       return g;
     }
 
@@ -722,7 +735,7 @@
     function createHelicopter(color, side) {
       const g = new THREE.Group();
       const isBull = side < 0;
-      const accent = accentMat(color, 0.1);
+      const accent = camoOr(side, 'air', accentMat(color, 0.1));
       const body = isBull ? bodyMatBull : bodyMatBear;
       const parts = {};
 
@@ -806,7 +819,7 @@
     function createJet(color, side) {
       const g = new THREE.Group();
       const isBull = side < 0;
-      const accent = accentMat(color, 0.12);
+      const accent = camoOr(side, 'air', accentMat(color, 0.12));
       const body = isBull ? bodyMatBull : bodyMatBear;
       const parts = {};
 
@@ -958,10 +971,18 @@
      * Depth is distance behind the live frontline (applied in battle-engine).
      */
     function formationSlots(count, side, type) {
+      if (AR && AR.vehicleSlots && (type === 1 || type === 2)) {
+        try {
+          const S0 = (global.LUNCBattle && LUNCBattle.config && LUNCBattle.config.layout && LUNCBattle.config.layout.spread) || 1;
+          return AR.vehicleSlots(count, side, type, S0);
+        } catch (_) { /* fall through to the classic slots */ }
+      }
       const slots = [];
       const clusterSize = type === 0 ? 4 : 2;
       const nClusters = Math.max(1, Math.ceil(count / clusterSize));
-      const zSpan = type === 0 ? 26 : type === 1 ? 21 : 17;
+      // v12.0.11 wide front: spread factor S (2 by default, 1 with ?wide=0)
+      const S = (global.LUNCBattle && LUNCBattle.config && LUNCBattle.config.layout && LUNCBattle.config.layout.spread) || 1;
+      const zSpan = (type === 0 ? 26 : type === 1 ? 21 : 17) * S;
       const baseDepth = type === 0 ? 6.15 : type === 1 ? 12.8 : 20.4;
       const infOff = [
         { d: 0.00, z: 0.00 },
@@ -978,20 +999,27 @@
         { d: 1.35, z: 2.55 }
       ];
       const memberOff = type === 0 ? infOff : type === 1 ? armOff : artOff;
+      // v11.3: big armies (up to 500 ground units) → stack clusters into ranks instead of one crowded line
+      const perRow = Math.round((type === 0 ? 9 : type === 1 ? 7 : 6) * (S > 1 ? 1.6 : 1));
+      const nRows = Math.max(1, Math.ceil(nClusters / perRow));
+      const rowGap = (type === 0 ? 2.5 : type === 1 ? 3.3 : 3.6) * (S > 1 ? 1.3 : 1);
+      const zWide = Math.min(S > 1 ? 2.2 : 1.7, 1 + (nRows - 1) * 0.12);
 
       for (let i = 0; i < count; i++) {
         const ci = Math.floor(i / clusterSize);
         const mi = i % clusterSize;
-        const t = nClusters === 1 ? 0 : (ci + 0.5) / nClusters - 0.5;
-        let clusterZ = t * zSpan;
-        clusterZ += (det01(ci, 3 + type) - 0.5) * (type === 0 ? 2.15 : 1.7);
+        const row = Math.floor(ci / perRow), inRow = Math.min(perRow, nClusters - row * perRow), cr = ci % perRow;
+        const t = nRows === 1 ? (nClusters === 1 ? 0 : (ci + 0.5) / nClusters - 0.5) : (inRow === 1 ? 0 : (cr + 0.5 + (row % 2) * 0.35) / inRow - 0.5);
+        let clusterZ = t * zSpan * zWide;
+        clusterZ += (det01(ci, 3 + type) - 0.5) * (type === 0 ? 2.15 : 1.7) * S;
         // Pull first/last clusters slightly inward so the Z range stays occupied, including center
         if (nClusters > 2 && (ci === 0 || ci === nClusters - 1)) {
           clusterZ *= 0.92;
         }
         const clusterDepth = baseDepth
-          + (det01(ci, 7 + type) - 0.32) * (type === 0 ? 2.4 : 2.0)
-          + (ci % 3) * (type === 0 ? 0.45 : 0.7);
+          + (det01(ci, 7 + type) - 0.32) * (type === 0 ? 2.4 : 2.0) * (S > 1 ? 1.5 : 1)
+          + (ci % 3) * (type === 0 ? 0.45 : 0.7)
+          + row * rowGap;
         const mo = memberOff[mi % memberOff.length];
         const jx = (det01(i, 11) - 0.5) * 0.48;
         const jz = (det01(i, 19) - 0.5) * 0.62;
@@ -1030,6 +1058,7 @@
           u.userData.homeYaw = s.yaw || 0;
           u.userData.cluster = s.cluster;
           u.userData.index = i;
+          u.userData.utype = type;
           list.push(u);
         });
       });
@@ -1050,6 +1079,7 @@
         u.userData.homeZ = z;
         u.userData.index = idx++;
         u.userData.orbitAngle = (i / Math.max(1, nHeli)) * Math.PI * 2 + (side < 0 ? 0 : 1.2);
+        u.userData.utype = 3;
         list.push(u);
       }
       for (let j = 0; j < nJet; j++) {
@@ -1063,8 +1093,80 @@
         u.userData.index = idx++;
         u.userData.airMode = 'COOLDOWN';
         u.userData.runCooldown = 0.6 + j * 2.2 + Math.random();
+        u.userData.utype = 4;
         list.push(u);
       }
+    }
+
+    /**
+     * v11.1 diffed army update. Same counts object as spawnFormation/spawnAirWing.
+     * Keeps every existing unit, re-homes survivors onto the deterministic slots for
+     * the new count, removes only the surplus and creates only the shortfall.
+     * Nothing is torn down when counts are unchanged.
+     * Returns number of units added + removed.
+     */
+    function retire(u) {
+      if (u && u.userData) { u.userData.runId = null; u.userData.onHit = null; u.userData.airMode = 'COOLDOWN'; }
+      scene.remove(u);
+    }
+    function updateArmy(side, color, counts, list, opts) {
+      opts = opts || {};
+      const want = [
+        opts.ground ? (counts.inf | 0) : 0, opts.ground ? (counts.armor | 0) : 0, opts.ground ? (counts.art | 0) : 0,
+        opts.air ? (counts.heli | 0) : 0, opts.air ? (counts.jet | 0) : 0
+      ];
+      const byType = [[], [], [], [], []];
+      for (let i = 0; i < list.length; i++) {
+        const t = list[i].userData && list[i].userData.utype;
+        if (t >= 0 && t <= 4) byType[t].push(list[i]); else byType[0].push(list[i]);
+      }
+      let changes = 0;
+      const out = [];
+      for (let type = 0; type < 3; type++) {
+        const have = byType[type], n = want[type];
+        if (have.length === n) { for (let i = 0; i < n; i++) out.push(have[i]); continue; }
+        const slots = n > 0 ? formationSlots(n, side, type) : [];
+        for (let i = n; i < have.length; i++) { retire(have[i]); changes++; }
+        for (let i = 0; i < n; i++) {
+          const s = slots[i];
+          let u = have[i];
+          if (!u) { u = createUnit(color, side, type); u.position.set(s.x, terrainHeight(s.x, s.z), s.z); changes++; }
+          u.userData.home = s; u.userData.homeYaw = s.yaw || 0; u.userData.cluster = s.cluster;
+          u.userData.index = i; u.userData.utype = type;
+          out.push(u);
+        }
+      }
+      // air: heli (3) then jet (4); re-home survivors, add/remove delta only
+      let idx = 0;
+      const nHeli = want[3], nJet = want[4];
+      const helis = byType[3], jets = byType[4];
+      for (let i = nHeli; i < helis.length; i++) { retire(helis[i]); changes++; }
+      for (let i = 0; i < nHeli; i++) {
+        const z = (i - (nHeli - 1) / 2) * 7.5 + (((i * 11) % 5) - 2) * 0.4;
+        const x = side * (18 + (i % 2) * 4);
+        let u = helis[i];
+        if (!u) {
+          u = createUnit(color, side, 3); u.position.set(x, u.userData.alt || 9, z); changes++;
+          u.userData.orbitAngle = (i / Math.max(1, nHeli)) * Math.PI * 2 + (side < 0 ? 0 : 1.2);
+        }
+        u.userData.home = { x: x, z: z }; u.userData.homeZ = z; u.userData.index = idx++; u.userData.utype = 3;
+        out.push(u);
+      }
+      for (let i = nJet; i < jets.length; i++) { retire(jets[i]); changes++; }
+      for (let j = 0; j < nJet; j++) {
+        const z = (j - (nJet - 1) / 2) * 11 + side * 2;
+        const startX = side * (55 + j * 8);
+        let u = jets[j];
+        if (!u) {
+          u = createUnit(color, side, 4); u.position.set(startX, u.userData.alt || 9.5, z); changes++;
+          u.userData.airMode = 'COOLDOWN'; u.userData.runCooldown = 0.6 + j * 2.2 + Math.random();
+        }
+        u.userData.home = { x: startX, z: z }; u.userData.homeZ = z; u.userData.index = idx++; u.userData.utype = 4;
+        out.push(u);
+      }
+      list.length = 0;
+      for (let i = 0; i < out.length; i++) list.push(out[i]);
+      return changes;
     }
 
     function setAnimState(u, state, now) {
@@ -1139,6 +1241,7 @@
       disposeArmy: disposeArmy,
       spawnFormation: spawnFormation,
       spawnAirWing: spawnAirWing,
+      updateArmy: updateArmy,
       setShadow: setShadow,
       setAnimState: setAnimState,
       tickUnit: tickUnit,

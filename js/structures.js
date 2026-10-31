@@ -581,7 +581,7 @@
 
     function buildPerimeter(group, side, fm, crates, bags, fences, hogs) {
       const bull = side < 0;
-      const originX = side * 48;
+      const originX = side * ((global.LUNCBattle && LUNCBattle.config && LUNCBattle.config.layout && LUNCBattle.config.layout.hqX) || 48);
       const frontX = originX - side * 7;
       const rearX = originX + side * 10;
       const zMin = -13;
@@ -746,7 +746,7 @@
       const fm = factionMats(side, accentColor);
       registerFactionMats(fm);
       const bull = side < 0;
-      const ox = side * 48;
+      const ox = side * ((global.LUNCBattle && LUNCBattle.config && LUNCBattle.config.layout && LUNCBattle.config.layout.hqX) || 48);
       const toward = -side;
 
       const crates = [];

@@ -1,0 +1,15 @@
+/* v11.2-ai: AI Ops panel in the War Room (SIMULATED) */
+.ai-ops { font-size: 11px; line-height: 1.35; margin: 6px 0 8px; padding: 6px 8px; border: 1px solid rgba(255,255,255,.12); border-radius: 6px; background: rgba(0,0,0,.25); }
+.ai-ops:empty { display: none; }
+.ai-ops .ai-head { font-weight: 700; letter-spacing: .06em; margin-bottom: 4px; }
+.ai-ops .ai-head .sim { color: #c9a2ff; border: 1px solid #c9a2ff; border-radius: 3px; padding: 0 4px; font-size: 9px; }
+.ai-ops .ai-sub { opacity: .55; font-weight: 400; font-size: 9px; }
+.ai-ops .ai-side { margin-top: 4px; }
+.ai-ops .bull b, .ai-ops .ai-radio .bull { color: #7cf0a8; }
+.ai-ops .bear b, .ai-ops .ai-radio .bear { color: #ff8a80; }
+.ai-ops .ai-off { cursor: pointer; opacity: .9; padding-left: 6px; }
+.ai-ops .ai-off:hover { background: rgba(255,255,255,.08); }
+.ai-ops .ai-off i { opacity: .55; }
+.ai-ops .ai-q { color: #ffd36a; padding-left: 6px; }
+.ai-ops .ai-radio { margin-top: 4px; border-top: 1px dashed rgba(255,255,255,.12); padding-top: 3px; opacity: .85; }
+@media (max-width: 720px) { .ai-ops .ai-roster { max-height: 90px; overflow: auto; } }
