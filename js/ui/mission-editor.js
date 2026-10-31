@@ -118,6 +118,7 @@
       var pr = cur.n > 0 ? Math.min(1, (cur.got || 0) / cur.n) : 0; mark.disc.scale.setScalar(0.05 + 0.95 * pr); mark.disc.material.opacity = 0.12 + 0.18 * pr;
       mark.disc.material.color.setHex(cur.hold ? 0x6aff8f : 0xffd36a);
     }
+    if (cur.skipEscort && !cur.got) { cur.got = cur.n; try { C().missionProgress('tick', 0); } catch (_) {} return; }
     if (cur.escort && LB.escort) {
       var es = LB.escort.state();
       if (es.active) { if (es.arrived !== cur.got) { cur.got = es.arrived; try { C().missionProgress('tick', 0); } catch (_) {} }
@@ -210,7 +211,7 @@
       chainTag: 'CUSTOM ORDERS ' + (run.i + 1) + '/' + run.m.obj.length };
     run.acc = 0; run.holding = false; run.cur = m;
     if (KINDS[o.k].map) { var P = pointXZ(o.p); m.px = P.x; m.pz = P.z; showMark(P.x, P.z); } else hideMark();
-    stopEscort(); if (base.escort) { if (!(LB.escort && LB.escort.start(mySide(), o.n))) { m.escort = false; m.text += ' (convoys off)'; } }
+    stopEscort(); if (base.escort) { if (!(LB.escort && LB.escort.start(mySide(), o.n))) { m.escort = false; m.skipEscort = true; m.text += ' (convoys are off here: skipped)'; } }
     return m;
   }
   /** commander.nextMission hook. outcome: 'new' | 'done' | 'fail'. Returns custom orders or null (random orders). */
