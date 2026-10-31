@@ -241,7 +241,7 @@
   }
   function loop() {
     if (!view) return;
-    var n = performance.now(), dt = Math.min(0.25, (n - view.last) / 1000); view.last = n;
+    var n = performance.now(), dt = Math.min(1, (n - view.last) / 1000); view.last = n;   // playback keeps real time even at low fps
     if (view.playing) { view.t += dt * view.speed; if (view.t >= view.t1) { view.t = view.t1; view.playing = false; } draw(); }
     requestAnimationFrame(loop);
   }
