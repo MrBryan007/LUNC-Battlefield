@@ -225,7 +225,8 @@
     setWeather: function (w) { opt.weather = w; save(); applyWeather(); var ws = doc.getElementById('v12Weather'); if (ws) ws.value = w; },
     // v12.0.45: hold the sun at k (0 night … 0.5 noon … 1 night) without changing the day/night setting; null releases it
     setTimeLock: function (k) { if (k == null || !isFinite(+k)) { timeLock = null; setDay(opt.daynight ? dayT : 0.5); return null; } timeLock = Math.max(0, Math.min(1, +k)); setDay(timeLock); return timeLock; },
-    getTimeLock: function () { return timeLock; }, setSpectator: function (v) { opt.spectator = !!v; save(); applyFow(); }, cyber: cyber,
+    getTimeLock: function () { return timeLock; },
+    getDayK: function () { return timeLock != null ? timeLock : opt.daynight ? dayT : null; },   // v12.0.51 sky-light: null = cycle off (fixed noon) setSpectator: function (v) { opt.spectator = !!v; save(); applyFow(); }, cyber: cyber,
     launchTest: function () { if (silos[0]) silos[0].t = 0.01; },
     ambushTest: function () { var S = subs[0]; if (!S) return false; S.st = 'deep'; S.t = 0.01; return true; },   // v12.0.5 test hook: next frame surfaces + fires
     _fow: function () { tickFow(); },   // test hook

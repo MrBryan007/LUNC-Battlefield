@@ -1,5 +1,27 @@
 # Changelog
 
+## v12.0.51 — Realism pass: sun path, sky colour and night lights (2026-11-02, AI build)
+- A lighting & atmosphere pass from the realism checklist ("better day/night colour temperature around bases"). Until now the day/night cycle only dimmed the sun, so dusk looked like a dim noon and night like a grey noon.
+- New module `js/fx/sky-light.js`. It only works while the **day/night cycle** (Settings → WORLD) is on, or while a mission holds the time of day (Noon / Dusk / Night start condition). With the cycle off the battlefield looks exactly as before.
+- **Sun path**: the sun swings across the sky from east to west and sinks toward the horizon in the evening, so shadows get long and raking at dusk. Noon is the same sun position as before.
+- **Colour temperature** follows the sun's height: white at noon, golden hour, a red-orange sunset, then a cool blue moonlight from high on the other side at night. The sky lighting, ground bounce, fill and rim lights, the sky dome (zenith, horizon and the sun's glow), the fog and the background all change with it, from blue haze to amber dusk to deep navy. Rain and fog keep the haze greyer.
+- **Stars** fade in at twilight (1 400, or 500 on LOW / phones) and dim behind rain or fog.
+- **Night lights**. They're all drawn as glowing points in one draw call plus a few additive ground pools. No real lights are added, so nothing has to recompile when night falls.
+  - Both airbases: white runway edge lights, green threshold and red end bars, blue taxi lights along the apron, a sequenced approach strobe running toward the runway, a white / green tower beacon and a red light on the radar mast.
+  - Sodium-vapour flood masts (3 on each airbase apron and 2 behind each HQ). The masts stand there by day too; at night their lamps glow and throw orange light pools that follow the ground.
+  - Aircraft navigation lights on every jet that's taxiing or flying: red on the left wingtip, green on the right, a white tail strobe and a red flashing beacon. Parked jets stay dark.
+  - Ship navigation lights: masthead white, red port, green starboard and a white stern light. They go out when a ship is sinking.
+  - Jets and ships hidden by the fog of war keep their lights off, so the lights never give away hidden enemies.
+- Visual layer only: never touches market data, armies, the price-driven front or data-truth labels. The market-driven frontline, Moon Shot, Commander, the v11.4 HUD/dock, Hide UI, the v12.x systems, the mission editor and all `?flags` are unchanged. `v12extras` gained one read-only getter (`getDayK`). Kill switch: `?skylight=0`.
+- Version bump to v12.0.51 (BUILD, quality api, index tags, cache-bust `?v=20261102v12051` on all 95 local css/js tags, including the new module).
+- Tested: `node --check` on all 99 JS files, stabilization-smoke passing (adds a sky-light wiring check), asset-lifecycle 33/33 passing, headless HIGH / MEDIUM / LOW / iPhone 390x844 with 0 page errors. Sky probe on MEDIUM and LOW:
+  - Cycle off and a noon hold left the sun's position and colour exactly as before.
+  - Dusk: the sun dropped to 13° with a golden colour (#ff9759) and the fog turned amber.
+  - Night: a blue moon key (#8fa6d6), navy fog (#0e131c), stars on, the 10 light pools on and 176-179 lights lit. A jet set flying lit its 4 navigation lights.
+  - Releasing the time of day put the sun, fog and colours back exactly, with the lights and stars off. With `?skylight=0` there are no masts or lights and 0 errors. The v12.0.48 replay and v12.0.50 mission-browser probes still pass.
+  - Screenshots in `docs/v12051-shots/`: night airbase (HIGH and iPhone) and dusk over the front. SwiftShader only, so this isn't measured on a real iPhone/Mac yet.
+- Build hours (real timestamps): see the last entry of the day for the running total.
+
 ## v12.0.50 — Mission browser: operations, difficulty, stars and your record (2026-11-02, AI build)
 - Closes the last open item of the v12.3 mission editor: **a fuller mission browser**.
 - New module `js/ui/mission-browser.js`. A **Browse missions** button at the top of the MISSION EDITOR panel (Cmd sheet) opens a full-screen MISSIONS browser in the same style as the AFTER-ACTION viewer. The button also shows how many operations there are and your stars so far.
