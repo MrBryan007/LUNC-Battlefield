@@ -58,8 +58,9 @@ const checks = [
   ['replay part 2 wired', read('js/ui/replay.js').includes('function report(r)') && read('js/ui/replay.js').includes('MAX_IMPORT = 600000') && read('js/ui/replay.js').includes('id="rpFollow"')],
   ['replay share links wired', read('js/ui/replay.js').includes('function shareCode(') && read('js/ui/replay.js').includes('SHARE_IN_CAP = 40000') && read('js/ui/replay.js').includes('id="rpShare"') && read('js/ui/replay.js').includes('function openFromHash(')],
   ['mission browser wired', index.includes('js/ui/mission-browser.js') && read('js/ui/mission-browser.js').includes("qs.get('missions') !== '0'") && read('js/ui/mission-editor.js').includes('LB.missionBrowser.result(m, !!won, secs)') && read('js/ui/mission-editor.js').includes('edit: function (m)')],
+  ['sky-light wired', index.includes('js/fx/sky-light.js') && read('js/fx/sky-light.js').includes("qs.get('skylight') !== '0'") && read('js/battle-engine.js').includes('LUNCBattle.skyLight.update()') && read('js/theaters/extras.js').includes('getDayK: function ()')],
   ['power-ups wired', index.includes('js/theaters/powerups.js') && read('js/theaters/powerups.js').includes("qs.get('powerups') !== '0'") && read('js/commander.js').includes('PU.scoreMult()') && read('js/commander.js').includes('LB.powerups.strikeAt(') && read('js/theaters/supply.js').includes("LB.powerups.grant(null, 'crate')")],
-  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.50')]
+  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.51')]
 ];
 
 let failed = 0;

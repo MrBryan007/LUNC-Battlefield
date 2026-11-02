@@ -245,6 +245,7 @@
         if (LUNCBattle.hqBanners) { try { LUNCBattle.hqBanners.update(); } catch (e) { if (!drawFrame._hbErr) { drawFrame._hbErr = 1; console.warn('[hqBanners]', e); } } }   // v12.0.32
         if (LUNCBattle.navalDetail) { try { LUNCBattle.navalDetail.update(); } catch (e) { if (!drawFrame._ndErr) { drawFrame._ndErr = 1; console.warn('[navalDetail]', e); } } }   // v12.0.30
         if (LUNCBattle.v12extras) { try { LUNCBattle.v12extras.update(); } catch (e) { if (!drawFrame._exErr) { drawFrame._exErr = 1; console.warn('[v12-extras]', e); } } }
+        if (LUNCBattle.skyLight) { try { LUNCBattle.skyLight.update(); } catch (e) { if (!drawFrame._skyErr) { drawFrame._skyErr = 1; console.warn('[skylight]', e); } } }   // v12.0.51 sun path, sky colour, night lights
         if (LUNCBattle.uav) { try { LUNCBattle.uav.update(); } catch (e) { if (!drawFrame._uavErr) { drawFrame._uavErr = 1; console.warn('[uav]', e); } } }
         if (LUNCBattle.asw) { try { LUNCBattle.asw.update(); } catch (e) { if (!drawFrame._aswErr) { drawFrame._aswErr = 1; console.warn('[asw]', e); } } }
         if (LUNCBattle.ridge) { try { LUNCBattle.ridge.update(); } catch (e) { if (!drawFrame._ridgeErr) { drawFrame._ridgeErr = 1; console.warn('[ridge]', e); } } }

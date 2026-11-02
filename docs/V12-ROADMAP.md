@@ -33,7 +33,7 @@ Soft frontline scars/smoke (no black strip), layered explosions, SOS-delayed far
 **Still open for later realism passes (checklist gaps):**
 - **Scale & spacing:** soldier/MBT/carrier real-world proportions; formations still a bit clumped on LOW; base roads/revetments incomplete.
 - **Materials:** authored GLB unit/vehicle skins (current models are procedural boxes); dirt/wear maps on ground units and vehicles; ~~wet shoreline PBR~~ (v12.0.38).
-- **Lighting & atmosphere:** dynamic sun-angle shadows on LOW-safe path; volumetric light shafts; better day/night color temperature around bases.
+- **Lighting & atmosphere:** dynamic sun-angle shadows on LOW-safe path; volumetric light shafts; ~~better day/night color temperature around bases~~ (shipped v12.0.51, `js/fx/sky-light.js`, `?skylight=0`: sun path east → west, colour temperature from noon to golden hour to moonlight on every light, sky, fog and background, stars, and fake night lights: runway / taxi / approach lights, sodium flood masts with light pools, aircraft and ship navigation lights).
 - **Terrain:** ~~height-aware tracks that persist under vehicles~~ (shipped v12.0.36, `js/fx/tracks.js`, `?tracks=0`); ~~shoreline foam upgrade~~ (shipped v12.0.38, `js/fx/shoreline.js`, `?shore=0`: rolling breakers, swash, wet sand, no more swell cutting through the beach); less z-fighting on trench berms.
 - **Motion & physics:** ~~vehicle suspension bob~~ (v12.0.14); aircraft banking on turns; ship roll in waves; ragdoll weight tweaks.
 - **Combat behavior:** cover usage, suppression, bounding overwatch, flanking already partly in squads — deepen retreat/medic ranges.
