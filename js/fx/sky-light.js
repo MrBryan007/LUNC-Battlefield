@@ -207,11 +207,11 @@
       var sunset = sstep(0.5, 0.22, s) * (1 - N);
       L.sun.color.copy(base.sunCol).lerp(C.golden, G).lerp(C.sunset, sunset * 0.6).lerp(C.moon, N);
     }
-    if (L.hemi && base.hemiSky) { L.hemi.color.copy(base.hemiSky).lerp(C.hemiDusk, G * 0.7).lerp(C.hemiNight, N); L.hemi.groundColor.copy(base.hemiGround).lerp(C.gDusk, G * 0.6).lerp(C.gNight, N); }
+    if (L.hemi && base.hemiSky) { L.hemi.color.copy(base.hemiSky).lerp(C.hemiDusk, G * 0.85).lerp(C.hemiNight, N); L.hemi.groundColor.copy(base.hemiGround).lerp(C.gDusk, G * 0.6).lerp(C.gNight, N); }
     if (L.fill && base.fillCol) L.fill.color.copy(base.fillCol).lerp(C.fillNight, N);
     if (L.rim && base.rimCol) L.rim.color.copy(base.rimCol).lerp(C.rimDusk, G).lerp(C.moon, N);
     var fogT = wx === 'fog' ? 0.55 : wx === 'rain' ? 0.75 : 1;   // thick weather mutes the colour shift a little (grey stays grey)
-    if (sc.fog && base.fog) sc.fog.color.copy(base.fog).lerp(C.fogDusk, G * 0.55 * fogT).lerp(C.fogNight, N * (wx === 'fog' ? 0.85 : 1));
+    if (sc.fog && base.fog) sc.fog.color.copy(base.fog).lerp(C.fogDusk, G * 0.7 * fogT).lerp(C.fogNight, N * (wx === 'fog' ? 0.85 : 1));
     if (sc.background && sc.background.isColor && sc.fog) sc.background.copy(sc.fog.color);
     if (L.sky && base.zen) {
       var u = L.sky.material.uniforms;
@@ -243,6 +243,7 @@
     var now = performance.now(); last = now;
     var k = dayK();
     if (k == null || !isFinite(k)) { if (active) restore(); return; }
+    if (!active) { var ref = base && base.sunDirRef; base = capture(); if (ref) base.sunDirRef = ref; }   // baseline = the look right before the cycle took over
     apply(k, now);
   }
 
