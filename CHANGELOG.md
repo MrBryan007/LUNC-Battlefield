@@ -14,7 +14,7 @@
 - Version bump to v12.0.49 (BUILD, quality api, index tags, cache-bust `?v=20261102v12049` on all 93 local css/js tags).
 - Tested: `node --check` on all 97 JS files, stabilization-smoke passing (adds a share-link wiring check), asset-lifecycle 33/33 passing, headless HIGH / MEDIUM / LOW / iPhone 390x844 with 0 page errors. Share probe on MEDIUM and iPhone:
   - A recorded battle with strikes round-tripped exactly through a 0.9-1.3 KB link.
-  - A synthetic 10-minute replay with 48 units a frame fitted in 11.4 KB (4 units a side, every 4 s, all 30 events kept).
+  - A synthetic 10-minute replay with 48 units a frame fitted in 11.1 KB (4 units a side, every 4 s, all 30 events kept).
   - Rejected: a 41 000-character code, a garbage code, a bad deflate stream, and a 3.9 KB "zip bomb" that would expand to 3 MB.
   - A replay named `<img src=x onerror=…>` with a bad event kind came back as plain text with the bad event dropped.
   - Headless blocks the clipboard, so the fallback box appeared with the link selected.
