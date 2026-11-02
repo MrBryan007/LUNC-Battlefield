@@ -10,6 +10,7 @@
  * card (commander.nextMission asks LB.missionEditor.next first); each objective done moves on, one failure ends the run.
  * Up to 6 missions saved on the device with a best time each; share with ?mission=<code> (base64url JSON) or a copy code.
  * Names are reduced to plain letters/digits/punctuation (no HTML). Hot-seat turns keep their own random orders.
+ * v12.0.50: presets() / objText() / edit() and a finish() hook for the mission browser (js/ui/mission-browser.js).
  * Never touches market data, armies, the front or data-truth labels. ?editor=0 → off. */
 (function (global) {
   'use strict';
@@ -258,6 +259,7 @@
       banner('MISSION OVER', m.name + ' · ' + (why || 'stopped'), false);
     }
     try { if (LB.replay && LB.replay.event) LB.replay.event('mission', m.name, null, null, !!won); } catch (_) {}   // v12.0.46
+    try { if (LB.missionBrowser && LB.missionBrowser.result) LB.missionBrowser.result(m, !!won, secs); } catch (_) {}   // v12.0.50
     restoreConditions(run.prev); hideMark(); stopEscort(); run = null; renderChip(); render();
   }
   function stop() { if (!run) return false; finish(false, 'stopped'); var c = C(); if (c && c.restartOrders) c.restartOrders(); return true; }
@@ -378,10 +380,12 @@
     }, 500);
   }
   LB.missionEditor = {
-    version: 'v12.0.45', isEnabled: function () { return enabled; }, next: next, play: play, stop: stop, strikeAt: strikeAt, sendSquad: sendSquad, nearest: nearestSquad, summary: function (m) { m = sanitize(m); return m ? summary(m) : ''; }, points: function () { var o = {}; Object.keys(POINTS).forEach(function (k) { o[k] = pointXZ(k); }); return o; },
+    version: 'v12.0.50', isEnabled: function () { return enabled; }, next: next, play: play, stop: stop, strikeAt: strikeAt, sendSquad: sendSquad, nearest: nearestSquad, summary: function (m) { m = sanitize(m); return m ? summary(m) : ''; }, points: function () { var o = {}; Object.keys(POINTS).forEach(function (k) { o[k] = pointXZ(k); }); return o; },
     marker: function () { return mark ? { x: mark.x, z: mark.z } : null; },
     encode: encode, decode: decode, sanitize: sanitize, save: function (m) { if (m) draft = sanitize(m) || draft; return saveDraft(); }, saved: function () { return saved.map(function (s) { return Object.assign({}, s); }); },
     share: function (m) { return linkFor(sanitize(m || draft)); },
+    presets: function () { return PRESETS.map(function (p) { return JSON.parse(JSON.stringify(p)); }); }, objText: function (o) { return KINDS[o && o.k] ? objText(o) : ''; },   // v12.0.50 browser
+    edit: function (m) { m = sanitize(m); if (!m || !el.p) return false; draft = m; renderDraft(); stats.last = 'Editing "' + m.name + '"'; render(); return true; },
     getState: function () { return { enabled: enabled, running: !!run, index: run ? run.i : -1, holding: !!(run && run.holding), cur: run && run.cur ? { text: run.cur.text, got: run.cur.got, n: run.cur.n, px: run.cur.px, pz: run.cur.pz } : null, name: run ? run.m.name : null, tod: run ? run.m.tod : null, chip: !!(el.chip && el.chip.classList.contains('show')), ringFlash: mark ? +(mark.flash || 0).toFixed(2) : 0, queued: !!queued, saved: saved.length, stats: Object.assign({}, stats) }; }
   };
   if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', init); else init();
