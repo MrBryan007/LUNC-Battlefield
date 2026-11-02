@@ -1,5 +1,28 @@
 # Changelog
 
+## v12.0.49 — After-action replay, part 3: share links (2026-11-02, AI build)
+- Closes the last open item of the v12.3 replay system: **share a replay as a link**.
+- **Share link** in the AFTER-ACTION viewer, and a **Link** button on each saved replay in the Cmd sheet. The replay is packed into the part of the URL after `#` (`#rp=…`), which browsers never send to the server, so GitHub Pages never sees it. It's compressed (deflate, then URL-safe base64) where the browser supports it, and plain URL-safe base64 otherwise.
+- **Fits in a 16 000-character link.** Short replays keep everything. Longer ones first thin the sampled units per side (24 → 12 → 8 → 4), then keep every 2nd, 3rd or 5th frame, and only then drop the units or trim to the most recent stretch. The front with its LIVE / SIMULATED label, squads, Hill 402, score, orders and every event are always kept. The status line says what went in, for example "10:00 · 4 units a side · every 4 s · 11.1 KB link".
+- On phones it opens the system share sheet when the browser has one. Otherwise the link is copied to the clipboard, and if copying is blocked a box with the link already selected appears in the viewer.
+- **Opening a link** loads the battlefield as normal, then opens the replay in the viewer as "(shared)" and removes the code from the address bar, so a reload doesn't reopen it. Save keeps it on the device. Links are treated as untrusted:
+  - the code is capped at 40 000 characters
+  - decompression stops at 600 KB, so a tiny link can't expand into a huge one
+  - the result goes through the same sanitizer as saved and imported replays (numbers coerced, names and labels stripped to plain text, unknown event kinds dropped)
+  - a broken link just shows "That replay link is broken or incomplete" and the game carries on
+- Read-only as before: never touches market data, armies, the price-driven front or data-truth labels. The market-driven frontline, Moon Shot, Commander, the v11.4 HUD/dock, Hide UI, the v12.x systems, the mission editor and all `?flags` are unchanged. Kill switch: `?replay=0` (links are ignored too).
+- Version bump to v12.0.49 (BUILD, quality api, index tags, cache-bust `?v=20261102v12049` on all 93 local css/js tags).
+- Tested: `node --check` on all 97 JS files, stabilization-smoke passing (adds a share-link wiring check), asset-lifecycle 33/33 passing, headless HIGH / MEDIUM / LOW / iPhone 390x844 with 0 page errors. Share probe on MEDIUM and iPhone:
+  - A recorded battle with strikes round-tripped exactly through a 0.9-1.3 KB link.
+  - A synthetic 10-minute replay with 48 units a frame fitted in 11.4 KB (4 units a side, every 4 s, all 30 events kept).
+  - Rejected: a 41 000-character code, a garbage code, a bad deflate stream, and a 3.9 KB "zip bomb" that would expand to 3 MB.
+  - A replay named `<img src=x onerror=…>` with a bad event kind came back as plain text with the bad event dropped.
+  - Headless blocks the clipboard, so the fallback box appeared with the link selected.
+  - Opening a link (MEDIUM and iPhone) showed the viewer with "Share probe (shared)", cleared the address bar, and Save worked. A broken link showed the message with 0 errors. With `?replay=0` the link was ignored.
+  - The v12.0.48 replay probe still passes.
+  - Screenshots in `docs/v12049-shots/`. SwiftShader only, so this isn't measured on a real iPhone/Mac yet.
+- Build hours (real timestamps): see the last entry of the day for the running total.
+
 ## v12.0.48 — After-action replay, part 2: report card, import, keyboard and Follow in 3D (2026-11-02, AI build)
 - Carried over from 2026-10-31: that day's cycle 4 (this version) was built on `ai/2026-10-31-4` but never tested, deployed or hour-logged, and the 11/1 run did no work. It's finished and shipped today; the 10/31 hour entries are left exactly as they were (the unlogged 10/31 time isn't added).
 - **AFTER-ACTION REPORT** card in the replay viewer (Events / Report tabs):
