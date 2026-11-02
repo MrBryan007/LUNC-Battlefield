@@ -1,5 +1,27 @@
 # Changelog
 
+## v12.0.48 — After-action replay, part 2: report card, import, keyboard and Follow in 3D (2026-11-02, AI build)
+- Carried over from 2026-10-31: that day's cycle 4 (this version) was built on `ai/2026-10-31-4` but never tested, deployed or hour-logged, and the 11/1 run did no work. It's finished and shipped today; the 10/31 hour entries are left exactly as they were (the unlogged 10/31 time isn't added).
+- **AFTER-ACTION REPORT** card in the replay viewer (Events / Report tabs):
+  - length recorded, strikes by ability (for example "Air strike ×3, Cluster ×1")
+  - orders completed and failed, custom missions accomplished and over, convoy trucks delivered / lost and ambushes cleared
+  - score gained and the best 10 s burst with when it happened
+  - the front's start → end position and range, and the share of the time the price was LIVE vs SIMULATED
+  - Bulls and Bears unit counts at the start and end, labelled "market-driven (the order book sets army size), not your kills"
+- **Import a replay**: Cmd sheet → AFTER-ACTION REPLAY → Import .json. The file goes through the same sanitizer as saved replays (numbers coerced, text stripped, unknown events dropped) and is capped at 600 KB. It opens straight away and a Save button in the viewer keeps it on the device.
+- **Keyboard in the viewer**: Space play / pause, ← / → seek 5 s, [ / ] previous / next event, 1 / 2 / 3 for 1x / 4x / 16x, Esc close. The keys don't reach the Commander while the viewer is open (pressing 1 no longer arms artillery). The hint line shows on desktop only.
+- **Follow in 3D** (off by default): while the replay plays, the live camera flies to each strike or convoy event as it's reached, at most once every 2.5 s.
+- Playback keeps real time when the frame rate drops (low-end phones no longer play slower than the chosen speed).
+- Read-only as before: never touches market data, armies, the price-driven front or data-truth labels. The market-driven frontline, Moon Shot, Commander, the v11.4 HUD/dock, Hide UI, the v12.x systems, the mission editor and all `?flags` are unchanged. Kill switch: `?replay=0`.
+- Version bump to v12.0.48 (BUILD, quality api, index tags, cache-bust `?v=20261102v12048` on all 93 local css/js tags).
+- Tested: `node --check` on all 97 JS files, stabilization-smoke passing (adds a part-2 wiring check), asset-lifecycle 33/33 passing, headless HIGH / MEDIUM / LOW / iPhone 390x844 with 0 page errors. Replay part-2 probe on MEDIUM, LOW and iPhone:
+  - The report counted 4 strikes (Air strike ×3, Cluster ×1), the completed orders, 1 mission accomplished, the score and best 10 s burst, the front range with LIVE 100 %, and start / end unit counts.
+  - Space paused, → moved 5 s, 3 / 1 switched to 16x / 1x, ] jumped to the next event, and the Commander stayed unarmed.
+  - Follow flew the camera to a strike during playback. An exported replay imported back; an empty replay and a 700 KB file were rejected ("too big for a replay"); Save kept the imported replay.
+  - With `?replay=0` there's no recorder or panel and 0 errors. The v12.0.45 editor probe and v12.0.47 escort probe still pass.
+  - Screenshots in `docs/v12048-shots/`. SwiftShader only, so this isn't measured on a real iPhone/Mac yet.
+- Build hours (real timestamps): see the last entry of the day for the running total.
+
 ## v12.0.47 — Mission editor, part 3: escort a convoy through ambushes (2026-10-31, AI build)
 - Adds the last open objective kind for the v12.3 mission editor: **Escort a convoy**, "Escort N of 3 trucks to the front" (N 1-3).
 - New module `js/theaters/escort.js`. When the objective starts, 3 trucks of your side form up on your HQ supply road about 140 m behind the live front. Each truck has a cab, a cargo bed, six wheels, headlights at night and a spinning gold marker so you can pick it out among the armies. After 5 s they drive to 12 m behind the front, following the terrain, keeping their spacing and braking at the end.

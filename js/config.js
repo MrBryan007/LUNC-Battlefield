@@ -88,9 +88,9 @@
   // Single source of truth for current release metadata.
   // Historical comments and changelog entries are left untouched.
   const BUILD = Object.freeze({
-    version: 'v12.0.47',
-    codename: 'Escort a convoy',
-    date: '2026-10-31'
+    version: 'v12.0.48',
+    codename: 'After-action report',
+    date: '2026-11-02'
   });
 
   const config = {
