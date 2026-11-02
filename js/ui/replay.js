@@ -211,9 +211,9 @@
   function shareCode(r) {
     r = sanitize(r); if (!r || r.frames.length < 2) return Promise.resolve(null);
     var maxPer = 0; r.frames.forEach(function (f) { var c = 0; for (var k = 0; k < f.u.length; k += 4) if (f.u[k] !== 1) c++; maxPer = Math.max(maxPer, c); });
-    var steps = [], pers = [24, 12, 8, 4, 0].filter(function (p) { return p <= Math.max(maxPer, 0); });
-    if (!pers.length || pers[0] < maxPer) pers.unshift(maxPer);
-    [1, 2, 3, 5].forEach(function (s) { pers.forEach(function (p) { if (s === 1 || p <= 8) steps.push([p, s, r.frames.length]); }); });
+    // keep some units at a coarser frame step before dropping units altogether
+    var steps = [], N = r.frames.length, top = Math.min(24, maxPer);
+    [[top, 1], [12, 1], [8, 1], [8, 2], [4, 2], [8, 3], [4, 3], [4, 5], [0, 1], [0, 2], [0, 3], [0, 5]].forEach(function (s) { if (s[0] <= top && !steps.some(function (o) { return o[0] === s[0] && o[1] === s[1]; })) steps.push([s[0], s[1], N]); });
     for (var keep = Math.floor(r.frames.length * 0.6); keep >= 8; keep = Math.floor(keep * 0.6)) steps.push([0, 5, keep]);
     var i = 0;
     function attempt() {
