@@ -24,7 +24,7 @@
   // what a "normal" ask looks like per minute for each objective kind (difficulty 1.0)
   var REF = { inf: 8, armor: 4, arty: 2, combo: 4, score: 1500, pu: 1, hit: 3, escort: 2 };
   var KIND_ICON = { inf: '✚', armor: '▣', arty: '▲', combo: '✕', score: '★', pu: '⚡', hold: '◎', hit: '⊕', escort: '⛟' };
-  var TIERS = [[0.8, 'Easy', 'e'], [1.2, 'Normal', 'n'], [1.7, 'Hard', 'h'], [99, 'Brutal', 'b']];
+  var TIERS = [[0.9, 'Easy', 'e'], [1.3, 'Normal', 'n'], [1.7, 'Hard', 'h'], [99, 'Brutal', 'b']];
   var recs = {}, el = {}, ui = { tab: 'ops', q: '', filter: 'all', sort: 'diff', open: false }, stats = { opened: 0, results: 0, plays: 0, last: '' };
 
   function M() { return LB.missionEditor; }

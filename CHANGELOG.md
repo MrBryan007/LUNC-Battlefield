@@ -1,5 +1,31 @@
 # Changelog
 
+## v12.0.50 — Mission browser: operations, difficulty, stars and your record (2026-11-02, AI build)
+- Closes the last open item of the v12.3 mission editor: **a fuller mission browser**.
+- New module `js/ui/mission-browser.js`. A **Browse missions** button at the top of the MISSION EDITOR panel (Cmd sheet) opens a full-screen MISSIONS browser in the same style as the AFTER-ACTION viewer. The button also shows how many operations there are and your stars so far.
+- Three tabs:
+  - **Operations**: the 8 built-in presets plus 4 new hand-made ones, sorted easiest first. The new ones are *Recon by fire* (Easy), *Armored thrust* (rain), *Ridge night assault* and *Last convoy* (fog at dusk, Brutal).
+  - **My missions**: the ones you saved in the editor.
+  - **Recent**: the last 8 missions you played, from anywhere, including `?mission=` links people send you.
+- Each mission card shows:
+  - a **difficulty** badge (Easy / Normal / Hard / Brutal), worked out from what each objective asks for in its time limit (for example 8 infantry a minute is "normal"), with extra for more objectives, night, dusk, fog and rain
+  - the number of objectives, the total time limit and the start conditions
+  - one chip per objective with an icon
+  - your record: plays, wins and best time, plus **stars** (★ win, ★★ win inside 75 % of the time limit, ★★★ inside half). Missions you've never played are marked NEW.
+  - **Play** (deploys the Commander first if you were only watching), **Edit** (loads it into the editor and opens the Cmd sheet there) and **Share link** (copies a `?mission=` link, or shows it selected when copying is blocked)
+- Search by name, filter (map objectives / convoy / night, dusk & fog / not played) and sort (easiest, shortest, best time, name). The header shows your Operations stars out of 36. Esc or ✕ closes. On phones the cards are one column with 40 px buttons.
+- Results come from one hook in the mission editor when a run ends, and are kept per mission on the device. Stored records are checked on load: unknown or invalid mission codes are dropped, numbers are clamped and names are reduced to plain text.
+- Game layer only: never touches market data, armies, the price-driven front or data-truth labels. The market-driven frontline, Moon Shot, Commander, the v11.4 HUD/dock, Hide UI, the v12.x systems, the mission editor and all `?flags` are unchanged. Kill switch: `?missions=0` (also off with `?editor=0`).
+- Version bump to v12.0.50 (BUILD, quality api, index tags, cache-bust `?v=20261102v12050` on all 94 local css/js tags, including the new module).
+- Tested: `node --check` on all 98 JS files, stabilization-smoke passing (adds a mission-browser wiring check), asset-lifecycle 33/33 passing, headless HIGH / MEDIUM / LOW / iPhone 390x844 with 0 page errors. Mission-browser probe on MEDIUM and iPhone:
+  - The browser opened with 12 operations, rated from Recon by fire (Easy) to Last convoy (Brutal). The convoy filter, the night / fog filter, the search and the sorts all worked.
+  - Play from the browser deployed the Commander and closed the browser. One strike on the ring won the mission, which recorded 1 play, 1 win and ★★★, and it showed up under Recent. A lost run recorded a play with no win.
+  - Edit loaded the mission into the editor and opened the Cmd sheet. Share link produced a `?mission=` link that decodes. Esc closed the browser.
+  - Hostile stored records (an HTML key, an invalid code, negative plays, 99 stars, a text best time) were dropped or clamped.
+  - With `?missions=0` or `?editor=0` there's no browser and 0 errors. The v12.0.45 editor and v12.0.47 escort probes still pass.
+  - Screenshots in `docs/v12050-shots/`. SwiftShader only, so this isn't measured on a real iPhone/Mac yet.
+- Build hours (real timestamps): see the last entry of the day for the running total.
+
 ## v12.0.49 — After-action replay, part 3: share links (2026-11-02, AI build)
 - Closes the last open item of the v12.3 replay system: **share a replay as a link**.
 - **Share link** in the AFTER-ACTION viewer, and a **Link** button on each saved replay in the Cmd sheet. The replay is packed into the part of the URL after `#` (`#rp=…`), which browsers never send to the server, so GitHub Pages never sees it. It's compressed (deflate, then URL-safe base64) where the browser supports it, and plain URL-safe base64 otherwise.

@@ -496,4 +496,4 @@ body.replay-open .me-chip { display: none; }
 .mb-btns { display: flex; gap: 6px; } .mb-btns button { min-height: 34px; padding: 0 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.07); color: #eef3ef; font: 600 12px Inter, sans-serif; cursor: pointer; }
 .mb-entry { align-items: center; } .mb-entry-s { font-size: 10.5px; color: #9aa59d; }
 body.mb-open .me-chip { display: none; }
-@media (max-width: 600px), (pointer: coarse) { .mb-grid { grid-template-columns: 1fr; } .mb-btns button, .mb-bar select, .mb-search, .mb-viewer .rp-tab { min-height: 40px; } .mb-btns button { flex: 1; } .mb-viewer .th-note { display: none; } }
+@media (max-width: 600px), (pointer: coarse) { .mb-grid { grid-template-columns: 1fr; } .mb-search { flex: 1 1 100%; } .mb-bar select { flex: 1 1 40%; } .mb-btns button, .mb-bar select, .mb-search, .mb-viewer .rp-tab { min-height: 40px; } .mb-btns button { flex: 1; } .mb-viewer .th-note { display: none; } }
