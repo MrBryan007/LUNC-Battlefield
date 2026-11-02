@@ -497,3 +497,11 @@ body.replay-open .me-chip { display: none; }
 .mb-entry { align-items: center; } .mb-entry-s { font-size: 10.5px; color: #9aa59d; }
 body.mb-open .me-chip { display: none; }
 @media (max-width: 600px), (pointer: coarse) { .mb-grid { grid-template-columns: 1fr; } .mb-search { flex: 1 1 100%; } .mb-bar select { flex: 1 1 40%; } .mb-btns button, .mb-bar select, .mb-search, .mb-viewer .rp-tab { min-height: 40px; } .mb-btns button { flex: 1; } .mb-viewer .th-note { display: none; } }
+/* v12.0.52 online link-up */
+.np-code textarea { width: 100%; box-sizing: border-box; resize: none; border-radius: 6px; border: 1px solid rgba(255,211,106,.45); background: rgba(0,0,0,.35); color: #ffd36a; font: 10px/1.35 ui-monospace, Menlo, monospace; padding: 6px; word-break: break-all; }
+.np-code[hidden], .np-sig[hidden] { display: none; }
+.np-code small { color: #9aa59d; font-size: 10.5px; }
+.np-link { display: grid; gap: 3px; margin: 4px 0; } .np-link:empty { display: none; }
+.np-sig { display: flex; flex-wrap: wrap; gap: 5px; margin: 4px 0; }
+.np-sig button { min-height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid rgba(124,200,255,.35); background: rgba(124,200,255,.08); color: #cfe6ff; font: 600 11.5px Inter, sans-serif; cursor: pointer; }
+@media (pointer: coarse) { .np-sig button { min-height: 40px; } }
