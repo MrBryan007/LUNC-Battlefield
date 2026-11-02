@@ -473,3 +473,9 @@ body.replay-open .me-chip { display: none; }
 .rp-rrow { display: grid; grid-template-columns: 74px 1fr; gap: 8px; font-size: 11px; color: #dfe6e1; } .rp-rrow b { color: #ffd36a; font-size: 10px; letter-spacing: .6px; text-transform: uppercase; }
 .rp-rnote { font-size: 10px; color: #8f9a93; margin-top: 3px; }
 @media (max-width: 600px), (pointer: coarse) { .rp-keys { display: none; } .rp-report { max-height: 22vh; } }
+/* v12.0.49 replay share links */
+.rp-link { flex: 0 0 auto; width: 100%; box-sizing: border-box; min-height: 34px; padding: 0 8px; border-radius: 6px; border: 1px solid rgba(255,211,106,.5); background: rgba(0,0,0,.35); color: #ffd36a; font: 11px ui-monospace, Menlo, monospace; }
+.rp-link[hidden] { display: none; }
+.rp-sharemsg { flex: 0 0 auto; font-size: 11px; color: #9fd8b4; min-height: 0; }
+.rp-sharemsg:empty { display: none; }
+@media (max-width: 600px) { .rp-link { font-size: 10px; } }

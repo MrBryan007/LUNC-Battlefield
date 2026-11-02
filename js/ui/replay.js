@@ -9,6 +9,8 @@
  * Part 2 (v12.0.48): AFTER-ACTION REPORT card (strikes by ability, orders, missions, convoy, score + best 10 s burst, front
  * range and LIVE share, market-driven unit counts), .json import (sanitized, 600 KB cap), viewer keyboard (Space, ←/→,
  * [ / ], 1/2/3, Esc) and a Follow toggle that flies the live camera to strikes / convoy events as the replay reaches them.
+ * Part 3 (v12.0.49): share links. The replay is packed into the URL fragment (#rp=z1.<deflate+base64url>), thinned to fit
+ * 16 000 characters, and opened as "(shared)" on load after the same sanitizer as imports.
  * Only reads the engine; never touches market data, armies, the front or data-truth labels. ?replay=0 → off. */
 (function (global) {
   'use strict';
@@ -171,6 +173,110 @@
     saved.unshift(r); if (saved.length > MAX_SAVED) saved.length = MAX_SAVED;
     if (store()) { stats.saves++; stats.last = 'Saved "' + r.name + '"'; } render(); return r;
   }
+  // ------------------------------------------------------------------ share links (v12.0.49)
+  // The replay rides in the URL fragment (#rp=...), which browsers never send to the server. z1. = deflate-raw + base64url,
+  // j1. = plain base64url where CompressionStream is missing. Adaptive fit under SHARE_CAP characters.
+  var SHARE_CAP = 16000, SHARE_IN_CAP = 40000, HASH_KEY = 'rp=';
+  var canZip = typeof global.CompressionStream === 'function' && typeof global.DecompressionStream === 'function';
+  function b64u(bytes) { var s = ''; for (var i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+  function unb64u(s) { s = s.replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '='; var bin = atob(s), out = new Uint8Array(bin.length); for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i); return out; }
+  function zip(txt) {
+    var cs = new global.CompressionStream('deflate-raw'), w = cs.writable.getWriter(); w.write(new TextEncoder().encode(txt)); w.close();
+    return new Response(cs.readable).arrayBuffer().then(function (b) { return new Uint8Array(b); });
+  }
+  function unzip(bytes) {   // stops reading past MAX_IMPORT so a small link can't expand into a huge string
+    var ds = new global.DecompressionStream('deflate-raw'), w = ds.writable.getWriter(); w.write(bytes).catch(function () {}); w.close().catch(function () {});
+    var rd = ds.readable.getReader(), parts = [], size = 0;
+    function pump() { return rd.read().then(function (x) { if (x.done) return; size += x.value.length; if (size > MAX_IMPORT) { try { rd.cancel(); } catch (_) {} throw new Error('too big'); } parts.push(x.value); return pump(); }); }
+    return pump().then(function () { var all = new Uint8Array(size), o = 0; parts.forEach(function (p) { all.set(p, o); o += p.length; }); return new TextDecoder().decode(all); });
+  }
+  /** thin a sanitized replay: keep `per` sampled units a side, every `stride`-th frame (always the last), the last `keep` frames */
+  function thin(r, per, stride, keep) {
+    var F = r.frames.slice(-keep), out = [];
+    for (var i = 0; i < F.length; i++) {
+      if (i % stride && i !== F.length - 1) continue;
+      var f = F[i], u = [], c = { '-1': 0, '1': 0 };
+      for (var k = 0; k + 3 < f.u.length; k += 4) { var sd = f.u[k] === 1 ? '1' : '-1'; if (c[sd] < per) { c[sd]++; u.push(f.u[k], f.u[k + 1], f.u[k + 2], f.u[k + 3]); } }
+      out.push({ t: f.t, fx: f.fx, live: f.live ? 1 : 0, sc: f.sc, ord: f.ord, side: f.side, n: f.n, u: u, q: f.q, ow: f.ow });
+    }
+    var t0 = out[0].t;
+    return { v: 1, name: r.name, at: r.at, summit: r.summit, frames: out, events: r.events.filter(function (e) { return e.t >= t0 - 0.01; }) };
+  }
+  function encode(obj) {
+    var txt = JSON.stringify(obj);
+    if (!canZip) return Promise.resolve('j1.' + b64u(new TextEncoder().encode(txt)));
+    return zip(txt).then(function (b) { return 'z1.' + b64u(b); });
+  }
+  /** → Promise<{ code, per, stride, frames, span, chars } | null> */
+  function shareCode(r) {
+    r = sanitize(r); if (!r || r.frames.length < 2) return Promise.resolve(null);
+    var maxPer = 0; r.frames.forEach(function (f) { var c = 0; for (var k = 0; k < f.u.length; k += 4) if (f.u[k] !== 1) c++; maxPer = Math.max(maxPer, c); });
+    // keep some units at a coarser frame step before dropping units altogether
+    var steps = [], N = r.frames.length, top = Math.min(24, maxPer);
+    [[top, 1], [12, 1], [8, 1], [8, 2], [4, 2], [8, 3], [4, 3], [4, 5], [0, 1], [0, 2], [0, 3], [0, 5]].forEach(function (s) { if (s[0] <= top && !steps.some(function (o) { return o[0] === s[0] && o[1] === s[1]; })) steps.push([s[0], s[1], N]); });
+    for (var keep = Math.floor(r.frames.length * 0.6); keep >= 8; keep = Math.floor(keep * 0.6)) steps.push([0, 5, keep]);
+    var i = 0;
+    function attempt() {
+      if (i >= steps.length) return null;
+      var s = steps[i++], o = thin(r, s[0], s[1], s[2]);
+      return encode(o).then(function (code) {
+        if (code.length <= SHARE_CAP) return { code: code, per: s[0], stride: s[1], frames: o.frames.length, span: o.frames[o.frames.length - 1].t - o.frames[0].t, chars: code.length, zipped: code.charAt(0) === 'z' };
+        return attempt();
+      });
+    }
+    return Promise.resolve().then(attempt);
+  }
+  function shareUrl(code) { var l = global.location; return l.origin + l.pathname + l.search + '#' + HASH_KEY + code; }
+  /** decode a share code → Promise<sanitized replay | null> */
+  function decodeShare(code) {
+    code = String(code || '').trim();
+    if (code.length > SHARE_IN_CAP || !/^[zj]1\.[A-Za-z0-9_-]+$/.test(code)) return Promise.resolve(null);
+    var body = code.slice(3);
+    return Promise.resolve().then(function () {
+      var bytes = unb64u(body);
+      if (code.charAt(0) === 'j') return new TextDecoder().decode(bytes);
+      if (!canZip) throw new Error('no zip');
+      return unzip(bytes);
+    }).then(function (txt) { if (txt.length > MAX_IMPORT) return null; var r = sanitize(JSON.parse(txt)); return r && r.frames.length >= 2 ? r : null; })
+      .catch(function () { return null; });
+  }
+  function fmtShare(info) { return fmtT(info.span) + ' · ' + (info.per ? info.per + ' units a side' : 'front, squads and events') + (info.stride > 1 ? ' · every ' + info.stride * DT + ' s' : '') + ' · ' + (info.chars / 1024).toFixed(1) + ' KB link'; }
+  function share(r, msgEl) {
+    var say = function (t) { stats.last = t; if (msgEl) msgEl.textContent = t; render(); };
+    if (!r) return Promise.resolve(null);
+    say('Packing the link…');
+    return shareCode(r).then(function (info) {
+      if (!info) { say('This replay is too long to fit in a link. Export it as .json instead.'); return null; }
+      var url = shareUrl(info.code); stats.shares = (stats.shares || 0) + 1; el.lastShare = { url: url, info: info };
+      var coarse = false; try { coarse = global.matchMedia('(pointer: coarse)').matches; } catch (_) {}
+      var done = function (how) { say(how + ' · ' + fmtShare(info)); return info; };
+      if (coarse && global.navigator.share) return global.navigator.share({ title: 'LUNC Battlefield replay: ' + r.name, url: url }).then(function () { return done('Shared'); }, function () { return copy(url, r).then(done); });
+      return copy(url, r).then(done);
+    });
+  }
+  function copy(url, r) {
+    var fallback = function () { if (!view && r) open(r); showLinkBox(url); return 'Copy the link below'; };
+    try { if (global.navigator.clipboard && global.navigator.clipboard.writeText) return global.navigator.clipboard.writeText(url).then(function () { hideLinkBox(); return 'Link copied'; }, fallback); } catch (_) {}
+    return Promise.resolve(fallback());
+  }
+  function showLinkBox(url) {
+    var box = el.rpLink; if (!box) return;
+    box.hidden = false; box.value = url; try { box.focus({ preventScroll: true }); box.select(); } catch (_) {}
+  }
+  function hideLinkBox() { if (el.rpLink) { el.rpLink.hidden = true; el.rpLink.value = ''; } }
+  /** on load: #rp=... opens the shared replay, then the fragment is removed from the address bar */
+  function openFromHash() {
+    var h = String(global.location.hash || ''), at = h.indexOf(HASH_KEY);
+    if (at < 0) return Promise.resolve(false);
+    var code = h.slice(at + HASH_KEY.length).split('&')[0];
+    try { global.history.replaceState(null, '', global.location.pathname + global.location.search); } catch (_) {}
+    stats.fromLink = 'decoding';
+    return decodeShare(code).then(function (r) {
+      if (!r) { stats.fromLink = 'bad'; stats.last = 'That replay link is broken or incomplete'; render(); return false; }
+      r.name = (r.name.replace(/ \((shared|imported)\)$/, '') + ' (shared)').slice(0, 40); stats.fromLink = 'opened'; stats.last = 'Opened shared replay "' + r.name + '"';
+      open(r); render(); return true;
+    });
+  }
   function fmtT(s) { s = Math.max(0, Math.round(s)); return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2); }
   function buildViewer() {
     if (el.v) return;
@@ -182,15 +288,16 @@
       '<div class="rp-ctl"><button type="button" id="rpPrev" aria-label="Previous event">⏮</button><button type="button" id="rpPlay" class="rp-go">▶ Play</button><button type="button" id="rpNext" aria-label="Next event">⏭</button>' +
       '<button type="button" data-sp="1" class="rp-sp">1x</button><button type="button" data-sp="4" class="rp-sp on">4x</button><button type="button" data-sp="16" class="rp-sp">16x</button><span id="rpTime" class="rp-time"></span></div>' +
       '<div class="rp-tabs" role="tablist"><button type="button" class="rp-tab on" data-tab="events" role="tab" aria-selected="true">Events</button><button type="button" class="rp-tab" data-tab="report" role="tab" aria-selected="false">Report</button>' +
-      '<label class="rp-follow"><input type="checkbox" id="rpFollow"> Follow in 3D</label><button type="button" id="rpKeep" class="rp-keep">Save</button><span class="rp-keys">Space play · ←/→ 5 s · [ ] events · 1/2/3 speed · Esc</span></div>' +
-      '<div id="rpEvents" class="rp-events"></div><div id="rpReport" class="rp-report" hidden></div>' +
+      '<label class="rp-follow"><input type="checkbox" id="rpFollow"> Follow in 3D</label><button type="button" id="rpKeep" class="rp-keep">Save</button><button type="button" id="rpShare" class="rp-keep">Share link</button><span class="rp-keys">Space play · ←/→ 5 s · [ ] events · 1/2/3 speed · Esc</span></div>' +
+      '<input type="text" id="rpLink" class="rp-link" readonly hidden aria-label="Replay link"><div id="rpShareMsg" class="rp-sharemsg" role="status"></div><div id="rpEvents" class="rp-events"></div><div id="rpReport" class="rp-report" hidden></div>' +
       '<div class="th-note">Recorded every ' + DT + ' s, not re-simulated: the front line is the market-driven position at that moment, with the price source it had (LIVE or SIMULATED). Up to 24 sampled units per side are shown. Tap an event to look at that spot in the live battle.</div>';
     doc.body.appendChild(v);
-    ['rpName', 'rpClose', 'rpMap', 'rpHud', 'rpChart', 'rpScrub', 'rpPrev', 'rpPlay', 'rpNext', 'rpTime', 'rpEvents', 'rpReport', 'rpFollow', 'rpKeep'].forEach(function (id) { el[id] = v.querySelector('#' + id); });
+    ['rpName', 'rpClose', 'rpMap', 'rpHud', 'rpChart', 'rpScrub', 'rpPrev', 'rpPlay', 'rpNext', 'rpTime', 'rpEvents', 'rpReport', 'rpFollow', 'rpKeep', 'rpShare', 'rpLink', 'rpShareMsg'].forEach(function (id) { el[id] = v.querySelector('#' + id); });
     el.rpClose.addEventListener('click', close);
     v.querySelectorAll('.rp-tab').forEach(function (b) { b.addEventListener('click', function () { setTab(b.getAttribute('data-tab')); }); });
     el.rpFollow.addEventListener('change', function () { if (view) { view.follow = el.rpFollow.checked; view.lastFly = 0; } });
     el.rpKeep.addEventListener('click', function () { var r = saveViewed(); el.rpKeep.textContent = r ? 'Saved' : 'Save'; });
+    el.rpShare.addEventListener('click', function () { if (view) share(view.r, el.rpShareMsg); });
     el.rpPlay.addEventListener('click', function () { if (!view) return; if (view.t >= view.t1 - 0.01) view.t = view.t0; view.playing = !view.playing; view.last = performance.now(); draw(); });
     el.rpPrev.addEventListener('click', function () { jump(-1); });
     el.rpNext.addEventListener('click', function () { jump(1); });
@@ -217,7 +324,7 @@
     buildViewer();
     view = { r: r, t0: r.frames[0].t, t1: r.frames[r.frames.length - 1].t, t: r.frames[0].t, playing: true, speed: 4, last: performance.now(), fi: 0, box: contentBox(r) };
     el.v.querySelectorAll('.rp-sp').forEach(function (o) { o.classList.toggle('on', o.getAttribute('data-sp') === '4'); });
-    el.rpName.textContent = r.name + ' · ' + dur(r); view.follow = !!el.rpFollow.checked; view.lastFly = 0; view.flown = -1; el.rpKeep.textContent = 'Save'; setTab('events');
+    el.rpName.textContent = r.name + ' · ' + dur(r); view.follow = !!el.rpFollow.checked; view.lastFly = 0; view.flown = -1; el.rpKeep.textContent = 'Save'; el.rpShareMsg.textContent = ''; hideLinkBox(); setTab('events');
     el.rpEvents.textContent = '';
     r.events.forEach(function (ev, i) {
       var b = doc.createElement('button'); b.type = 'button'; b.className = 'rp-ev rp-' + ev.k; b.setAttribute('data-i', i);
@@ -356,8 +463,9 @@
       var sm = doc.createElement('small'); sm.textContent = r.events.filter(function (e) { return e.k === 'strike'; }).length + ' strikes · ' + r.events.filter(function (e) { return e.k === 'done'; }).length + ' orders done'; nm.appendChild(sm);
       var w = doc.createElement('button'); w.type = 'button'; w.textContent = 'Watch'; w.addEventListener('click', function () { open(r); });
       var x = doc.createElement('button'); x.type = 'button'; x.textContent = 'Export'; x.addEventListener('click', function () { exportJson(r); });
+      var lk = doc.createElement('button'); lk.type = 'button'; lk.textContent = 'Link'; lk.setAttribute('aria-label', 'Share a link to ' + r.name); lk.addEventListener('click', function () { share(r, el.rpStatus); });
       var dl = doc.createElement('button'); dl.type = 'button'; dl.textContent = '×'; dl.setAttribute('aria-label', 'Delete ' + r.name); dl.addEventListener('click', function () { saved.splice(i, 1); store(); render(); });
-      [nm, w, x, dl].forEach(function (c) { row.appendChild(c); }); el.rpSaved.appendChild(row);
+      [nm, w, x, lk, dl].forEach(function (c) { row.appendChild(c); }); el.rpSaved.appendChild(row);
     });
     el.rpStatus.textContent = stats.last || ('Recording · ' + rec.frames.length + ' frames, ' + rec.events.length + ' events kept (last 10 min)');
   }
@@ -368,15 +476,16 @@
     sampleIv = setInterval(function () { try { sample(); } catch (e) { console.warn('[replay] sample', e); } }, DT * 1000);
     var tries = 0, iv = setInterval(function () {
       var host = doc.querySelector('#sheet-command .sheet-body') || doc.querySelector('.sheet-command .sheet-body');
-      if ((host && (doc.getElementById('missionEditor') || tries > 6)) || ++tries > 120) { clearInterval(iv); try { buildUi(); } catch (e) { console.warn('[replay] ui', e); } setInterval(function () { if (!view) render(); }, 3000); }
+      if ((host && (doc.getElementById('missionEditor') || tries > 6)) || ++tries > 120) { clearInterval(iv); try { buildUi(); } catch (e) { console.warn('[replay] ui', e); } setTimeout(function () { openFromHash().catch(function (e) { console.warn('[replay] link', e); }); }, 600); setInterval(function () { if (!view) render(); }, 3000); }
     }, 500);
+    global.addEventListener('hashchange', function () { if (String(global.location.hash).indexOf(HASH_KEY) >= 0 && el.p) openFromHash(); });
     // capture phase so Esc closes the viewer without also pausing the battle (commander listens on window)
     global.addEventListener('keydown', function (ev) { if (ev.key === 'Escape' && view) { ev.stopImmediatePropagation(); ev.preventDefault(); close(); } }, true);
   }
   LB.replay = {
-    version: 'v12.0.48', isEnabled: function () { return enabled; }, event: event, sample: sample, open: open, close: close, save: save, sanitize: sanitize,
+    version: 'v12.0.49', isEnabled: function () { return enabled; }, event: event, sample: sample, open: open, close: close, save: save, sanitize: sanitize,
     saved: function () { return saved.map(function (r) { return { name: r.name, frames: r.frames.length, events: r.events.length }; }); }, exportJson: exportJson,
-    snapshot: function () { return snapshot('test'); }, report: function (r) { r = sanitize(r || snapshot('report')); return r ? report(r) : null; }, importText: importText, importFile: importFile, tab: setTab, saveViewed: saveViewed, seek: function (t) { if (view) { view.playing = false; view.t = Math.max(view.t0, Math.min(view.t1, view.t0 + t)); draw(); } },
+    snapshot: function () { return snapshot('test'); }, report: function (r) { r = sanitize(r || snapshot('report')); return r ? report(r) : null; }, importText: importText, shareCode: shareCode, decodeShare: decodeShare, shareUrl: shareUrl, share: function (r) { return share(r || (view && view.r) || snapshot('Shared'), el.rpShareMsg); }, openFromHash: openFromHash, canZip: function () { return canZip; }, importFile: importFile, tab: setTab, saveViewed: saveViewed, seek: function (t) { if (view) { view.playing = false; view.t = Math.max(view.t0, Math.min(view.t1, view.t0 + t)); draw(); } },
     getState: function () { return { enabled: enabled, frames: rec.frames.length, events: rec.events.length, open: !!view, t: view ? +(view.t - view.t0).toFixed(1) : null, playing: !!(view && view.playing), speed: view ? view.speed : null, follow: !!(view && view.follow), tab: view ? view.tab || 'events' : null, name: view ? view.r.name : null, saved: saved.length, stats: Object.assign({}, stats) }; }
   };
   if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', init); else init();
