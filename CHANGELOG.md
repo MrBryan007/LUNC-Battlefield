@@ -1,5 +1,21 @@
 # Changelog
 
+## v12.0.52 — Online link-up, part 1: play with a friend over a direct link (2026-11-03, AI build)
+- Starts the online half of v12.2 Multiplayer. New module `js/ui/netplay.js`, in the Cmd sheet as **ONLINE LINK-UP (BETA · P2P)**.
+- **How to link**: one player presses **Host** and gets an invite code; the other pastes it into **Use code** and gets a reply code; the host pastes the reply and you're linked. Codes are short (about 0.2–0.5 KB) and have a **Copy code** button, so you can send them over any messenger.
+- There's no game server. A public STUN server is asked for your address only when you press Host or Use code. There's no relay server either, so some mobile or office networks can't link, and the panel says so.
+- **Once linked** you see your partner's callsign, side (ally or rival), score and ping, and a front comparison ("You +0.4 LIVE · Partner +0.3 LIVE"). Each side keeps its own market data and data-truth labels; syncing the market from the host is part 2.
+- **Partner strikes**: each Commander strike is sent to the other screen and shown as an ALLY or RIVAL STRIKE with an explosion, a fading ring, a tactical-map ping and a radio-log line. It's cosmetic only: it never scores, damages units or moves anything on your side.
+- **Quick signals** instead of chat: Nice shot!, Push north, Push south, Need support, Hold the line, GG.
+- **Safety**: every incoming message is checked (JSON up to 2 KB, known message types only, positions clamped to the map, callsigns reduced to plain letters and numbers) and limited to 20 a second. Disconnects and a partner leaving are handled, and the link closes when you leave the page.
+- Polish today: the link-up panel's inputs and buttons now match the dark HUD style (bigger touch targets on phones, no iOS zoom), and both sides now see each other's build version in the codes.
+- Game layer only: never touches market data, armies, the price-driven front or data-truth labels. The market-driven frontline, Moon Shot, Commander, the v11.4 HUD/dock, Hide UI, the v12.x systems and all `?flags` are unchanged. Kill switch: `?online=0`.
+- Version bump to v12.0.52 (BUILD, quality api, index tags, cache-bust on all local css/js tags, including the new module).
+- Tested: `node --check` on all 100 JS files, stabilization-smoke passing (adds an online link-up wiring check), asset-lifecycle 33/33 passing, headless HIGH / MEDIUM / LOW / iPhone 390x844 with 0 page errors. `?online=0` hides the panel with 0 errors.
+  - The box's test browser blocks WebRTC network traffic, so a real link can't be made here. The link-up test (`tests/netplay-linkup-harness.js`) runs a desktop host and an iPhone guest with a test-only stand-in for the network (`tests/rtc-relay-shim.js`) that passes messages between the two pages. Both sides linked, swapped callsigns and builds, measured ping, an air strike on the host showed as an ALLY STRIKE ring on the guest without changing its score, the GG signal arrived, 4 of 4 malformed messages were rejected, an off-map strike was clamped to the map edge, the rate limit dropped 20 of 40 flood messages, and Disconnect showed "left" on the other side. 0 page errors.
+  - A real two-device link (two phones, or a phone and a Mac) hasn't been tried yet.
+- Build hours (real timestamps): see the last entry of the day for the running total.
+
 ## v12.0.51 — Realism pass: sun path, sky colour and night lights (2026-11-02, AI build)
 - A lighting & atmosphere pass from the realism checklist ("better day/night colour temperature around bases"). Until now the day/night cycle only dimmed the sun, so dusk looked like a dim noon and night like a grey noon.
 - New module `js/fx/sky-light.js`. It only works while the **day/night cycle** (Settings → WORLD) is on, or while a mission holds the time of day (Noon / Dusk / Night start condition). With the cycle off the battlefield looks exactly as before.
