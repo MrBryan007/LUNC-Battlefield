@@ -677,7 +677,7 @@
       if (window.LUNCBattle && LUNCBattle.ui) {
         LUNCBattle.ui.lastDepthSourceLabel = depthLabel;
         if (typeof LUNCBattle.ui.updateHealthInput === 'function') {
-          const reconnecting = !!(reconnectAttempts > 0 && (!spotWs || spotWs.readyState !== 1)
+          const reconnecting = priceSource !== SRC.HOST && !!(reconnectAttempts > 0 && (!spotWs || spotWs.readyState !== 1)
             && tokens[current] && tokens[current].symbol);
           LUNCBattle.ui.updateHealthInput({
             priceLive: live,
