@@ -140,7 +140,8 @@
   function sendPx() {
     var e = E(); if (!e || role !== 'host' || !e.getPrice) return;
     var src = e.getPriceSource ? e.getPriceSource() : 'sim';
-    send({ k: 'px', tok: e.getToken(), p: e.getPrice(), live: !!(e.isPriceLive && e.isPriceLive()), src: SRC_LABELS[src] ? src : 'sim' });
+    var r = e.getDisplayedRange ? e.getDisplayedRange() : null;
+    send({ k: 'px', tok: e.getToken(), p: e.getPrice(), live: !!(e.isPriceLive && e.isPriceLive()), src: SRC_LABELS[src] ? src : 'sim', lo: r ? r.low : 0, hi: r ? r.high : 0 });
   }
   function tokenKnown(t) { return typeof t === 'string' && /^[A-Z]{2,8}$/.test(t) && !!doc.querySelector('.token-btn[data-token="' + t + '"]'); }
   function onPx(m) {
@@ -150,14 +151,15 @@
     var base = e.getTokenBase ? e.getTokenBase(m.tok) : 0, p = +m.p;
     if (!(base > 0) || !isFinite(p) || p < base * 0.05 || p > base * 20) { stats.bad++; return; }
     var src = SRC_LABELS[m.src] ? m.src : 'sim', live = !!m.live && src !== 'sim';
-    px.last = { tok: m.tok, p: p, live: live, label: SRC_LABELS[src] }; px.t = performance.now(); px.n++;
+    var lo = +m.lo, hi = +m.hi; if (!(isFinite(lo) && isFinite(hi) && lo > 0 && hi > lo)) lo = hi = 0;
+    px.last = { tok: m.tok, p: p, live: live, label: SRC_LABELS[src], lo: lo, hi: hi }; px.t = performance.now(); px.n++;
     if (!follow) return;
     if (e.getToken() !== m.tok) { var b = doc.querySelector('.token-btn[data-token="' + m.tok + '"]'); if (b) b.click(); say('Switched to ' + m.tok + ' to match the host'); }
     if (!e.isRemoteMarket()) { e.setRemoteMarket(true); if (px.quiet) say('Following the host\'s market again'); px.quiet = false; }
-    e.pushRemoteSpot(p, live, SRC_LABELS[src]);
+    e.pushRemoteSpot(p, live, SRC_LABELS[src], lo, hi);
   }
   function release(msg) { var e = E(); if (e && e.isRemoteMarket && e.isRemoteMarket()) { e.setRemoteMarket(false); if (msg) say(msg); } }
-  function setFollow(on) { follow = !!on; if (!follow) release('Back on your own market feed'); else if (px.last && performance.now() - px.t < PX_QUIET_MS) onPx({ tok: px.last.tok, p: px.last.p, live: px.last.live, src: Object.keys(SRC_LABELS).filter(function (k) { return SRC_LABELS[k] === px.last.label; })[0] || 'sim' }); render(); }
+  function setFollow(on) { follow = !!on; if (!follow) release('Back on your own market feed'); else if (px.last && performance.now() - px.t < PX_QUIET_MS) onPx({ tok: px.last.tok, p: px.last.p, live: px.last.live, lo: px.last.lo, hi: px.last.hi, src: Object.keys(SRC_LABELS).filter(function (k) { return SRC_LABELS[k] === px.last.label; })[0] || 'sim' }); render(); }
   function pxWatch() {
     var e = E(); if (!e || !e.isRemoteMarket || !e.isRemoteMarket()) return;
     if (state !== 'linked') { release(null); return; }

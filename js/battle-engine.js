@@ -2028,6 +2028,7 @@
       getToken: function () { return current; },
       getTokenBase: function (sym) { return tokens[sym] ? tokens[sym].base : 0; },
       isPriceLive: function () { return priceSource !== SRC.SIM && isLive && (Date.now() - lastPriceTs) < 120000; },
+      getDisplayedRange: function () { return priceTerritoryApi && priceTerritoryApi.getDisplayedRange ? priceTerritoryApi.getDisplayedRange() : { low: rangeLow, high: rangeHigh }; },
       getPriceSource: function () { return priceSource === SRC.HOST ? 'host' : priceSource; },
       /** v12.0.53 online guest: follow (on) or release (off) the host's market. Release drops back to our own feeds. */
       setRemoteMarket: function (on) {
@@ -2037,10 +2038,12 @@
       },
       isRemoteMarket: function () { return remoteMkt.on; },
       /** Host spot price (already validated by netplay): goes through the normal price path, truth kept as the host had it. */
-      pushRemoteSpot: function (p, live, label) {
+      pushRemoteSpot: function (p, live, label, lo, hi) {
         if (!remoteMkt.on || !(p > 0) || !isFinite(p)) return false;
         remoteMkt.live = !!live; remoteMkt.label = String(label || 'Host').slice(0, 20);
-        applySpot(p, SRC.HOST); updateStatusUI(); return true;
+        applySpot(p, SRC.HOST);
+        if (priceTerritoryApi && priceTerritoryApi.adoptRange && priceTerritoryApi.adoptRange(lo, hi)) { rangeLow = +lo; rangeHigh = +hi; }
+        updateStatusUI(); return true;
       },
       getMomentum: function () { return momentum; },
       bullColor: function () { return tokens[current].color; },
