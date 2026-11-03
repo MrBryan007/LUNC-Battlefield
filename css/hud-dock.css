@@ -513,3 +513,7 @@ body.mb-open .me-chip { display: none; }
 .np-panel .me-row button.me-go { background: rgba(215,181,109,.22); border-color: rgba(215,181,109,.6); color: #ffe2a0; }
 @media (pointer: coarse) { .np-panel input, .np-panel .me-row button { min-height: 40px; } }
 @media (max-width: 600px) { .np-panel input { font-size: 16px; } }   /* no iOS focus zoom */
+/* v12.0.53 host market follow */
+.np-follow { display: flex; align-items: center; gap: 8px; margin: 6px 0; color: #cfd8d2; font: 500 12px Inter, sans-serif; cursor: pointer; }
+.np-follow[hidden] { display: none; }
+.np-follow input { width: 18px; height: 18px; accent-color: #d7b56d; flex: none; min-height: 0; }

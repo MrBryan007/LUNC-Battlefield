@@ -1,5 +1,19 @@
 # Changelog
 
+## v12.0.53 — Online link-up, part 2: the host's market drives both battles (2026-11-03, AI build)
+- Finishes the roadmap's online item "the host fetches market data and broadcasts it so both players see the same battle".
+- **Host**: once linked, your token, spot price, price window and data source go to your partner every 2 seconds. The panel says "You share your market (LUNC) with your partner".
+- **Guest**: a new **Follow the host's market** checkbox (on by default) in ONLINE LINK-UP. While it's on, your own price feeds and simulation drift pause and the host's price runs your battle through the normal price path, so the price, the front line, the price window, walls and momentum match the host. If the host changes token, you switch with them. The panel shows "Following host · LUNC · LIVE · Binance", and the front comparison now lines up ("You -0.1 LIVE · Partner -0.1 LIVE").
+- **Data-truth labels stay honest**: the host's live price shows as **LIVE · BINANCE VIA HOST** (or CoinGecko / DefiLlama via host), and a host running on simulation stays **SIMULATED** and is never shown as live. While you follow the host, your own Binance socket reconnecting no longer turns the data chip red.
+- **Fallback**: if the host goes quiet for 12 seconds, the link drops, or you untick the box, you go straight back to your own feeds ("Host's market went quiet, back on your own feed"), and you pick the host up again as soon as their prices return.
+- **Checks on the guest side**: unknown tokens, prices that aren't numbers or are outside 0.05x–20x of the token's base, and odd price windows are rejected; source names come from a fixed list. Only the guest takes market messages.
+- The market-driven frontline, Moon Shot, Commander, the v11.4 HUD/dock, Hide UI, the v12.x systems and all `?flags` are unchanged when you aren't linked. The engine gained a small remote-price hook (`setRemoteMarket`, `pushRemoteSpot`, `getPriceSource`, `getTokenBase`, `getDisplayedRange`) and the price strip can adopt the host's window (`adoptRange`). Kill switch: `?hostmarket=0` (each side keeps its own feed); `?online=0` still turns off all online play.
+- Version bump to v12.0.53 (BUILD, quality api, index tags, footer build label, cache-bust `?v=20261103v12053` on all 96 local css/js tags).
+- Tested: `node --check` on all 100 JS files, stabilization-smoke passing (adds a host-market wiring check), asset-lifecycle 33/33 passing, headless HIGH / MEDIUM / LOW / iPhone 390x844 plus `?hostmarket=0` and `?online=0` loads with 0 page errors.
+  - Link-up probe (desktop host, iPhone guest, through the test-only relay stand-in, since the box browser blocks real WebRTC): the guest followed the host's LIVE Binance price with the same price window, so both fronts read -0.1. 3 of 3 bad market messages were rejected, and a host SIMULATED price stayed SIMULATED on the guest. Switching the host to USTC and back moved the guest with it. Unticking the box went back to the guest's own feed and stayed there. Blocking the host's prices for 14 seconds dropped back to the guest's feed, and the follow came back on its own when they resumed. With `?hostmarket=0` both sides kept their own feeds. 0 page errors.
+  - Screenshots in `docs/v12053-shots/`. A real two-device link hasn't been tried yet.
+- Build hours (real timestamps): see the last entry of the day for the running total.
+
 ## v12.0.52 — Online link-up, part 1: play with a friend over a direct link (2026-11-03, AI build)
 - Starts the online half of v12.2 Multiplayer. New module `js/ui/netplay.js`, in the Cmd sheet as **ONLINE LINK-UP (BETA · P2P)**.
 - **How to link**: one player presses **Host** and gets an invite code; the other pastes it into **Use code** and gets a reply code; the host pastes the reply and you're linked. Codes are short (about 0.2–0.5 KB) and have a **Copy code** button, so you can send them over any messenger.
