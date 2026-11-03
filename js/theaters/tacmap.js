@@ -262,6 +262,17 @@
     var T = e.getCameraTarget(), cp = e.camera.position, w = Math.max(big ? 8 : 4, cp.distanceTo(T) * 0.6 * sx), ang = Math.atan2((T.z - cp.z) * sz, (T.x - cp.x) * sx);
     c.strokeStyle = 'rgba(255,255,255,.9)'; c.lineWidth = 1; c.beginPath(); c.moveTo(X(cp.x), Z(cp.z));
     c.lineTo(X(T.x) + Math.cos(ang + Math.PI / 2) * w, Z(T.z) + Math.sin(ang + Math.PI / 2) * w); c.lineTo(X(T.x) - Math.cos(ang + Math.PI / 2) * w, Z(T.z) - Math.sin(ang + Math.PI / 2) * w); c.closePath(); c.stroke();
+    // v12.0.55 online partner view: their camera wedge + a short trail, ally blue / rival red, with their callsign
+    var PV = LB.netplay && LB.netplay.partnerView ? LB.netplay.partnerView() : null;
+    if (PV) {
+      var pcol = PV.ally ? '124,200,255' : '255,107,90', pw = Math.max(big ? 8 : 4, Math.hypot(PV.tx - PV.cx, PV.tz - PV.cz) * 0.6 * sx), pa = Math.atan2((PV.tz - PV.cz) * sz, (PV.tx - PV.cx) * sx);
+      for (var ti = 0; ti < PV.trail.length - 1; ti++) { var TP = PV.trail[ti]; c.fillStyle = 'rgba(' + pcol + ',' + (0.15 + 0.5 * ti / PV.trail.length).toFixed(2) + ')'; c.beginPath(); c.arc(X(TP.x), Z(TP.z), big ? 2.2 : 1.2, 0, 6.2832); c.fill(); }
+      c.strokeStyle = 'rgba(' + pcol + ',.95)'; c.fillStyle = 'rgba(' + pcol + ',.14)'; c.lineWidth = big ? 1.6 : 1; c.setLineDash(big ? [5, 3] : [3, 2]); c.beginPath(); c.moveTo(X(PV.cx), Z(PV.cz));
+      c.lineTo(X(PV.tx) + Math.cos(pa + Math.PI / 2) * pw, Z(PV.tz) + Math.sin(pa + Math.PI / 2) * pw); c.lineTo(X(PV.tx) - Math.cos(pa + Math.PI / 2) * pw, Z(PV.tz) - Math.sin(pa + Math.PI / 2) * pw); c.closePath(); c.fill(); c.stroke(); c.setLineDash([]);
+      c.fillStyle = 'rgba(' + pcol + ',1)'; c.beginPath(); c.arc(X(PV.tx), Z(PV.tz), big ? 3 : 1.8, 0, 6.2832); c.fill();
+      label(c, PV.name, X(PV.tx), Z(PV.tz) - (big ? 10 : 6), big ? 11 : 8, 'rgb(' + pcol + ')');
+      state.partnerView = (state.partnerView || 0) + 1;
+    }
     // drawn last so squads and their orders sit on top of everything else
     // v12.0.22 squads: own always (with order routes), enemy only where fog of war can see; selected = yellow halo
     if (LB.squads && LB.squads.isEnabled && LB.squads.isEnabled() && LB.squads.routes) {
@@ -470,6 +481,6 @@
     drawInset: drawInset, open: function () { return setOpen(true); }, close: function () { return setOpen(false); }, toggle: function () { return setOpen(!state.open); },
     setView: function (v) { state.view = v === 'front' ? 'front' : 'world'; drawBig(true); return state.view; },
     ping: ping, gridRef: gridRef, render: render, setOrders: function (v) { buildBig(); return setOrders(v); }, orderTap: function (x, z) { buildBig(); return orderTap({ x: x, z: z }, big.querySelector('#tacCanvas')); }, lastFoot: function () { return state.lastFoot || ''; }, toScreen: function (x, z) { if (!big) return null; var cv = big.querySelector('#tacCanvas'), r = cv.getBoundingClientRect(), B = bounds(state.view); return { x: r.left + (x - B.minX) / (B.maxX - B.minX) * r.width, y: r.top + (z - B.minZ) / (B.maxZ - B.minZ) * r.height }; },
-    getState: function () { return { enabled: enabled, open: state.open, orders: !!state.orders, view: state.view, symbols: state.symbols, drawn: state.drawn, ms: state.lastMs, pings: state.pings.length, beacons: state.beacons.length, insetDpr: state.insetDpr, side: mySide() }; }
+    getState: function () { return { enabled: enabled, open: state.open, orders: !!state.orders, view: state.view, symbols: state.symbols, drawn: state.drawn, ms: state.lastMs, pings: state.pings.length, beacons: state.beacons.length, insetDpr: state.insetDpr, side: mySide(), partnerView: state.partnerView || 0 }; }
   };
 })(window);
