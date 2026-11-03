@@ -4,7 +4,7 @@
   class Chan extends EventTarget { constructor(l) { super(); this.label = l; this.readyState = 'connecting'; }
     send(d) { if (this.readyState !== 'open') throw new Error('not open'); window.__relaySend(String(d)); }
     close() { if (this.readyState === 'closed') return; this.readyState = 'closed'; window.__relayClose(); this.dispatchEvent(new Event('close')); } }
-  class PC extends EventTarget { constructor() { super(); this.iceGatheringState = 'complete'; this.connectionState = 'new'; this.localDescription = null; this._ch = null; window.__pc = this; }
+  class PC extends EventTarget { constructor() { super(); this.iceGatheringState = 'complete'; this.connectionState = 'new'; this.localDescription = null; this._ch = null; window.__pc = this; window.__pcCount = (window.__pcCount || 0) + 1; }
     createDataChannel(l) { this._ch = new Chan(l); return this._ch; }
     async createOffer() { return { type: 'offer', sdp: 'v=0\r\no=- ' + ID + ' 2 IN IP4 127.0.0.1\r\nm=application 9 UDP/DTLS/SCTP webrtc-datachannel\r\n' }; }
     async createAnswer() { return { type: 'answer', sdp: 'v=0\r\no=- ' + ID + ' 3 IN IP4 127.0.0.1\r\nm=application 9 UDP/DTLS/SCTP webrtc-datachannel\r\n' }; }

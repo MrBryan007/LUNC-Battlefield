@@ -1,5 +1,18 @@
 # Changelog
 
+## v12.0.54 — Online link-up, part 3: one-tap invite links (2026-11-03, AI build)
+- Copy-pasting codes is clumsy on a phone, so the first step is now a link.
+- **Host**: after you press Host, a new **Share invite link** button sits next to Copy code. On phones it opens the share sheet; on desktop it copies the link. The link is the live game with your invite after the `#`, so it never reaches GitHub's server.
+- **Partner**: opening the link loads the game, removes the invite from the address bar straight away (so it can't be bookmarked or passed on by accident), opens the Cmd sheet on ONLINE LINK-UP and shows **You've been invited to an online link-up** with **Join now** and **Not now**. Nothing is contacted until you press Join now, which keeps the panel's promise that STUN is only asked when you choose to link. A broken or cut-off link says so.
+- The panel now walks through the steps ("Step 1 of 3: send this invite…", "Step 2 of 3: send this reply code back…"), and its note mentions that the guest can follow the host's market.
+- The roadmap marks v12.2 Online as shipped in three parts (v12.0.52–54), with a real two-device test, PeerJS-style signalling, shared commands and a relay still open.
+- Game layer only: never touches market data, armies, the front or data-truth labels. With `?online=0` invite links are ignored. Everything else (frontline, Moon Shot, Commander, HUD/dock, Hide UI, v12.x systems, `?flags`) is unchanged.
+- Version bump to v12.0.54 (BUILD, quality api, index tags, footer label, cache-bust `?v=20261103v12054` on all 96 local css/js tags).
+- Tested: `node --check` on all 100 JS files, stabilization-smoke passing (adds an invite-link wiring check), asset-lifecycle 33/33 passing, headless HIGH / MEDIUM / LOW / iPhone 390x844 and `?online=0` with an invite fragment, all with 0 page errors.
+  - Invite probe (`tests/netplay-invite-harness.js`, desktop host and iPhone guest through the test-only relay stand-in): the host's link opened on the iPhone with the fragment gone from the address bar, the Cmd sheet open and the invite banner showing, and no connection made before Join now. Join now produced the reply code, the host pasted it and both sides linked, with the guest following the host's market. A broken link showed the "broken or incomplete" message and made no connection.
+  - The v12.0.53 link-up probe still passes (market follow, token switch, quiet fallback, partner strike, signals, 4 of 4 malformed messages rejected, rate limit). Screenshots in `docs/v12054-shots/`. A real two-device link hasn't been tried yet.
+- Build hours (real timestamps): see the last entry of the day for the running total.
+
 ## v12.0.53 — Online link-up, part 2: the host's market drives both battles (2026-11-03, AI build)
 - Finishes the roadmap's online item "the host fetches market data and broadcasts it so both players see the same battle".
 - **Host**: once linked, your token, spot price, price window and data source go to your partner every 2 seconds. The panel says "You share your market (LUNC) with your partner".
