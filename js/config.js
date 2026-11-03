@@ -88,9 +88,9 @@
   // Single source of truth for current release metadata.
   // Historical comments and changelog entries are left untouched.
   const BUILD = Object.freeze({
-    version: 'v12.0.51',
-    codename: 'Sun, sky and night lights',
-    date: '2026-11-02'
+    version: 'v12.0.52',
+    codename: 'Online link-up',
+    date: '2026-11-03'
   });
 
   const config = {
