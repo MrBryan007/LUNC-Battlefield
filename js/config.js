@@ -88,8 +88,8 @@
   // Single source of truth for current release metadata.
   // Historical comments and changelog entries are left untouched.
   const BUILD = Object.freeze({
-    version: 'v12.0.52',
-    codename: 'Online link-up',
+    version: 'v12.0.53',
+    codename: 'Host market link',
     date: '2026-11-03'
   });
 

@@ -828,6 +828,19 @@
       return frontlineX;
     }
 
+    // v12.0.53: an online guest adopts the host's price window so both screens draw the same front
+    function adoptRange(lo, hi) {
+      lo = +lo; hi = +hi;
+      if (!(lo > 0) || !(hi > lo) || !isFinite(hi) || hi / lo > 3) return false;
+      const span = hi - lo;
+      if (currentPrice < lo - span || currentPrice > hi + span) return false;
+      if (Math.abs(lo - displayedLow) < span * 1e-6 && Math.abs(hi - displayedHigh) < span * 1e-6) return true;
+      displayedLow = lo; displayedHigh = hi;
+      desiredFrontlineX = THREE.MathUtils.clamp(priceToWorldX(currentPrice), WORLD_LO, WORLD_HI);
+      rebuildMarkers();
+      return true;
+    }
+
     function getDisplayedRange() {
       return { low: displayedLow, high: displayedHigh };
     }
@@ -878,6 +891,7 @@
       dispose: dispose,
       getFrontlineX: getFrontlineX,
       getDisplayedRange: getDisplayedRange,
+      adoptRange: adoptRange,
       getDefenseMarkers: function () { return defenseMarkers.slice(); },
       version: 'v8.5'
     };
