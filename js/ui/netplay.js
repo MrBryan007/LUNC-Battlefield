@@ -1,4 +1,4 @@
-/* LUNC Battlefield v12.0.52 — online link-up, part 1 (+ v12.0.53 part 2: host's market drives both battles) (v12.2 Multiplayer → Online). Game layer.
+/* LUNC Battlefield v12.0.52 — online link-up, part 1 (+ v12.0.53 part 2: host's market drives both battles; v12.0.54 part 3: invite links) (v12.2 Multiplayer → Online). Game layer.
  * WebRTC peer-to-peer with copy-paste signalling (no server): Host makes an invite code, Join pastes it and gets a reply
  * code, the host pastes the reply. Codes are the SDP, deflated + base64url (LO1. offer / LA1. answer; LOJ./LAJ. plain
  * where CompressionStream is missing). A public STUN server is contacted only when you press Host or Join; there's no
@@ -15,6 +15,7 @@
   var enabled = qs.get('online') !== '0' && typeof global.RTCPeerConnection === 'function';
   var hostMkt = qs.get('hostmarket') !== '0';
   var PX_S = 2, PX_QUIET_MS = 12000, SRC_LABELS = { binance: 'Binance', coingecko: 'CoinGecko', llama: 'DefiLlama', api: 'Backend API', bridge: 'Backend API', sim: 'Simulation' };
+  var HASH_KEY = 'lbjoin=', pendingInvite = null, inviteCode = '';
   var follow = true, px = { t: 0, n: 0, last: null, quiet: false }, pxIv = null;
   var VER = 1, MAX_MSG = 2048, MAX_CODE = 20000, RATE = 20, PING_S = 2, MARKET_S = 5, GATHER_MS = 3500;
   var ICE = [{ urls: 'stun:stun.l.google.com:19302' }];
@@ -89,7 +90,7 @@
     wire(pc.createDataChannel('lunc', { ordered: true }));
     return pc.createOffer().then(function (o) { return pc.setLocalDescription(o); }).then(function () { return gathered(pc); })
       .then(function () { return encodeDesc('offer', pc.localDescription); })
-      .then(function (code) { setState('invite', 'Send this invite to your partner, then paste their reply below.'); showCode(code); return code; })
+      .then(function (code) { inviteCode = code; setState('invite', 'Step 1 of 3: send this invite (code or link) to your partner. Step 3: paste their reply code below.'); showCode(code); return code; })
       .catch(function (e) { setState('failed', 'Could not make an invite (' + String(e && e.name || e).slice(0, 40) + ')'); return null; });
   }
   function join(code) {
@@ -100,7 +101,7 @@
       pc.addEventListener('datachannel', function (ev) { if (ev.channel && ev.channel.label === 'lunc') wire(ev.channel); });
       return pc.setRemoteDescription({ type: 'offer', sdp: d.sdp }).then(function () { return pc.createAnswer(); }).then(function (a) { return pc.setLocalDescription(a); })
         .then(function () { return gathered(pc); }).then(function () { return encodeDesc('answer', pc.localDescription); })
-        .then(function (rc) { setState('reply', 'Send this reply back to the host. You link up as soon as they paste it.' + (d.build && d.build !== build() ? ' (They run ' + d.build + ', you run ' + build() + '.)' : '')); showCode(rc); return rc; });
+        .then(function (rc) { setState('reply', 'Step 2 of 3: send this reply code back to the host. You link up as soon as they paste it.' + (d.build && d.build !== build() ? ' (They run ' + d.build + ', you run ' + build() + '.)' : '')); showCode(rc); return rc; });
     }).catch(function (e) { setState('failed', 'Could not answer that invite (' + String(e && e.name || e).slice(0, 40) + ')'); return null; });
   }
   function accept(code) {
@@ -128,7 +129,7 @@
   function close(silent) {
     stopTimers(); try { if (ch && ch.readyState === 'open') ch.send(JSON.stringify({ k: 'bye' })); } catch (_) {}
     try { if (ch) ch.close(); } catch (_) {} try { if (pc) pc.close(); } catch (_) {}
-    ch = null; pc = null; peer = null; role = null; if (!silent) { setState('idle', 'Link closed'); hideCode(); }
+    ch = null; pc = null; peer = null; role = null; inviteCode = ''; if (!silent) { setState('idle', 'Link closed'); hideCode(); }
   }
   function send(o) { if (!ch || ch.readyState !== 'open') return false; try { ch.send(JSON.stringify(o)); stats.sent++; return true; } catch (_) { return false; } }
   function sendMarket() {
@@ -221,6 +222,28 @@
   function say(t) { stats.last = t; render(); }
   function showCode(code) { if (!el.code) return; el.codeRow.hidden = false; el.code.value = code; el.codeLen.textContent = (code.length / 1024).toFixed(1) + ' KB'; try { el.code.select(); } catch (_) {} }
   function hideCode() { if (el.codeRow) { el.codeRow.hidden = true; el.code.value = ''; } }
+  function inviteUrl() { return inviteCode ? global.location.origin + global.location.pathname + '#' + HASH_KEY + inviteCode : ''; }
+  function shareLink() {
+    var u = inviteUrl(); if (!u || role !== 'host' || state !== 'invite') return;
+    var coarse = false; try { coarse = global.matchMedia('(pointer: coarse)').matches; } catch (_) {}
+    if (coarse && global.navigator.share) { global.navigator.share({ title: 'Join my LUNC Battlefield link-up', url: u }).then(function () { say('Invite link shared. Paste their reply code below when it comes back.'); }, function () {}); return; }
+    try { if (global.navigator.clipboard && global.navigator.clipboard.writeText) { global.navigator.clipboard.writeText(u).then(function () { say('Invite link copied. Paste their reply code below when it comes back.'); }, function () { el.code.value = u; el.code.select(); say('Select the link and copy it'); }); return; } } catch (_) {}
+    el.code.value = u; el.code.select(); say('Select the link and copy it');
+  }
+  /** on load / hashchange: #lbjoin=LO1... → strip it from the address bar, then offer Join (nothing is contacted until Join now) */
+  function inviteFromHash() {
+    var h = String(global.location.hash || ''), at = h.indexOf(HASH_KEY);
+    if (at < 0) return Promise.resolve(false);
+    var code = h.slice(at + HASH_KEY.length).split('&')[0];
+    try { global.history.replaceState(null, '', global.location.pathname + global.location.search); } catch (_) {}
+    return decodeDesc(code, 'offer').then(function (d) {
+      if (!d) { pendingInvite = null; say('That invite link is broken or incomplete. Ask your partner for a new one.'); openPanel(); return false; }
+      if (state === 'linked') { say('You are already linked. Disconnect first to join another invite.'); openPanel(); return false; }
+      pendingInvite = code; say('You have been invited to an online link-up' + (d.build && d.build !== build() ? ' (they run ' + d.build + ', you run ' + build() + ')' : '') + '.'); openPanel(); return true;
+    });
+  }
+  function openPanel() { render(); try { if (LB.dock && LB.dock.open) LB.dock.open('command'); } catch (_) {} try { if (el.p) el.p.scrollIntoView({ block: 'start' }); } catch (_) {} }
+  function joinInvite() { var c = pendingInvite; pendingInvite = null; render(); if (c) return join(c); return Promise.resolve(null); }
   function copyCode() {
     var v = el.code.value; if (!v) return;
     var coarse = false; try { coarse = global.matchMedia('(pointer: coarse)').matches; } catch (_) {}
@@ -233,21 +256,25 @@
     p.innerHTML = '<div class="th-title">ONLINE LINK-UP <span class="qual sim">BETA · P2P</span></div>' +
       '<div class="me-row"><input id="npName" maxlength="16" placeholder="Your callsign" aria-label="Your callsign"><button type="button" id="npHost" class="me-go">Host</button><button type="button" id="npClose">Disconnect</button></div>' +
       '<div class="me-row"><input id="npPaste" placeholder="Paste an invite or reply code" aria-label="Invite or reply code"><button type="button" id="npUse">Use code</button></div>' +
-      '<div id="npCodeRow" class="np-code" hidden><textarea id="npCode" readonly rows="3" aria-label="Your code"></textarea><div class="me-row"><button type="button" id="npCopy">Copy code</button><small id="npCodeLen"></small></div></div>' +
+      '<div id="npInvite" class="np-invite" hidden><b>You\'ve been invited to an online link-up</b><span>Joining makes a reply code to send back. A public STUN server is contacted only when you press Join now.</span><div class="me-row"><button type="button" id="npJoinNow" class="me-go">Join now</button><button type="button" id="npNotNow">Not now</button></div></div>' +
+      '<div id="npCodeRow" class="np-code" hidden><textarea id="npCode" readonly rows="3" aria-label="Your code"></textarea><div class="me-row"><button type="button" id="npCopy">Copy code</button><button type="button" id="npShareLink" class="me-go" hidden>Share invite link</button><small id="npCodeLen"></small></div></div>' +
       '<div id="npLink" class="np-link"></div>' +
       '<div id="npSig" class="np-sig"></div>' +
       '<label id="npFollowRow" class="np-follow" hidden><input type="checkbox" id="npFollow" checked> Follow the host\'s market (same price, same front)</label>' +
       '<div id="npStatus" class="sup-status"></div>' +
-      '<div class="th-note">Direct link between two browsers, no game server: codes go by any messenger. A public STUN server is asked for your address only when you press Host or use a code. There is no relay, so some mobile or office networks can\'t link. Each side keeps its own market data; partner strikes are shown as cosmetic ALLY / RIVAL STRIKES and never score or change your battle.</div>';
+      '<div class="th-note">Direct link between two browsers, no game server: codes go by any messenger. A public STUN server is asked for your address only when you press Host or use a code. There is no relay, so some mobile or office networks can\'t link. The guest can follow the host\'s market (same price and front, labelled VIA HOST); partner strikes are shown as cosmetic ALLY / RIVAL STRIKES and never score or change your battle.</div>';
     var host2 = doc.querySelector('#sheet-command .sheet-body') || doc.querySelector('.sheet-command .sheet-body') || doc.body, rp = doc.getElementById('replayPanel');
     if (rp && rp.parentNode === host2) host2.insertBefore(p, rp.nextSibling); else host2.appendChild(p);
-    ['npName', 'npHost', 'npClose', 'npPaste', 'npUse', 'npCodeRow', 'npCode', 'npCopy', 'npCodeLen', 'npLink', 'npSig', 'npStatus', 'npFollowRow', 'npFollow'].forEach(function (id) { el[id.replace(/^np/, '').replace(/^./, function (c) { return c.toLowerCase(); })] = p.querySelector('#' + id); });
+    ['npName', 'npHost', 'npClose', 'npPaste', 'npUse', 'npCodeRow', 'npCode', 'npCopy', 'npCodeLen', 'npLink', 'npSig', 'npStatus', 'npFollowRow', 'npFollow', 'npInvite', 'npJoinNow', 'npNotNow', 'npShareLink'].forEach(function (id) { el[id.replace(/^np/, '').replace(/^./, function (c) { return c.toLowerCase(); })] = p.querySelector('#' + id); });
     el.name.value = myName() === 'Commander' ? '' : myName();
     el.name.addEventListener('change', function () { var n = cleanName(el.name.value); el.name.value = n; try { localStorage.setItem('luncBattle.callsign', n); } catch (_) {} });
     el.host.addEventListener('click', function () { host(); });
     el.close.addEventListener('click', function () { close(false); });
     el.use.addEventListener('click', function () { var v = el.paste.value.trim(); el.paste.value = ''; if (/^LA/.test(v)) accept(v); else join(v); });
     el.copy.addEventListener('click', copyCode);
+    el.shareLink.addEventListener('click', shareLink);
+    el.joinNow.addEventListener('click', joinInvite);
+    el.notNow.addEventListener('click', function () { pendingInvite = null; say('Invite ignored'); });
     if (el.follow) el.follow.addEventListener('change', function () { setFollow(el.follow.checked); });
     Object.keys(SIGNALS).forEach(function (id) { var b = doc.createElement('button'); b.type = 'button'; b.textContent = SIGNALS[id]; b.setAttribute('data-sig', id); b.addEventListener('click', function () { signal(id); }); el.sig.appendChild(b); });
     render();
@@ -257,6 +284,8 @@
     var linked = state === 'linked';
     el.close.disabled = !pc; el.host.disabled = state === 'making' || linked;
     el.sig.hidden = !linked;
+    if (el.invite) el.invite.hidden = !pendingInvite;
+    if (el.shareLink) el.shareLink.hidden = !(role === 'host' && state === 'invite' && inviteCode);
     if (el.followRow) { el.followRow.hidden = !(linked && role === 'guest' && hostMkt); el.follow.checked = follow; }
     el.link.textContent = '';
     if (linked && peer) {
@@ -280,16 +309,17 @@
     if (!enabled) return;
     var tries = 0, iv = setInterval(function () {
       var h = doc.querySelector('#sheet-command .sheet-body') || doc.querySelector('.sheet-command .sheet-body');
-      if ((h && (doc.getElementById('replayPanel') || tries > 6)) || ++tries > 120) { clearInterval(iv); try { buildUi(); } catch (e) { console.warn('[netplay] ui', e); } setInterval(function () { if (state === 'linked') render(); }, 2000); }
+      if ((h && (doc.getElementById('replayPanel') || tries > 6)) || ++tries > 120) { clearInterval(iv); try { buildUi(); } catch (e) { console.warn('[netplay] ui', e); } inviteFromHash(); setInterval(function () { if (state === 'linked') render(); }, 2000); }
     }, 500);
     setInterval(pxWatch, 1000);
     (function loop() { try { if (marks.length) tickMarks(); } catch (_) {} requestAnimationFrame(loop); })();
     global.addEventListener('pagehide', function () { if (pc) close(true); });
+    global.addEventListener('hashchange', function () { if (el.p && String(global.location.hash).indexOf(HASH_KEY) >= 0) inviteFromHash(); });
   }
   LB.netplay = {
-    version: 'v12.0.53', isEnabled: function () { return enabled; }, host: host, join: join, accept: accept, setFollow: setFollow, close: function () { close(false); }, strike: strike, signal: signal,
+    version: 'v12.0.54', isEnabled: function () { return enabled; }, host: host, join: join, accept: accept, setFollow: setFollow, inviteUrl: inviteUrl, joinInvite: joinInvite, _fromHash: inviteFromHash, close: function () { close(false); }, strike: strike, signal: signal,
     _onMsg: onMsg, decode: decodeDesc,
-    getState: function () { return { enabled: enabled, state: state, role: role, peer: peer ? Object.assign({}, peer) : null, rings: marks.length, follow: follow, following: !!(E() && E().isRemoteMarket && E().isRemoteMarket()), px: px.last ? Object.assign({ n: px.n }, px.last) : null, stats: Object.assign({}, stats) }; }
+    getState: function () { return { enabled: enabled, state: state, role: role, peer: peer ? Object.assign({}, peer) : null, rings: marks.length, invite: !!pendingInvite, follow: follow, following: !!(E() && E().isRemoteMarket && E().isRemoteMarket()), px: px.last ? Object.assign({ n: px.n }, px.last) : null, stats: Object.assign({}, stats) }; }
   };
   if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', init); else init();
 })(window);

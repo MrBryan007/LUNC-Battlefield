@@ -517,3 +517,9 @@ body.mb-open .me-chip { display: none; }
 .np-follow { display: flex; align-items: center; gap: 8px; margin: 6px 0; color: #cfd8d2; font: 500 12px Inter, sans-serif; cursor: pointer; }
 .np-follow[hidden] { display: none; }
 .np-follow input { width: 18px; height: 18px; accent-color: #d7b56d; flex: none; min-height: 0; }
+/* v12.0.54 invite links */
+.np-invite { display: grid; gap: 4px; margin: 6px 0; padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(215,181,109,.55); background: rgba(215,181,109,.1); color: #eef3ef; font: 500 12px/1.4 Inter, sans-serif; }
+.np-invite[hidden] { display: none; }
+.np-invite b { color: #ffe2a0; font: 700 13px Rajdhani, Inter, sans-serif; letter-spacing: .6px; }
+.np-invite span { color: #cfd8d2; font-size: 11.5px; }
+.np-code .me-row button[hidden] { display: none; }
