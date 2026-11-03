@@ -566,6 +566,7 @@
     if (ability !== 'nuke' && ability !== 'moon' && LB.brevity && LB.brevity.isEnabled()) { try { LB.brevity.fireMission(-enemySide(), ability); } catch (_) {} }   // v12.0.40 call-for-fire procedure
     else if (LB.voice && LB.voice.event) try { LB.voice.event(ability === 'nuke' ? 'nuke' : 'strike', -enemySide()); } catch (_) {}   // v12.0.10 radio
     if (LB.replay && LB.replay.event) try { LB.replay.event('strike', ability, p.x, p.z); } catch (_) {}   // v12.0.46 after-action replay
+    if (LB.netplay && LB.netplay.strike) try { LB.netplay.strike(ability, p.x, p.z); } catch (_) {}   // v12.0.52 online link-up (cosmetic on the partner's screen)
     if (LB.powerups && LB.powerups.strikeAt) try { LB.powerups.strikeAt(p.x, p.z); } catch (_) {}   // v12.0.42 field pickup
     if (LB.missionEditor && LB.missionEditor.strikeAt) try { LB.missionEditor.strikeAt(p.x, p.z); } catch (_) {}   // v12.0.45 editor: Strike a point
     learn('strike', { ability: ability, x: p.x, z: p.z });
