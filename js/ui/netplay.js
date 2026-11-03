@@ -40,7 +40,7 @@
     return pump().then(function () { var all = new Uint8Array(size), o = 0; parts.forEach(function (p) { all.set(p, o); o += p.length; }); return all; });
   }
   function encodeDesc(kind, desc) {
-    var txt = JSON.stringify({ v: VER, t: desc.type, sdp: desc.sdp, b: (LB.config && LB.config.BUILD && LB.config.BUILD.version) || '' });
+    var txt = JSON.stringify({ v: VER, t: desc.type, sdp: desc.sdp, b: (LB.config && LB.config.BUILD_META && LB.config.BUILD_META.version) || '' });
     var bytes = new TextEncoder().encode(txt), pre = kind === 'offer' ? 'LO' : 'LA';
     if (!canZip) return Promise.resolve(pre + 'J.' + b64u(bytes));
     return pipe(bytes, global.CompressionStream).then(function (z) { return pre + '1.' + b64u(z); });
@@ -108,7 +108,7 @@
       return pc.setRemoteDescription({ type: 'answer', sdp: d.sdp }).then(function () { return true; });
     }).catch(function (e) { setState('failed', 'Could not use that reply (' + String(e && e.name || e).slice(0, 40) + ')'); return false; });
   }
-  function build() { return (LB.config && LB.config.BUILD && LB.config.BUILD.version) || ''; }
+  function build() { return (LB.config && LB.config.BUILD_META && LB.config.BUILD_META.version) || ''; }
   function wire(c) {
     ch = c;
     ch.addEventListener('open', function () {

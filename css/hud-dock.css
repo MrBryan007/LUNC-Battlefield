@@ -505,3 +505,11 @@ body.mb-open .me-chip { display: none; }
 .np-sig { display: flex; flex-wrap: wrap; gap: 5px; margin: 4px 0; }
 .np-sig button { min-height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid rgba(124,200,255,.35); background: rgba(124,200,255,.08); color: #cfe6ff; font: 600 11.5px Inter, sans-serif; cursor: pointer; }
 @media (pointer: coarse) { .np-sig button { min-height: 40px; } }
+.np-panel .me-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; align-items: center; }
+.np-panel input { flex: 1 1 150px; min-width: 0; background: rgba(0,0,0,.35); color: #eef3ef; border: 1px solid rgba(255,255,255,.14); border-radius: 6px; padding: 5px 7px; font: 500 12px Inter, sans-serif; min-height: 32px; box-sizing: border-box; }
+.np-panel input::placeholder { color: #7f8a83; }
+.np-panel .me-row button { background: rgba(255,255,255,.07); color: #eef3ef; border: 1px solid rgba(255,255,255,.16); border-radius: 6px; padding: 5px 11px; font: 600 12px Inter, sans-serif; min-height: 32px; cursor: pointer; }
+.np-panel .me-row button:disabled { opacity: .4; cursor: default; }
+.np-panel .me-row button.me-go { background: rgba(215,181,109,.22); border-color: rgba(215,181,109,.6); color: #ffe2a0; }
+@media (pointer: coarse) { .np-panel input, .np-panel .me-row button { min-height: 40px; } }
+@media (max-width: 600px) { .np-panel input { font-size: 16px; } }   /* no iOS focus zoom */
