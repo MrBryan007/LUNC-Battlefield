@@ -15,7 +15,9 @@
       JURIS: { name: 'JURIS',     base: 0.00000245, color: 0xa791dc, hasBurns: false, decimals: 8, symbol: null, futures: null, gecko: 'juris-protocol' }
     };
 
-    const SRC = { GECKO: 'coingecko', BINANCE: 'binance', LLAMA: 'llama', SIM: 'sim', BRIDGE: 'bridge', API: 'api', UNKNOWN: 'unknown' };
+    const SRC = { GECKO: 'coingecko', BINANCE: 'binance', LLAMA: 'llama', SIM: 'sim', BRIDGE: 'bridge', API: 'api', HOST: 'host', UNKNOWN: 'unknown' };
+    // v12.0.53: while an online guest follows the host's market, its own feeds and drift are paused (see LUNCBattle.netplay)
+    const remoteMkt = { on: false, live: false, label: 'Host' };
     let current = 'LUNC';
     let price = tokens[current].base;
     let lastPrice = price;
@@ -650,7 +652,8 @@
     }
 
     function updateStatusUI() {
-      const priceLabel = priceSource===SRC.GECKO?'CoinGecko'
+      const priceLabel = priceSource===SRC.HOST?(remoteMkt.label + ' via host')
+        :priceSource===SRC.GECKO?'CoinGecko'
         :priceSource===SRC.BINANCE?'Binance'
         :priceSource===SRC.LLAMA?'DefiLlama'
         :priceSource===SRC.API?'Backend API'
@@ -660,7 +663,7 @@
       if (depthSource===SRC.BINANCE) depthLabel = 'Binance depth (LIVE)';
       else if (depthSource===SRC.API) depthLabel = (depthVendorLabel || 'Backend API') + ' depth (LIVE)';
       else depthLabel = 'Estimated walls (NOT live order book)';
-      const live = priceSource!==SRC.SIM;
+      const live = priceSource===SRC.HOST ? remoteMkt.live : priceSource!==SRC.SIM;
       const build = (window.LUNCBattle && LUNCBattle.config && LUNCBattle.config.BUILD) || '';
       const dm = $('dataMode');
       if (dm) {
@@ -698,18 +701,19 @@
 
     function applySpot(next,source) {
       if(!(next>0)) return;
+      if (remoteMkt.on && source!==SRC.HOST) return;   // following the host's market: ignore our own feeds
       // Prefer live exchange ticks; allow Llama/Gecko to refresh when Binance is stale or absent
       const binanceFresh = priceSource===SRC.BINANCE && (Date.now()-lastPriceTs) < 15000;
       if (binanceFresh && source!==SRC.BINANCE) return;
       lastPrice=price; price=next; lastPriceTs=Date.now();
       priceHistory.push(price); if(priceHistory.length>48) priceHistory.shift();
       priceSource=source;
-      isLive = source!==SRC.SIM;
+      isLive = source===SRC.HOST ? remoteMkt.live : source!==SRC.SIM;
       if (priceTerritoryApi) {
-        const truth = source===SRC.SIM
+        const truth = !isLive
           ? ((window.LUNCBattle&&LUNCBattle.DataTruth&&LUNCBattle.DataTruth.SIMULATED)||'SIMULATED')
           : ((window.LUNCBattle&&LUNCBattle.DataTruth&&LUNCBattle.DataTruth.LIVE)||'LIVE');
-        const label = source===SRC.GECKO?'CoinGecko':source===SRC.BINANCE?'Binance'
+        const label = source===SRC.HOST?(remoteMkt.label + ' via host'):source===SRC.GECKO?'CoinGecko':source===SRC.BINANCE?'Binance'
           :source===SRC.LLAMA?'DefiLlama':source===SRC.API?'Backend API'
           :source===SRC.BRIDGE?'Backend API':'Simulation';
         priceTerritoryApi.updateCurrentPrice(price, { truth: truth, sourceLabel: label });
@@ -1303,7 +1307,7 @@
       }
 
       if (priceTerritoryApi) {
-        const truth = priceSource===SRC.SIM
+        const truth = (priceSource===SRC.SIM || (priceSource===SRC.HOST && !remoteMkt.live))
           ? ((window.LUNCBattle&&LUNCBattle.DataTruth&&LUNCBattle.DataTruth.SIMULATED)||'SIMULATED')
           : ((window.LUNCBattle&&LUNCBattle.DataTruth&&LUNCBattle.DataTruth.LIVE)||'LIVE');
         priceTerritoryApi.updateCurrentPrice(price, { truth: truth, sourceLabel: priceSource });
@@ -2022,7 +2026,22 @@
       getFrontlineX: function () { return priceTerritoryApi ? priceTerritoryApi.getFrontlineX() : targetX; },
       getPrice: function () { return price; },
       getToken: function () { return current; },
+      getTokenBase: function (sym) { return tokens[sym] ? tokens[sym].base : 0; },
       isPriceLive: function () { return priceSource !== SRC.SIM && isLive && (Date.now() - lastPriceTs) < 120000; },
+      getPriceSource: function () { return priceSource === SRC.HOST ? 'host' : priceSource; },
+      /** v12.0.53 online guest: follow (on) or release (off) the host's market. Release drops back to our own feeds. */
+      setRemoteMarket: function (on) {
+        on = !!on; if (on === remoteMkt.on) return;
+        remoteMkt.on = on;
+        if (!on && priceSource === SRC.HOST) { priceSource = SRC.SIM; isLive = false; lastPriceTs = Date.now(); updateStatusUI(); }
+      },
+      isRemoteMarket: function () { return remoteMkt.on; },
+      /** Host spot price (already validated by netplay): goes through the normal price path, truth kept as the host had it. */
+      pushRemoteSpot: function (p, live, label) {
+        if (!remoteMkt.on || !(p > 0) || !isFinite(p)) return false;
+        remoteMkt.live = !!live; remoteMkt.label = String(label || 'Host').slice(0, 20);
+        applySpot(p, SRC.HOST); updateStatusUI(); return true;
+      },
       getMomentum: function () { return momentum; },
       bullColor: function () { return tokens[current].color; },
       bearColor: function () { return 0xe4675f; },

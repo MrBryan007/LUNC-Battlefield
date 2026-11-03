@@ -1,4 +1,4 @@
-/* LUNC Battlefield v12.0.52 — online link-up, part 1 (v12.2 Multiplayer → Online). Game layer.
+/* LUNC Battlefield v12.0.52 — online link-up, part 1 (+ v12.0.53 part 2: host's market drives both battles) (v12.2 Multiplayer → Online). Game layer.
  * WebRTC peer-to-peer with copy-paste signalling (no server): Host makes an invite code, Join pastes it and gets a reply
  * code, the host pastes the reply. Codes are the SDP, deflated + base64url (LO1. offer / LA1. answer; LOJ./LAJ. plain
  * where CompressionStream is missing). A public STUN server is contacted only when you press Host or Join; there's no
@@ -13,6 +13,9 @@
   var LB = global.LUNCBattle = global.LUNCBattle || {}, doc = global.document;
   var qs = new URLSearchParams(global.location.search);
   var enabled = qs.get('online') !== '0' && typeof global.RTCPeerConnection === 'function';
+  var hostMkt = qs.get('hostmarket') !== '0';
+  var PX_S = 2, PX_QUIET_MS = 12000, SRC_LABELS = { binance: 'Binance', coingecko: 'CoinGecko', llama: 'DefiLlama', api: 'Backend API', bridge: 'Backend API', sim: 'Simulation' };
+  var follow = true, px = { t: 0, n: 0, last: null, quiet: false }, pxIv = null;
   var VER = 1, MAX_MSG = 2048, MAX_CODE = 20000, RATE = 20, PING_S = 2, MARKET_S = 5, GATHER_MS = 3500;
   var ICE = [{ urls: 'stun:stun.l.google.com:19302' }];
   var WORLD = { minX: -260, maxX: 260, minZ: -120, maxZ: 230 };
@@ -116,11 +119,12 @@
       clearInterval(pingIv); clearInterval(mkIv);
       pingIv = setInterval(function () { var id = Math.floor(Math.random() * 1e9); pingSent[id] = performance.now(); send({ k: 'ping', id: id }); Object.keys(pingSent).forEach(function (k) { if (performance.now() - pingSent[k] > 10000) delete pingSent[k]; }); }, PING_S * 1000);
       mkIv = setInterval(sendMarket, MARKET_S * 1000); sendMarket();
+      clearInterval(pxIv); if (role === 'host' && hostMkt) { pxIv = setInterval(sendPx, PX_S * 1000); sendPx(); }
     });
     ch.addEventListener('close', function () { if (state === 'linked') setState('lost', 'Partner left'); stopTimers(); });
     ch.addEventListener('message', function (ev) { onMsg(ev.data); });
   }
-  function stopTimers() { clearInterval(pingIv); clearInterval(mkIv); pingIv = mkIv = null; }
+  function stopTimers() { clearInterval(pingIv); clearInterval(mkIv); clearInterval(pxIv); pingIv = mkIv = pxIv = null; release(null); }
   function close(silent) {
     stopTimers(); try { if (ch && ch.readyState === 'open') ch.send(JSON.stringify({ k: 'bye' })); } catch (_) {}
     try { if (ch) ch.close(); } catch (_) {} try { if (pc) pc.close(); } catch (_) {}
@@ -130,6 +134,34 @@
   function sendMarket() {
     var e = E(); if (!e) return;
     send({ k: 'mk', fx: +(e.getFrontlineX() || 0).toFixed(2), live: !!(e.isPriceLive && e.isPriceLive()), sc: myScore(), side: mySide() });
+  }
+
+  // ---------------------------------------------------------------- v12.0.53 host market (host → guest)
+  function sendPx() {
+    var e = E(); if (!e || role !== 'host' || !e.getPrice) return;
+    var src = e.getPriceSource ? e.getPriceSource() : 'sim';
+    send({ k: 'px', tok: e.getToken(), p: e.getPrice(), live: !!(e.isPriceLive && e.isPriceLive()), src: SRC_LABELS[src] ? src : 'sim' });
+  }
+  function tokenKnown(t) { return typeof t === 'string' && /^[A-Z]{2,8}$/.test(t) && !!doc.querySelector('.token-btn[data-token="' + t + '"]'); }
+  function onPx(m) {
+    if (role !== 'guest' || !hostMkt) { stats.bad++; return; }
+    var e = E(); if (!e || !e.pushRemoteSpot) return;
+    if (!tokenKnown(m.tok)) { stats.bad++; return; }
+    var base = e.getTokenBase ? e.getTokenBase(m.tok) : 0, p = +m.p;
+    if (!(base > 0) || !isFinite(p) || p < base * 0.05 || p > base * 20) { stats.bad++; return; }
+    var src = SRC_LABELS[m.src] ? m.src : 'sim', live = !!m.live && src !== 'sim';
+    px.last = { tok: m.tok, p: p, live: live, label: SRC_LABELS[src] }; px.t = performance.now(); px.n++;
+    if (!follow) return;
+    if (e.getToken() !== m.tok) { var b = doc.querySelector('.token-btn[data-token="' + m.tok + '"]'); if (b) b.click(); say('Switched to ' + m.tok + ' to match the host'); }
+    if (!e.isRemoteMarket()) { e.setRemoteMarket(true); if (px.quiet) say('Following the host\'s market again'); px.quiet = false; }
+    e.pushRemoteSpot(p, live, SRC_LABELS[src]);
+  }
+  function release(msg) { var e = E(); if (e && e.isRemoteMarket && e.isRemoteMarket()) { e.setRemoteMarket(false); if (msg) say(msg); } }
+  function setFollow(on) { follow = !!on; if (!follow) release('Back on your own market feed'); else if (px.last && performance.now() - px.t < PX_QUIET_MS) onPx({ tok: px.last.tok, p: px.last.p, live: px.last.live, src: Object.keys(SRC_LABELS).filter(function (k) { return SRC_LABELS[k] === px.last.label; })[0] || 'sim' }); render(); }
+  function pxWatch() {
+    var e = E(); if (!e || !e.isRemoteMarket || !e.isRemoteMarket()) return;
+    if (state !== 'linked') { release(null); return; }
+    if (performance.now() - px.t > PX_QUIET_MS) { px.quiet = true; release('Host\'s market went quiet, back on your own feed'); }
   }
 
   // ---------------------------------------------------------------- incoming (untrusted)
@@ -148,6 +180,7 @@
       case 'mk': peer.fx = clamp(m.fx, WORLD.minX, WORLD.maxX, 0); peer.live = !!m.live; peer.score = clamp(m.sc, 0, 1e9, 0) | 0; peer.side = m.side === 'bear' ? 'bear' : 'bull'; break;
       case 'strike': if (ABIL[m.a]) { stats.strikesIn++; showStrike(m.a, clamp(m.x, WORLD.minX, WORLD.maxX, 0), clamp(m.z, WORLD.minZ, WORLD.maxZ, 0)); } else stats.bad++; break;
       case 'sig': if (SIGNALS[m.id]) { stats.signalsIn++; say(peer.name + ': ' + SIGNALS[m.id]); radio(peer.name + ': ' + SIGNALS[m.id]); } else stats.bad++; break;
+      case 'px': onPx(m); break;
       case 'bye': setState('lost', (peer.name || 'Partner') + ' left'); stopTimers(); break;
       default: stats.bad++;
     }
@@ -201,17 +234,19 @@
       '<div id="npCodeRow" class="np-code" hidden><textarea id="npCode" readonly rows="3" aria-label="Your code"></textarea><div class="me-row"><button type="button" id="npCopy">Copy code</button><small id="npCodeLen"></small></div></div>' +
       '<div id="npLink" class="np-link"></div>' +
       '<div id="npSig" class="np-sig"></div>' +
+      '<label id="npFollowRow" class="np-follow" hidden><input type="checkbox" id="npFollow" checked> Follow the host\'s market (same price, same front)</label>' +
       '<div id="npStatus" class="sup-status"></div>' +
       '<div class="th-note">Direct link between two browsers, no game server: codes go by any messenger. A public STUN server is asked for your address only when you press Host or use a code. There is no relay, so some mobile or office networks can\'t link. Each side keeps its own market data; partner strikes are shown as cosmetic ALLY / RIVAL STRIKES and never score or change your battle.</div>';
     var host2 = doc.querySelector('#sheet-command .sheet-body') || doc.querySelector('.sheet-command .sheet-body') || doc.body, rp = doc.getElementById('replayPanel');
     if (rp && rp.parentNode === host2) host2.insertBefore(p, rp.nextSibling); else host2.appendChild(p);
-    ['npName', 'npHost', 'npClose', 'npPaste', 'npUse', 'npCodeRow', 'npCode', 'npCopy', 'npCodeLen', 'npLink', 'npSig', 'npStatus'].forEach(function (id) { el[id.replace(/^np/, '').replace(/^./, function (c) { return c.toLowerCase(); })] = p.querySelector('#' + id); });
+    ['npName', 'npHost', 'npClose', 'npPaste', 'npUse', 'npCodeRow', 'npCode', 'npCopy', 'npCodeLen', 'npLink', 'npSig', 'npStatus', 'npFollowRow', 'npFollow'].forEach(function (id) { el[id.replace(/^np/, '').replace(/^./, function (c) { return c.toLowerCase(); })] = p.querySelector('#' + id); });
     el.name.value = myName() === 'Commander' ? '' : myName();
     el.name.addEventListener('change', function () { var n = cleanName(el.name.value); el.name.value = n; try { localStorage.setItem('luncBattle.callsign', n); } catch (_) {} });
     el.host.addEventListener('click', function () { host(); });
     el.close.addEventListener('click', function () { close(false); });
     el.use.addEventListener('click', function () { var v = el.paste.value.trim(); el.paste.value = ''; if (/^LA/.test(v)) accept(v); else join(v); });
     el.copy.addEventListener('click', copyCode);
+    if (el.follow) el.follow.addEventListener('change', function () { setFollow(el.follow.checked); });
     Object.keys(SIGNALS).forEach(function (id) { var b = doc.createElement('button'); b.type = 'button'; b.textContent = SIGNALS[id]; b.setAttribute('data-sig', id); b.addEventListener('click', function () { signal(id); }); el.sig.appendChild(b); });
     render();
   }
@@ -220,15 +255,24 @@
     var linked = state === 'linked';
     el.close.disabled = !pc; el.host.disabled = state === 'making' || linked;
     el.sig.hidden = !linked;
+    if (el.followRow) { el.followRow.hidden = !(linked && role === 'guest' && hostMkt); el.follow.checked = follow; }
     el.link.textContent = '';
     if (linked && peer) {
       var e = E(), fx = e ? e.getFrontlineX() || 0 : 0, live = !!(e && e.isPriceLive && e.isPriceLive()), sg = function (v) { return (v >= 0 ? '+' : '') + v.toFixed(1); };
       var rows = [['Partner', peer.name + ' · ' + (peer.side === 'bull' ? 'Bulls' : 'Bears') + (peer.side === mySide() ? ' (ally)' : ' (rival)') + ' · score ' + peer.score.toLocaleString()],
         ['Link', (role === 'host' ? 'You host' : 'You joined') + ' · ping ' + (stats.rtt != null ? stats.rtt + ' ms' : '…')],
+        ['Market', mktText()],
         ['Front', 'You ' + sg(fx) + ' ' + (live ? 'LIVE' : 'SIMULATED') + ' · Partner ' + (peer.fx != null ? sg(peer.fx) + ' ' + (peer.live ? 'LIVE' : 'SIMULATED') : '…')]];
       rows.forEach(function (r) { var d = doc.createElement('div'); d.className = 'rp-rrow'; var b = doc.createElement('b'); b.textContent = r[0]; var s = doc.createElement('span'); s.textContent = r[1]; d.appendChild(b); d.appendChild(s); el.link.appendChild(d); });
     }
     el.status.textContent = (state === 'idle' && !stats.last ? 'Host a link, or paste an invite code from a partner' : stats.last) + (stats.strikesIn ? ' · ' + stats.strikesIn + ' partner strikes' : '');
+  }
+  function mktText() {
+    var e = E();
+    if (role === 'host') return hostMkt ? 'You share your market (' + (e ? e.getToken() : '') + ') with your partner' : 'Not shared (?hostmarket=0)';
+    if (!hostMkt) return 'Your own feed (?hostmarket=0)';
+    if (e && e.isRemoteMarket && e.isRemoteMarket() && px.last) return 'Following host · ' + px.last.tok + ' · ' + (px.last.live ? 'LIVE · ' + px.last.label : 'SIMULATED');
+    return follow ? (px.quiet ? 'Host quiet, your own feed' : 'Waiting for the host\'s market…') : 'Your own feed';
   }
   function init() {
     if (!enabled) return;
@@ -236,13 +280,14 @@
       var h = doc.querySelector('#sheet-command .sheet-body') || doc.querySelector('.sheet-command .sheet-body');
       if ((h && (doc.getElementById('replayPanel') || tries > 6)) || ++tries > 120) { clearInterval(iv); try { buildUi(); } catch (e) { console.warn('[netplay] ui', e); } setInterval(function () { if (state === 'linked') render(); }, 2000); }
     }, 500);
+    setInterval(pxWatch, 1000);
     (function loop() { try { if (marks.length) tickMarks(); } catch (_) {} requestAnimationFrame(loop); })();
     global.addEventListener('pagehide', function () { if (pc) close(true); });
   }
   LB.netplay = {
-    version: 'v12.0.52', isEnabled: function () { return enabled; }, host: host, join: join, accept: accept, close: function () { close(false); }, strike: strike, signal: signal,
+    version: 'v12.0.53', isEnabled: function () { return enabled; }, host: host, join: join, accept: accept, setFollow: setFollow, close: function () { close(false); }, strike: strike, signal: signal,
     _onMsg: onMsg, decode: decodeDesc,
-    getState: function () { return { enabled: enabled, state: state, role: role, peer: peer ? Object.assign({}, peer) : null, rings: marks.length, stats: Object.assign({}, stats) }; }
+    getState: function () { return { enabled: enabled, state: state, role: role, peer: peer ? Object.assign({}, peer) : null, rings: marks.length, follow: follow, following: !!(E() && E().isRemoteMarket && E().isRemoteMarket()), px: px.last ? Object.assign({ n: px.n }, px.last) : null, stats: Object.assign({}, stats) }; }
   };
   if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', init); else init();
 })(window);
