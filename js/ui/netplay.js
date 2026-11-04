@@ -191,8 +191,9 @@
   }
   function lookWithPartner() {
     var v = partnerView(), e = E(); if (!v || !e) { say('Your partner\'s view isn\'t coming through yet'); return false; }
-    try { if (e.focusWorld) e.focusWorld(v.tx, v.tz, true); else if (e.controls) { e.controls.target.set(v.tx, 0.5, v.tz); e.controls.update(); } } catch (_) {}
+    // notify first: notifyUserInput stops any cinematic/auto camera AND cancels a running focus glide
     try { if (e.notifyUserInput) e.notifyUserInput(); } catch (_) {}
+    try { if (e.focusWorld) e.focusWorld(v.tx, v.tz, true); else if (e.controls) { e.controls.target.set(v.tx, 0.5, v.tz); e.controls.update(); } } catch (_) {}
     say('Looking where ' + v.name + ' is looking (' + Math.round(v.tx) + ', ' + Math.round(v.tz) + ')'); return true;
   }
 
