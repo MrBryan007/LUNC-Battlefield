@@ -39,7 +39,7 @@ Soft frontline scars/smoke (no black strip), layered explosions, SOS-delayed far
 - **Combat behavior:** cover usage, suppression, bounding overwatch, flanking already partly in squads — deepen retreat/medic ranges.
 - **FX:** tracer 1-in-5 everywhere (partial); ~~fires that burn out over minutes~~ (shipped v12.0.19, `js/fx/fires.js`, `?fires=0`); persistent wreck LODs further out.
 - **Audio & radio:** ~~Doppler on more than jets~~ and ~~positional gunfire HRTF-ish pan~~ (shipped v12.0.39, `js/sfx.js`, `?spatial=0`: stereo position, head shadow, air absorption, speed-of-sound delay, Doppler whoosh); ~~authentic brevity codes~~ (shipped v12.0.40, `js/theaters/brevity.js`, `?brevity=0`: air-to-air brevity from real dogfight events, call-for-fire procedure, glossary in the radio log).
-- **UI:** NATO-ish map symbols on the world inset; less pastel unit silhouettes on the minimap (3D units are camo since v12.0.14).
+- **UI:** ~~NATO-ish map symbols on the world inset~~ (shipped v12.0.16, `js/theaters/tacmap.js`: APP-6-inspired frames, echelons, FLOT); ~~less pastel unit silhouettes on the minimap~~ (the tactical map draws faction-coloured symbols, and 3D units are camo since v12.0.14).
 
 ## v12.0.14 "Realism pass, part 2: armies" (shipped 2026-10-16)
 Camo PBR materials (object-space shader: Bulls woodland/olive drab, Bears grey-green/tan, dust + grime, roughness) on all ground units, aircraft, GLB layers and theater figures. Faction IFF roof panels / shoulder bands. MBT ×1.45 / SPG ×1.3, staggered vehicle ranks (7–9 m pitch, no overlap), separation, wide-lane AI z-clamp. Vehicle accel/brake/turn-rate limits, suspension pitch/roll/bob, turret slew, infantry gait variety. LOW/phone get the flat camo base. Kill switch `?realism=0`.
