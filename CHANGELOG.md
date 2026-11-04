@@ -10,7 +10,7 @@
 - Version bump to v12.0.56 (BUILD, quality api, index tags, footer label, cache-bust `?v=20261104v12056` on all 96 local css/js tags).
 - Tested: `node --check` on all JS files, stabilization-smoke passing (adds a shared-pings wiring check), asset-lifecycle 33/33 passing, headless HIGH / MEDIUM / LOW / iPhone 390x844 plus `?sharepings=0` and `?online=0` loads with 0 page errors.
   - Shared-pings probe (`tests/netplay-pings-harness.js`, desktop host and iPhone guest through the test-only relay stand-in): the host's hand ping at J1-28 arrived on the iPhone with Alpha6's callsign and a beacon; two pings in quick succession sent only one; a game-made ping wasn't sent; "Need support at H2-62" arrived with the guest's grid square; an old-style signal still worked; a junk ping was rejected and an off-map one clamped. With `?sharepings=0` nothing was shared. The v12.0.55 partner-view probe still passes. Screenshots in `docs/v12056-shots/`.
-- Build hours (real timestamps): see the last entry of the day for the running total.
+- Build hours (real timestamps): 2026-11-04 total 0.40 h over 2 cycles (cycle 1 v12.0.55 0.20 h, cycle 2 v12.0.56 0.20 h), under the 1 h floor and the 2–4 h target. The run stopped after cycle 2 so the report goes out reliably; yesterday's run was cut off mid-cycle before it could report.
 
 ## v12.0.55 — Online link-up, part 4: see where your partner is looking (2026-11-04, AI build)
 - Co-op needs shared awareness, so once you're linked each side now sends where its camera is and what it's looking at, once a second.
