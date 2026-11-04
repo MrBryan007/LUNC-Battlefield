@@ -1,5 +1,17 @@
 # Changelog
 
+## v12.0.56 — Online link-up, part 5: shared map pings and signals that say where (2026-11-04, AI build)
+- Co-op callouts now come with a place.
+- **Shared map pings**: when you're linked, a ping you put on the tactical map by hand (right-click, or long-press on a phone) also shows up on your partner's map. Theirs appear in ally blue (or rival red) with their callsign and grid square ("Alpha6 · J1-28"), with a matching coloured beacon in the 3D world and a radio-log line ("Alpha6 marked J1-28. Check your map."). Your map footer says when your ping was shared.
+- **Signals that say where**: quick signals now carry the grid square you're looking at, so your partner sees "Need support at H2-62" instead of just "Need support". Signals from an older build still show as before.
+- Pings that the game makes for you (mission points, partner strikes) stay yellow and are never sent on, so nothing echoes back and forth.
+- **Checks**: incoming pings must be numbers and are clamped to the map, at most one is accepted every 0.4 s, and you send at most one every 0.8 s. Pings are cosmetic: they never move units, score or touch the market.
+- Game/UI layer only. The market-driven frontline and data-truth labels, Moon Shot, Commander, the v11.4 HUD/dock, Hide UI, the v12.x systems and all `?flags` are unchanged. Kill switch: `?sharepings=0` (pings stay local and signals go without a place); `?online=0` still turns off all online play.
+- Version bump to v12.0.56 (BUILD, quality api, index tags, footer label, cache-bust `?v=20261104v12056` on all 96 local css/js tags).
+- Tested: `node --check` on all JS files, stabilization-smoke passing (adds a shared-pings wiring check), asset-lifecycle 33/33 passing, headless HIGH / MEDIUM / LOW / iPhone 390x844 plus `?sharepings=0` and `?online=0` loads with 0 page errors.
+  - Shared-pings probe (`tests/netplay-pings-harness.js`, desktop host and iPhone guest through the test-only relay stand-in): the host's hand ping at J1-28 arrived on the iPhone with Alpha6's callsign and a beacon; two pings in quick succession sent only one; a game-made ping wasn't sent; "Need support at H2-62" arrived with the guest's grid square; an old-style signal still worked; a junk ping was rejected and an off-map one clamped. With `?sharepings=0` nothing was shared. The v12.0.55 partner-view probe still passes. Screenshots in `docs/v12056-shots/`.
+- Build hours (real timestamps): see the last entry of the day for the running total.
+
 ## v12.0.55 — Online link-up, part 4: see where your partner is looking (2026-11-04, AI build)
 - Co-op needs shared awareness, so once you're linked each side now sends where its camera is and what it's looking at, once a second.
 - **Tactical map** (the small inset and the full map): your partner's view shows as a dashed wedge in ally blue (or rival red) with their callsign, plus a short fading trail of where they've been looking. It disappears if the link drops or their view hasn't arrived for 5 seconds.
