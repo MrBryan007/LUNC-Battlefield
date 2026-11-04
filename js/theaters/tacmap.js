@@ -408,8 +408,9 @@
   }
   /** a ping the player placed by hand: also shared with a linked online partner (v12.0.56) */
   function userPing(x, z) {
-    ping(x, z);
+    var ref = ping(x, z);
     try { if (LB.netplay && LB.netplay.sharePing && LB.netplay.sharePing(x, z)) { var f = doc.getElementById('tacFoot'); if (f) f.textContent = 'Ping at ' + gridRef(x, z) + ' (shared with your partner)'; } } catch (_) {}
+    return ref;
   }
   /** opt (optional, v12.0.56): { by: partner callsign, ally: bool } for a partner's ping; never re-sent */
   function ping(x, z, opt) {

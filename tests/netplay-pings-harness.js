@@ -29,7 +29,7 @@ const pages = [];
   out.Bmark = await B.evaluate(() => { const s = LUNCBattle.netplay.getState().stats; return { marksIn: s.marksIn || 0, last: s.last, pings: LUNCBattle.tacmap.getState().pings, beacons: LUNCBattle.engine.scene.children.filter(o => o.name === 'tac-beacon').length }; });
   out.AmarksOut = await A.evaluate(() => LUNCBattle.netplay.getState().stats.marksOut || 0);
   // a second hand ping within 0.8 s is not re-sent (rate limit); a mission/strike-style ping is never sent
-  out.spam = await A.evaluate(() => { LUNCBattle.tacmap.userPing(10, 10); LUNCBattle.tacmap.ping(20, 20); return LUNCBattle.netplay.getState().stats.marksOut || 0; });
+  out.spam = await A.evaluate(() => { LUNCBattle.tacmap.userPing(10, 10); LUNCBattle.tacmap.userPing(12, 12); LUNCBattle.tacmap.ping(20, 20); return LUNCBattle.netplay.getState().stats.marksOut || 0; });
   // located signal: guest asks for support while looking at (120, -60)
   await B.evaluate(() => LUNCBattle.engine.focusWorld(120, -60, false)); await B.waitForTimeout(500);
   await B.evaluate(() => LUNCBattle.netplay.signal('support')); await A.waitForTimeout(1200);
