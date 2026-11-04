@@ -1,5 +1,17 @@
 # Changelog
 
+## v12.0.55 — Online link-up, part 4: see where your partner is looking (2026-11-04, AI build)
+- Co-op needs shared awareness, so once you're linked each side now sends where its camera is and what it's looking at, once a second.
+- **Tactical map** (the small inset and the full map): your partner's view shows as a dashed wedge in ally blue (or rival red) with their callsign, plus a short fading trail of where they've been looking. It disappears if the link drops or their view hasn't arrived for 5 seconds.
+- **Look with partner**: a new button in ONLINE LINK-UP glides your camera to the spot your partner is looking at. It only moves when you press it, never on its own.
+- Fixed during testing: the glide was being cancelled the moment it started (the "you touched the camera" signal also stops camera glides), so the button now sends that signal first and then glides.
+- **Checks**: incoming camera positions are clamped to the map, junk values fall back safely, and they're ignored unless you're linked. Rate limits from part 1 still apply.
+- Game/UI layer only: never touches market data, armies, the front or data-truth labels. The market-driven frontline, Moon Shot, Commander, the v11.4 HUD/dock, Hide UI, the v12.x systems and all `?flags` are unchanged. Kill switch: `?partnerview=0` (`?online=0` still turns off all online play).
+- Version bump to v12.0.55 (BUILD, quality api, index tags, footer label, cache-bust `?v=20261103v12055` on all local css/js tags).
+- Tested: `node --check` on all 104 JS files, stabilization-smoke passing (adds a partner-view wiring check), asset-lifecycle 33/33 passing, headless HIGH / MEDIUM / LOW / iPhone 390x844 plus `?partnerview=0` and `?online=0` loads with 0 page errors (`tests/quality-loads-probe.js`).
+  - Partner-view probe (`tests/netplay-partnerview-harness.js`, desktop host and iPhone guest through the test-only relay stand-in): the host moved its camera to (120, -60) and the iPhone showed Alpha6's wedge there; Look with partner moved the iPhone camera to (120, -60); hostile camera values were clamped to the map edge; the wedge disappeared 5 s after the host stopped sending; with `?partnerview=0` nothing was sent or drawn. The v12.0.53 link-up probe still passes. Screenshots in `docs/v12055-shots/`. A real two-device link still hasn't been tried.
+- Build hours (real timestamps): see the last entry of the day for the running total.
+
 ## v12.0.54 — Online link-up, part 3: one-tap invite links (2026-11-03, AI build)
 - Copy-pasting codes is clumsy on a phone, so the first step is now a link.
 - **Host**: after you press Host, a new **Share invite link** button sits next to Copy code. On phones it opens the share sheet; on desktop it copies the link. The link is the live game with your invite after the `#`, so it never reaches GitHub's server.
