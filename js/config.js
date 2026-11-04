@@ -88,8 +88,8 @@
   // Single source of truth for current release metadata.
   // Historical comments and changelog entries are left untouched.
   const BUILD = Object.freeze({
-    version: 'v12.0.55',
-    codename: 'Partner view',
+    version: 'v12.0.56',
+    codename: 'Shared map pings',
     date: '2026-11-04'
   });
 

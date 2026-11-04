@@ -254,9 +254,11 @@
     for (var p = 0; p < state.pings.length; p++) {
       var P = state.pings[p], age = (now - P.t) / 1000; if (age > 12) continue;
       var rr = (big ? 6 : 3) + (age % 1.2) * (big ? 14 : 6), al = Math.max(0, 1 - age / 12);
-      c.strokeStyle = 'rgba(255,224,120,' + al.toFixed(2) + ')'; c.lineWidth = big ? 2 : 1.2; c.beginPath(); c.arc(X(P.x), Z(P.z), rr, 0, 6.283); c.stroke();
-      c.fillStyle = 'rgba(255,224,120,' + al.toFixed(2) + ')'; c.beginPath(); c.arc(X(P.x), Z(P.z), big ? 3 : 1.6, 0, 6.283); c.fill();
-      if (big) label(c, 'PING ' + P.ref, X(P.x), Z(P.z) - 14, 11, '#ffe078');
+      var prgb = P.rgb || '255,224,120';   // v12.0.56: a partner's ping keeps their ally-blue / rival-red colour
+      c.strokeStyle = 'rgba(' + prgb + ',' + al.toFixed(2) + ')'; c.lineWidth = big ? 2 : 1.2; c.beginPath(); c.arc(X(P.x), Z(P.z), rr, 0, 6.283); c.stroke();
+      c.fillStyle = 'rgba(' + prgb + ',' + al.toFixed(2) + ')'; c.beginPath(); c.arc(X(P.x), Z(P.z), big ? 3 : 1.6, 0, 6.283); c.fill();
+      if (big) label(c, (P.by ? P.by + ' · ' : 'PING ') + P.ref, X(P.x), Z(P.z) - 14, 11, 'rgb(' + prgb + ')');
+      else if (P.by) label(c, P.by, X(P.x), Z(P.z) - 6, 8, 'rgb(' + prgb + ')');
     }
     // camera: target + view wedge
     var T = e.getCameraTarget(), cp = e.camera.position, w = Math.max(big ? 8 : 4, cp.distanceTo(T) * 0.6 * sx), ang = Math.atan2((T.z - cp.z) * sz, (T.x - cp.x) * sx);
@@ -357,11 +359,11 @@
       var r = cv.getBoundingClientRect(), B = bounds(state.view);
       return { x: B.minX + (ev.clientX - r.left) / r.width * (B.maxX - B.minX), z: B.minZ + (ev.clientY - r.top) / r.height * (B.maxZ - B.minZ) };
     }
-    cv.addEventListener('contextmenu', function (ev) { ev.preventDefault(); var w = worldAt(ev); ping(w.x, w.z); });
+    cv.addEventListener('contextmenu', function (ev) { ev.preventDefault(); var w = worldAt(ev); userPing(w.x, w.z); });
     cv.addEventListener('pointerdown', function (ev) {
       if (ev.button === 2) return;
       pressAt = { x: ev.clientX, y: ev.clientY, w: worldAt(ev) }; clearTimeout(pressT);
-      pressT = setTimeout(function () { if (pressAt) { ping(pressAt.w.x, pressAt.w.z); pressAt = null; } }, 520);
+      pressT = setTimeout(function () { if (pressAt) { userPing(pressAt.w.x, pressAt.w.z); pressAt = null; } }, 520);
     });
     cv.addEventListener('pointermove', function (ev) { if (pressAt && Math.hypot(ev.clientX - pressAt.x, ev.clientY - pressAt.y) > 10) { clearTimeout(pressT); pressAt = null; } });
     cv.addEventListener('pointerup', function (ev) {
@@ -404,19 +406,26 @@
     else { var e = E(); if (e && e.controls) { e.controls.target.set(x, 0.5, z); e.controls.update(); } }
     if (global.innerWidth < 760) setOpen(false);   // phones: show the spot right away
   }
-  function ping(x, z) {
-    var ref = gridRef(x, z);
-    state.pings.push({ x: x, z: z, t: performance.now(), ref: ref }); if (state.pings.length > 6) state.pings.shift();
-    beacon(x, z);
+  /** a ping the player placed by hand: also shared with a linked online partner (v12.0.56) */
+  function userPing(x, z) {
+    ping(x, z);
+    try { if (LB.netplay && LB.netplay.sharePing && LB.netplay.sharePing(x, z)) { var f = doc.getElementById('tacFoot'); if (f) f.textContent = 'Ping at ' + gridRef(x, z) + ' (shared with your partner)'; } } catch (_) {}
+  }
+  /** opt (optional, v12.0.56): { by: partner callsign, ally: bool } for a partner's ping; never re-sent */
+  function ping(x, z, opt) {
+    var ref = gridRef(x, z), by = opt && opt.by ? String(opt.by).slice(0, 16) : '', rgb = by ? (opt.ally ? '124,200,255' : '255,107,90') : '';
+    state.pings.push({ x: x, z: z, t: performance.now(), ref: ref, by: by, rgb: rgb }); if (state.pings.length > 6) state.pings.shift();
+    beacon(x, z, by ? (opt.ally ? 0x7cc8ff : 0xff6b5a) : null);
+    if (by) { try { if (LB.sfx && LB.sfx.blip) LB.sfx.blip(mySide()); } catch (_) {} var f0 = doc.getElementById('tacFoot'); if (f0) f0.textContent = by + ' pinged ' + ref; drawBig(true); return ref; }
     try { if (LB.sfx && LB.sfx.blip) LB.sfx.blip(mySide()); } catch (_) {}
     var f = doc.getElementById('tacFoot'); if (f) f.textContent = 'Ping at ' + ref + ' (game marker only)';
-    drawBig(true);
+    drawBig(true); return ref;
   }
-  function beacon(x, z) {
+  function beacon(x, z, col) {
     var e = E(); if (!e || !e.THREE || !e.scene) return;
     var T = e.THREE, y0 = 0; try { y0 = e.terrainHeight ? e.terrainHeight(x, z) : 0; } catch (_) {}
     if (TH() && TH().isWater && TH().isWater(x, z)) y0 = -0.3;
-    var m = new T.MeshBasicMaterial({ color: 0xffe078, transparent: true, opacity: 0.55, depthWrite: false, blending: T.AdditiveBlending, toneMapped: false });
+    var m = new T.MeshBasicMaterial({ color: col != null ? col : 0xffe078, transparent: true, opacity: 0.55, depthWrite: false, blending: T.AdditiveBlending, toneMapped: false });
     var g = new T.Mesh(new T.CylinderGeometry(0.35, 0.35, 40, 8, 1, true), m); g.position.set(x, y0 + 20, z); g.name = 'tac-beacon';
     var ring = new T.Mesh(new T.RingGeometry(1.6, 2.2, 32), m.clone()); ring.rotation.x = -Math.PI / 2; ring.position.set(x, y0 + 0.25, z); ring.name = 'tac-beacon-ring';
     e.scene.add(g); e.scene.add(ring);
@@ -480,7 +489,7 @@
     version: 'v12.0.22', isEnabled: function () { return enabled; },
     drawInset: drawInset, open: function () { return setOpen(true); }, close: function () { return setOpen(false); }, toggle: function () { return setOpen(!state.open); },
     setView: function (v) { state.view = v === 'front' ? 'front' : 'world'; drawBig(true); return state.view; },
-    ping: ping, gridRef: gridRef, render: render, setOrders: function (v) { buildBig(); return setOrders(v); }, orderTap: function (x, z) { buildBig(); return orderTap({ x: x, z: z }, big.querySelector('#tacCanvas')); }, lastFoot: function () { return state.lastFoot || ''; }, toScreen: function (x, z) { if (!big) return null; var cv = big.querySelector('#tacCanvas'), r = cv.getBoundingClientRect(), B = bounds(state.view); return { x: r.left + (x - B.minX) / (B.maxX - B.minX) * r.width, y: r.top + (z - B.minZ) / (B.maxZ - B.minZ) * r.height }; },
+    ping: ping, userPing: userPing, gridRef: gridRef, render: render, setOrders: function (v) { buildBig(); return setOrders(v); }, orderTap: function (x, z) { buildBig(); return orderTap({ x: x, z: z }, big.querySelector('#tacCanvas')); }, lastFoot: function () { return state.lastFoot || ''; }, toScreen: function (x, z) { if (!big) return null; var cv = big.querySelector('#tacCanvas'), r = cv.getBoundingClientRect(), B = bounds(state.view); return { x: r.left + (x - B.minX) / (B.maxX - B.minX) * r.width, y: r.top + (z - B.minZ) / (B.maxZ - B.minZ) * r.height }; },
     getState: function () { return { enabled: enabled, open: state.open, orders: !!state.orders, view: state.view, symbols: state.symbols, drawn: state.drawn, ms: state.lastMs, pings: state.pings.length, beacons: state.beacons.length, insetDpr: state.insetDpr, side: mySide(), partnerView: state.partnerView || 0 }; }
   };
 })(window);

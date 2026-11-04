@@ -1,4 +1,4 @@
-/* LUNC Battlefield v12.0.52 — online link-up, part 1 (+ v12.0.53 part 2: host's market drives both battles; v12.0.54 part 3: invite links; v12.0.55 part 4: partner view) (v12.2 Multiplayer → Online). Game layer.
+/* LUNC Battlefield v12.0.52 — online link-up, part 1 (+ v12.0.53 part 2: host's market drives both battles; v12.0.54 part 3: invite links; v12.0.55 part 4: partner view; v12.0.56 part 5: shared map pings + located signals) (v12.2 Multiplayer → Online). Game layer.
  * WebRTC peer-to-peer with copy-paste signalling (no server): Host makes an invite code, Join pastes it and gets a reply
  * code, the host pastes the reply. Codes are the SDP, deflated + base64url (LO1. offer / LA1. answer; LOJ./LAJ. plain
  * where CompressionStream is missing). A public STUN server is contacted only when you press Host or Join; there's no
@@ -15,6 +15,7 @@
   var enabled = qs.get('online') !== '0' && typeof global.RTCPeerConnection === 'function';
   var hostMkt = qs.get('hostmarket') !== '0';
   var PX_S = 2, PX_QUIET_MS = 12000, SRC_LABELS = { binance: 'Binance', coingecko: 'CoinGecko', llama: 'DefiLlama', api: 'Backend API', bridge: 'Backend API', sim: 'Simulation' };
+  var sharePings = qs.get('sharepings') !== '0', lastMarkOut = 0, lastMarkIn = 0;
   var pview = qs.get('partnerview') !== '0', CAM_S = 1, CAM_STALE_MS = 5000, pcam = null, camIv = null;
   var HASH_KEY = 'lbjoin=', pendingInvite = null, inviteCode = '';
   var follow = true, px = { t: 0, n: 0, last: null, quiet: false }, pxIv = null;
@@ -212,7 +213,8 @@
       case 'pong': var t0 = pingSent[m.id | 0]; if (t0) { stats.rtt = Math.round(performance.now() - t0); delete pingSent[m.id | 0]; } break;
       case 'mk': peer.fx = clamp(m.fx, WORLD.minX, WORLD.maxX, 0); peer.live = !!m.live; peer.score = clamp(m.sc, 0, 1e9, 0) | 0; peer.side = m.side === 'bear' ? 'bear' : 'bull'; break;
       case 'strike': if (ABIL[m.a]) { stats.strikesIn++; showStrike(m.a, clamp(m.x, WORLD.minX, WORLD.maxX, 0), clamp(m.z, WORLD.minZ, WORLD.maxZ, 0)); } else stats.bad++; break;
-      case 'sig': if (SIGNALS[m.id]) { stats.signalsIn++; say(peer.name + ': ' + SIGNALS[m.id]); radio(peer.name + ': ' + SIGNALS[m.id]); } else stats.bad++; break;
+      case 'sig': if (SIGNALS[m.id]) { stats.signalsIn++; var at = sigWhere(m); say(peer.name + ': ' + SIGNALS[m.id] + at); radio(peer.name + ': ' + SIGNALS[m.id] + at); } else stats.bad++; break;
+      case 'mark': onMark(m); break;
       case 'px': onPx(m); break;
       case 'cam': onCam(m); return;   // 1/s, no re-render needed
       case 'bye': setState('lost', (peer.name || 'Partner') + ' left'); stopTimers(); break;
@@ -246,7 +248,34 @@
 
   // ---------------------------------------------------------------- outgoing hooks
   function strike(a, x, z) { if (state !== 'linked' || !ABIL[a]) return false; stats.strikesOut++; return send({ k: 'strike', a: a, x: Math.round(x * 10) / 10, z: Math.round(z * 10) / 10 }); }
-  function signal(id) { if (!SIGNALS[id] || state !== 'linked') return false; say('You: ' + SIGNALS[id]); return send({ k: 'sig', id: id }); }
+  function signal(id) {
+    if (!SIGNALS[id] || state !== 'linked') return false;
+    var o = { k: 'sig', id: id }, at = '';
+    // v12.0.56: say where you're looking (grid square), so "Need support" comes with a place
+    if (sharePings) { try { var T = E().getCameraTarget(); o.x = Math.round(T.x); o.z = Math.round(T.z); at = gridAt(o.x, o.z); } catch (_) {} }
+    say('You: ' + SIGNALS[id] + (at ? ' at ' + at : '')); return send(o);
+  }
+  function gridAt(x, z) { try { return LB.tacmap && LB.tacmap.gridRef ? String(LB.tacmap.gridRef(x, z)) : ''; } catch (_) { return ''; } }
+  function sigWhere(m) {
+    if (!sharePings || typeof m.x !== 'number' || typeof m.z !== 'number' || !isFinite(m.x) || !isFinite(m.z)) return '';
+    var r = gridAt(clamp(m.x, WORLD.minX, WORLD.maxX, 0), clamp(m.z, WORLD.minZ, WORLD.maxZ, 0)); return r ? ' at ' + r : '';
+  }
+  // ---------------------------------------------------------------- v12.0.56 shared map pings (both ways, cosmetic)
+  function sharePing(x, z) {
+    if (!sharePings || state !== 'linked') return false;
+    var now = performance.now(); if (now - lastMarkOut < 800) return false; lastMarkOut = now;
+    stats.marksOut = (stats.marksOut || 0) + 1;
+    return send({ k: 'mark', x: Math.round(clamp(x, WORLD.minX, WORLD.maxX, 0) * 10) / 10, z: Math.round(clamp(z, WORLD.minZ, WORLD.maxZ, 0) * 10) / 10 });
+  }
+  function onMark(m) {
+    if (!sharePings) return;
+    var now = performance.now(); if (now - lastMarkIn < 400) { stats.dropped++; return; } lastMarkIn = now;
+    if (typeof m.x !== 'number' || typeof m.z !== 'number' || !isFinite(m.x) || !isFinite(m.z)) { stats.bad++; return; }
+    var x = clamp(m.x, WORLD.minX, WORLD.maxX, 0), z = clamp(m.z, WORLD.minZ, WORLD.maxZ, 0), name = peer ? peer.name : 'Partner', ally = !!(peer && peer.side === mySide()), ref = '';
+    try { if (LB.tacmap && LB.tacmap.ping) ref = LB.tacmap.ping(x, z, { by: name, ally: ally }) || ''; } catch (_) {}
+    stats.marksIn = (stats.marksIn || 0) + 1; stats.last = name + ' pinged ' + (ref || Math.round(x) + ', ' + Math.round(z));
+    radio(name + ' marked ' + (ref || 'a spot') + '. Check your map.');
+  }
 
   // ---------------------------------------------------------------- UI
   function setState(s, msg) { state = s; if (msg != null) stats.last = msg; render(); }
@@ -351,7 +380,7 @@
     global.addEventListener('hashchange', function () { if (el.p && String(global.location.hash).indexOf(HASH_KEY) >= 0) inviteFromHash(); });
   }
   LB.netplay = {
-    version: 'v12.0.55', isEnabled: function () { return enabled; }, host: host, join: join, accept: accept, setFollow: setFollow, partnerView: partnerView, lookWithPartner: lookWithPartner, inviteUrl: inviteUrl, joinInvite: joinInvite, _fromHash: inviteFromHash, close: function () { close(false); }, strike: strike, signal: signal,
+    version: 'v12.0.56', isEnabled: function () { return enabled; }, host: host, join: join, accept: accept, setFollow: setFollow, sharePing: sharePing, partnerView: partnerView, lookWithPartner: lookWithPartner, inviteUrl: inviteUrl, joinInvite: joinInvite, _fromHash: inviteFromHash, close: function () { close(false); }, strike: strike, signal: signal,
     _onMsg: onMsg, decode: decodeDesc,
     getState: function () { return { enabled: enabled, state: state, role: role, peer: peer ? Object.assign({}, peer) : null, rings: marks.length, invite: !!pendingInvite, follow: follow, following: !!(E() && E().isRemoteMarket && E().isRemoteMarket()), px: px.last ? Object.assign({ n: px.n }, px.last) : null, stats: Object.assign({}, stats) }; }
   };
