@@ -119,7 +119,7 @@
     '    vec3 mudWet = vec3(0.105, 0.078, 0.052), mudDry = vec3(0.29, 0.24, 0.18);',
     '    diffuseColor.rgb = mix(diffuseColor.rgb, mix(mudWet, mudDry, uRzMudDry), rzMud);',
     '  }',
-    '  diffuseColor.rgb *= 1.0 - 0.32 * uRzWet * (1.0 - rzMud * 0.4);',
+    '  diffuseColor.rgb *= 1.0 - 0.26 * uRzWet * (1.0 - rzMud * 0.4);',
     '  rzRough = rzRough + rzMud * (0.6 * uRzMudDry);',
     '}'
   ].join('\n');
