@@ -156,7 +156,7 @@
   function renderUi() {
     if (!el.status) return;
     var w = weather(), n = night(), me = playerSide();
-    el.status.innerHTML = '<div><b>' + w.toUpperCase() + (n ? ' · NIGHT' : '') + '</b> · gunnery spread ' + pct(mod('gun')) + ' · AA hits ' + pct(mod('aa')) + ' · IR missiles ' + pct(mod('ir')) + ' · direct-fire range ' + pct(mod('sight')) + (wet > 0.02 ? ' · ground wet ' + Math.round(wet * 100) + ' %' : '') + '</div>' +
+    el.status.innerHTML = '<div><b>' + w.toUpperCase() + (n ? ' · NIGHT' : '') + '</b> · gunnery spread ' + pct(mod('gun')) + ' · AA hits ' + pct(mod('aa')) + ' · IR missiles ' + pct(mod('ir')) + ' · direct-fire range ' + pct(mod('sight')) + (wet > 0.02 ? ' · ground wet ' + Math.round(wet * 100) + ' %' : '') + (function () { try { var M = LB.rainMud && LB.rainMud.isEnabled() && LB.rainMud.levels(); return M && M.mud > 0.02 ? ' · mud ' + Math.round(M.mud * 100) + ' %' + (M.dry > 0.5 ? ' (drying)' : '') + (M.fill > 0.05 ? ' · puddles' : '') : ''; } catch (_) { return ''; } })() + '</div>' +
       '<div>Your side (' + sideName(me) + '): ' + outages(me) + '</div><div>Enemy (' + sideName(-me) + '): ' + outages(-me) + '</div>' +
       (hackCd > 0 ? '<div>Cyber attack ready in ' + Math.ceil(hackCd) + ' s</div>' : '');
   }

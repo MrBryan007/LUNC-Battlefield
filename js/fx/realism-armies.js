@@ -11,6 +11,8 @@
  *  3. Motion: vehicle acceleration / braking limits (never overshoot the desired X), max turn rate with hull
  *     heading following travel (reverses instead of spinning around), suspension pitch / roll / bob, turret slew
  *     toward a target at a max rate. Infantry gait variety (per-soldier cadence and stride).
+ *  4. v12.0.57 rain & mud: shared wet / mud uniforms (driven by js/fx/rain-mud.js, ?mud=0) darken and gloss the paint in
+ *     rain and paint a mud band up from the running gear / boots that cakes lighter as it dries.
  * Kill switch: ?realism=0 (shared with v12.0.13 realism-pass.js) restores the old look, spacing and motion.
  */
 (function (global) {
@@ -28,16 +30,16 @@
   // kind → { mul: base brightness, scale: pattern frequency (1/unit), pat: pattern strength, low: grime band,
   //          rough, metal, dirt }
   var KIND = {
-    armor:     { mul: 1.0,  scale: 1.15, pat: 1.0,  lowY: 0.55, lowK: 2.2, rough: 0.74, metal: 0.22, dirt: 1.0 },
-    armorDark: { mul: 0.72, scale: 1.15, pat: 0.8,  lowY: 0.5,  lowK: 2.2, rough: 0.8,  metal: 0.2,  dirt: 1.0 },
-    art:       { mul: 0.95, scale: 1.2,  pat: 1.0,  lowY: 0.5,  lowK: 2.2, rough: 0.76, metal: 0.2,  dirt: 1.0 },
-    uniform:   { mul: 1.08, scale: 5.5,  pat: 0.85, lowY: 0,    lowK: 0,   rough: 0.9,  metal: 0.02, dirt: 0.55 },
-    trousers:  { mul: 0.9,  scale: 5.5,  pat: 0.85, lowY: 0,    lowK: 0,   rough: 0.92, metal: 0.02, dirt: 0.7 },
-    gear:      { mul: 0.8,  scale: 4.0,  pat: 0.35, lowY: 0,    lowK: 0,   rough: 0.85, metal: 0.04, dirt: 0.5 },
-    air:       { mul: 1.0,  scale: 0.6,  pat: 0.18, lowY: 0,    lowK: 0,   rough: 0.55, metal: 0.35, dirt: 0.25, air: true },
+    armor:     { mul: 1.0,  scale: 1.15, pat: 1.0,  lowY: 0.55, lowK: 2.2, rough: 0.74, metal: 0.22, dirt: 1.0, mudH: 0.6 },
+    armorDark: { mul: 0.72, scale: 1.15, pat: 0.8,  lowY: 0.5,  lowK: 2.2, rough: 0.8,  metal: 0.2,  dirt: 1.0, mudH: 0.5 },
+    art:       { mul: 0.95, scale: 1.2,  pat: 1.0,  lowY: 0.5,  lowK: 2.2, rough: 0.76, metal: 0.2,  dirt: 1.0, mudH: 0.55 },
+    uniform:   { mul: 1.08, scale: 5.5,  pat: 0.85, lowY: 0,    lowK: 0,   rough: 0.9,  metal: 0.02, dirt: 0.55, mudH: 0.0 },
+    trousers:  { mul: 0.9,  scale: 5.5,  pat: 0.85, lowY: 0,    lowK: 0,   rough: 0.92, metal: 0.02, dirt: 0.7, mudH: 0.55 },
+    gear:      { mul: 0.8,  scale: 4.0,  pat: 0.35, lowY: 0,    lowK: 0,   rough: 0.85, metal: 0.04, dirt: 0.5, mudH: 0.25 },
+    air:       { mul: 1.0,  scale: 0.6,  pat: 0.18, lowY: 0,    lowK: 0,   rough: 0.55, metal: 0.35, dirt: 0.25, air: true, mudH: 0.0 },
     // v11 GLB layers (vertex colours already carry the base; the pattern only modulates)
-    glbVeh:    { mul: 1.0,  scale: 1.2,  pat: 1.0,  lowY: 0.45, lowK: 2.4, rough: 0.68, metal: 0.28, dirt: 0.9, glb: true },
-    glbInf:    { mul: 1.0,  scale: 5.0,  pat: 0.8,  lowY: 0,    lowK: 0,   rough: 0.85, metal: 0.04, dirt: 0.5, glb: true }
+    glbVeh:    { mul: 1.0,  scale: 1.2,  pat: 1.0,  lowY: 0.45, lowK: 2.4, rough: 0.68, metal: 0.28, dirt: 0.9, glb: true, mudH: 0.5 },
+    glbInf:    { mul: 1.0,  scale: 5.0,  pat: 0.8,  lowY: 0,    lowK: 0,   rough: 0.85, metal: 0.04, dirt: 0.5, glb: true, mudH: 0.4 }
   };
   var SCALE = { 1: 1.45, 2: 1.3 };                 // MBT / SPG uniform scale
   var FOOT = { 1: { L: 4.35, W: 3.2 }, 2: { L: 4.3, W: 2.9 } };   // scaled footprint (m) along facing / lateral
@@ -49,6 +51,8 @@
 
   var THREE = null;
   var camoMats = [];                                 // every patched material (detail uniform updated per tier)
+  // v12.0.57 rain & mud: ONE shared uniform object for every camo material (js/fx/rain-mud.js drives it)
+  var WEAR = { wet: { value: 0 }, mud: { value: 0 }, mudDry: { value: 0 } };
   var matCache = {};
   var iffCache = {};
   var lastArmorEnd = { '-1': 46, '1': 46 };
@@ -76,6 +80,7 @@
     'varying vec3 vRzPos;', 'varying vec3 vRzNrm;',
     'uniform float uRzDetail; uniform float uRzScale; uniform float uRzPat; uniform float uRzDirt;',
     'uniform float uRzLowY; uniform float uRzLowK; uniform vec3 uRzC1; uniform vec3 uRzC2; uniform vec3 uRzC3; uniform vec3 uRzDust;',
+    'uniform float uRzWet; uniform float uRzMud; uniform float uRzMudDry; uniform float uRzMudH;',
     'float rzH(vec3 p){ p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }',
     'float rzN(vec3 x){ vec3 i = floor(x); vec3 f = fract(x); f = f * f * (3.0 - 2.0 * f);',
     '  return mix(mix(mix(rzH(i), rzH(i + vec3(1,0,0)), f.x), mix(rzH(i + vec3(0,1,0)), rzH(i + vec3(1,1,0)), f.x), f.y),',
@@ -84,6 +89,7 @@
   var FRAG_COLOR = [
     '#include <color_fragment>',
     'float rzRough = 0.0;',
+    'float rzMud = 0.0;',
     '{',
     '  vec3 rzUp = normalize(vRzNrm);',
     '  float rzLow = uRzLowK > 0.0 ? 1.0 - clamp((vRzPos.y - uRzLowY) * uRzLowK + 0.5, 0.0, 1.0) : 0.0;',
@@ -104,6 +110,17 @@
     '    diffuseColor.rgb = mix(diffuseColor.rgb, uRzDust, dust);',
     '    rzRough = dust;',
     '  }',
+    // v12.0.57 rain & mud: mud climbs from the running gear / boots (noisy splashes above the band), dries lighter and
+    // matte; wet paint and fabric darken and go glossy. uRzMudH = how high mud reaches on this kind (object space).
+    '  if (uRzMud > 0.001 && uRzMudH > 0.0) {',
+    '    float mh = uRzMudH * (0.35 + 0.65 * uRzMud);',
+    '    float sp = uRzDetail > 0.5 ? rzN(vRzPos * 6.3 + 3.1) : 0.5;',
+    '    rzMud = clamp((mh - vRzPos.y) / max(0.05, mh * 0.55) + (sp - 0.5) * 0.9, 0.0, 1.0) * clamp(uRzMud * 1.6, 0.0, 0.92);',
+    '    vec3 mudWet = vec3(0.105, 0.078, 0.052), mudDry = vec3(0.29, 0.24, 0.18);',
+    '    diffuseColor.rgb = mix(diffuseColor.rgb, mix(mudWet, mudDry, uRzMudDry), rzMud);',
+    '  }',
+    '  diffuseColor.rgb *= 1.0 - 0.26 * uRzWet * (1.0 - rzMud * 0.4);',
+    '  rzRough = rzRough + rzMud * (0.6 * uRzMudDry);',
     '}'
   ].join('\n');
 
@@ -117,7 +134,7 @@
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', '#include <common>\n' + NOISE)
       .replace('#include <color_fragment>', FRAG_COLOR)
-      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = clamp(roughnessFactor + rzRough * 0.28, 0.0, 1.0);');
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nroughnessFactor = clamp(roughnessFactor + rzRough * 0.28, 0.0, 1.0);\nroughnessFactor = mix(roughnessFactor, min(roughnessFactor, 0.3 + rzMud * 0.25), uRzWet * (1.0 - uRzMudDry * rzMud));');
   }
 
   /** Patch an existing MeshStandardMaterial with the camo shader. */
@@ -135,11 +152,12 @@
       uRzC1: { value: air ? new (T().Vector3)(0.86, 0.88, 0.9) : rel(P.c1) },
       uRzC2: { value: air ? new (T().Vector3)(1.08, 1.06, 1.04) : rel(P.c2) },
       uRzC3: { value: air ? new (T().Vector3)(0.8, 0.8, 0.82) : rel(P.c3) },
-      uRzDust: { value: new (T().Vector3)(dust.r, dust.g, dust.b) }
+      uRzDust: { value: new (T().Vector3)(dust.r, dust.g, dust.b) },
+      uRzWet: WEAR.wet, uRzMud: WEAR.mud, uRzMudDry: WEAR.mudDry, uRzMudH: { value: K.mudH != null ? K.mudH : 0 }
     };
     m.userData.rzKind = kindName; m.userData.rzSide = side;
     m.onBeforeCompile = rzOnBeforeCompile;
-    m.customProgramCacheKey = function () { return 'rz-camo-v1'; };
+    m.customProgramCacheKey = function () { return 'rz-camo-v2'; };
     m.needsUpdate = true;
     camoMats.push(m);
     state.camoMats = camoMats.length;
@@ -461,6 +479,12 @@
     bodyColor: function (side) { return lin(side < 0 ? 0x525b38 : 0x4d544a).getHex(); },
     /** Far-LOD stub colour (dark camo silhouette instead of pastel). */
     stubColor: function (side) { return lin(side < 0 ? 0x3f4830 : 0x474b42).getHex(); },
+    /** v12.0.57 rain & mud: wet 0..1 (darker, glossier), mud 0..1 (how high / thick), dry 0..1 (wet brown → caked tan). */
+    setWear: function (wet, mud, dry) {
+      WEAR.wet.value = Math.max(0, Math.min(1, +wet || 0)); WEAR.mud.value = Math.max(0, Math.min(1, +mud || 0)); WEAR.mudDry.value = Math.max(0, Math.min(1, +dry || 0));
+      return { wet: WEAR.wet.value, mud: WEAR.mud.value, dry: WEAR.mudDry.value };
+    },
+    getWear: function () { return { wet: WEAR.wet.value, mud: WEAR.mud.value, dry: WEAR.mudDry.value }; },
     SCALE: SCALE, MOVE: MOVE, FOOT: FOOT
   };
   if (!enabled) {
