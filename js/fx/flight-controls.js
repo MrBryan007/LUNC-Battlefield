@@ -65,7 +65,7 @@
     if (!THREE || !g || !g.children || !g.children.length) { stats.skipped++; return c; }
     var M = measure(g); if (!M) { stats.skipped++; return c; }
     _v = _v || new THREE.Vector3(); _w = _w || new THREE.Vector3();
-    var mat = M.wing.material, chord = Math.min(0.26, (M.maxX - M.minX) * 0.16), t = Math.max(0.025, M.t * 0.8);
+    var mat = M.wing.material, chord = Math.min(0.2, (M.maxX - M.minX) * 0.13), t = Math.max(0.02, M.t * 0.55);
     // a delta's span at the trailing edge is the full span, so the elevons run from the fuselage (≈0.24) to ~90 %
     var z0 = 0.26, z1 = M.span * 0.9, len = z1 - z0;
     c.elH = [-1, 1].map(function (s) { var h = hinge(g, M.minX + 0.01, M.y, s * (z0 + len / 2)); slab(h, chord, t, len, mat, -chord / 2, 0); return h; });
