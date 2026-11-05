@@ -82,7 +82,7 @@
     if (spots.length) {
       var g = new THREE.CircleGeometry(1, 20); g.rotateX(-Math.PI / 2);
       // standing water: dark, very smooth, a bit metallic so it picks up the sky / sun highlight; alpha from a soft disc
-      pMat = pMat || new THREE.MeshStandardMaterial({ color: 0x2b3238, roughness: 0.06, metalness: 0.55, transparent: true, opacity: 0, alphaMap: softTex(false), depthWrite: false, envMapIntensity: 1.2,
+      pMat = pMat || new THREE.MeshStandardMaterial({ color: 0x161c20, roughness: 0.08, metalness: 0.2, transparent: true, opacity: 0, alphaMap: softTex(false), depthWrite: false, envMapIntensity: 0.7,
         polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
       pMat.name = 'rainMud.puddle';
       pMesh = new THREE.InstancedMesh(g, pMat, spots.length); pMesh.name = 'rainPuddles'; pMesh.frustumCulled = false; pMesh.renderOrder = 2; pMesh.receiveShadow = false; pMesh.castShadow = false;

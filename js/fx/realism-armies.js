@@ -89,6 +89,7 @@
   var FRAG_COLOR = [
     '#include <color_fragment>',
     'float rzRough = 0.0;',
+    'float rzMud = 0.0;',
     '{',
     '  vec3 rzUp = normalize(vRzNrm);',
     '  float rzLow = uRzLowK > 0.0 ? 1.0 - clamp((vRzPos.y - uRzLowY) * uRzLowK + 0.5, 0.0, 1.0) : 0.0;',
@@ -111,7 +112,6 @@
     '  }',
     // v12.0.57 rain & mud: mud climbs from the running gear / boots (noisy splashes above the band), dries lighter and
     // matte; wet paint and fabric darken and go glossy. uRzMudH = how high mud reaches on this kind (object space).
-    '  float rzMud = 0.0;',
     '  if (uRzMud > 0.001 && uRzMudH > 0.0) {',
     '    float mh = uRzMudH * (0.35 + 0.65 * uRzMud);',
     '    float sp = uRzDetail > 0.5 ? rzN(vRzPos * 6.3 + 3.1) : 0.5;',
