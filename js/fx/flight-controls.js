@@ -118,13 +118,13 @@
       if (Math.abs(c.el[i]) > stats.maxElevon) stats.maxElevon = +Math.abs(c.el[i]).toFixed(3);
     }
     var split = Math.abs(c.el[0] - c.el[1]); if (split > stats.maxSplit) stats.maxSplit = +split.toFixed(3);
-    var lefT = air ? clamp((sp < 30 ? (30 - sp) / 18 : 0) + Math.max(0, Math.abs(bank) - 0.6) * 0.8, 0, 1) * MAX.lef : st === 'takeoff' || st === 'land' ? MAX.lef * 0.6 : 0;
+    var lefT = air ? clamp((sp < 30 ? (30 - sp) / 18 : 0) + (final ? 0.7 : 0) + Math.max(0, Math.abs(bank) - 0.6) * 0.8, 0, 1) * MAX.lef : st === 'takeoff' || st === 'land' ? MAX.lef * 0.6 : 0;
     c.lef = step(c.lef, lefT, RATE.lef, dt); c.lefH[0].rotation.x = c.lef; c.lefH[1].rotation.x = -c.lef;
     if (c.rudH) {
       var steer = 0;
       if (!air && (st === 'taxi' || st === 'land' || st === 'takeoff')) { var ph = c.ph == null ? (sa.vyaw || J.hd) : c.ph, ny = sa.vyaw != null ? sa.vyaw : J.hd; steer = clamp(wrap(ny - ph) / dt * 0.6, -1, 1); c.ph = ny; }
       else c.ph = null;
-      var rudT = clamp((air ? om * 0.35 : steer), -1, 1) * MAX.rudder;
+      var rudT = clamp((air ? om * 0.8 : steer), -1, 1) * MAX.rudder;
       c.rud = step(c.rud, rudT, RATE.rudder, dt); c.rudH.rotation.y = c.rud;
       if (Math.abs(c.rud) > stats.maxRudder) stats.maxRudder = +Math.abs(c.rud).toFixed(3);
     }
