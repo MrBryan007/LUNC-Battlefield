@@ -221,7 +221,7 @@
     var F = fx();
     J.t -= dt;
     var AO = LB.airOps && LB.airOps.isEnabled() ? LB.airOps : null;   // v12.0.33 air ops: catapult shots + carrier recoveries
-    if (AO && AO.tick(J, dt, homeCtx(J))) { J.g.position.set(J.x, J.y, J.z); if (SA()) SA().jetPose(J, dt); AO.pose(J, dt); return; }
+    if (AO && AO.tick(J, dt, homeCtx(J))) { J.g.position.set(J.x, J.y, J.z); if (SA()) SA().jetPose(J, dt); AO.pose(J, dt); if (LB.flightControls) LB.flightControls.pose(J, dt); return; }
     if (J.st === 'parked') { if (J.t <= 0 && airborne() < cap.jets) { J.st = 'taxi'; J.sp = 3; } }
     else if (J.st === 'taxi') { J.x -= J.side * J.sp * dt * -1; if (Math.abs(J.x - J.side * BASE_X) < 30) { J.z += (BASE_Z - J.z) * Math.min(1, dt * 2); } if (Math.abs(J.z - BASE_Z) < 0.6) { J.st = 'takeoff'; J.hd = J.side < 0 ? 0 : Math.PI; } }
     else if (J.st === 'takeoff' && SA() && J.y < 0.9 && !SA().lineUp(J, dt)) { J.sp = 0; }   // v12.0.15: turn onto the runway first
@@ -258,6 +258,7 @@
     if (J.st === 'taxi' || J.st === 'parked' || J.st === 'land') J.g.rotation.y = J.hd;
     if (SA()) SA().jetPose(J, dt);
     if (AO) AO.pose(J, dt);   // v12.0.33 gear / hook / afterburner / beacon
+    if (LB.flightControls) LB.flightControls.pose(J, dt);   // v12.0.58 flaps, elevons, rudder, speed brake, wingtip vapour
   }
   var _home = null;
   function homeCtx(J) {
@@ -509,6 +510,7 @@
     var nd = navalNear ? wdt : (doFar ? fdt : 0);
     stats.simHz = navalNear ? 'full' : '4Hz';
     if (nd) { for (var i = 0; i < ships.length; i++) tickShip(ships[i], nd); tickShells(nd); }
+    if (LB.flightControls && LB.flightControls.tick) LB.flightControls.tick(wdt);   // v12.0.58 vapour budget
     for (var j = 0; j < jets.length; j++) tickJet(jets[j], wdt);   // aircraft cross theaters → always full rate (few)
     tickMissiles(wdt);
     if (LB.flak) { try { LB.flak.update(wdt); } catch (e) { if (!update._flErr) { update._flErr = 1; console.warn('[flak]', e); } } }   // v12.0.34
