@@ -1,5 +1,21 @@
 # Changelog
 
+## v12.0.57 — Rain and mud on the armies (2026-11-05, AI build)
+- From the realism checklist (Materials: "no wet or muddy variation by weather"). Until now rain only darkened the ground and made tread prints wetter. Every tank, gun and soldier stayed bone-dry.
+- New module `js/fx/rain-mud.js` tracks how wet and how muddy the battlefield is from the weather setting (Settings → WORLD). Everything soaks in and dries out gradually:
+  - **Wet**: soaks in over about 20 s of rain and dries over about a minute. Fog leaves a light damp.
+  - **Mud**: builds up over about 90 s of rain. Once the rain stops it cakes from wet dark brown to dry tan and flakes off over about 4 minutes.
+- **Armies**: in rain, the camo on tanks, self-propelled guns, soldiers and aircraft goes darker and glossy. Mud climbs up from the tracks and running gear (and up soldiers' trousers and boots), with splashes above the mud line, and it dries lighter and matte. It runs through the existing camo shader with one shared setting, so it costs nothing extra and also works on LOW and phones.
+- **Mud spray** (MEDIUM and up): moving tanks and guns near the camera throw brown mud off their tracks while the ground is wet.
+- **Puddles** (MEDIUM and up, none on LOW or phones): standing water in low, flat ground on both sides of the line (never on the beach or the HQ and airbase pads). It fills once the ground is soaked, reflects the sky and shrinks as it dries. On HIGH and up, raindrops ripple on it. That's one draw call for puddles and one for ripples.
+- The weather panel (Map → WAR SYSTEMS) now also shows "mud 40 %", "(drying)" and "puddles".
+- Cosmetic only. It never touches market data, armies, combat, the front or data-truth labels. The market-driven frontline, Moon Shot, Commander, the v11.4 HUD/dock, Hide UI, the v12.x systems and all `?flags` are unchanged. Kill switch: `?mud=0` (also off with `?realism=0`).
+- Caught in testing: the first build of the shader change failed to compile, which made every camo-painted tank and soldier invisible while the page still reported no errors. It's fixed, and the load and feature probes now fail on any WebGL shader compile error, so this kind of bug can't pass silently again.
+- Version bump to v12.0.57 (BUILD, quality api, index tags, footer label, cache-bust `?v=20261105v12057` on all 97 local css/js tags).
+- Tested: `node --check` on all JS files, stabilization-smoke 54/54 passing (adds a rain & mud wiring check), asset-lifecycle 33/33 passing, headless HIGH / MEDIUM / LOW / iPhone 390x844 plus `?mud=0` and `?realism=0` loads with 0 page errors and 0 shader errors (`tests/quality-loads-probe.js`).
+  - Rain & mud probe (`tests/rain-mud-harness.js`): on HIGH, 150 s of rain took the armies to fully wet and muddy, with 44 of 44 puddles filled and ripples showing. After 90 s of clear weather the ground was drying (wet 22 %, mud caking), and after 6.5 minutes everything was dry and clean. On an iPhone (LOW) the armies got wet and muddy with no puddles. With `?mud=0` nothing changed. Screenshots in `docs/v12057-shots/`.
+- Build hours (real timestamps): see the last entry of the day for the running total.
+
 ## v12.0.56 — Online link-up, part 5: shared map pings and signals that say where (2026-11-04, AI build)
 - Co-op callouts now come with a place.
 - **Shared map pings**: when you're linked, a ping you put on the tactical map by hand (right-click, or long-press on a phone) also shows up on your partner's map. Theirs appear in ally blue (or rival red) with their callsign and grid square ("Alpha6 · J1-28"), with a matching coloured beacon in the 3D world and a radio-log line ("Alpha6 marked J1-28. Check your map."). Your map footer says when your ping was shared.

@@ -234,6 +234,9 @@
       if (window.LUNCBattle && LUNCBattle.tracks && LUNCBattle.tracks.update) {   // v12.0.36 tread marks that persist under vehicles
         try { LUNCBattle.tracks.update(); } catch (e) { if (!drawFrame._trkErr) { drawFrame._trkErr = 1; console.warn('[tracks]', e); } }
       }
+      if (window.LUNCBattle && LUNCBattle.rainMud && LUNCBattle.rainMud.update) {   // v12.0.57 rain and mud on the armies, puddles
+        try { LUNCBattle.rainMud.update(); } catch (e) { if (!drawFrame._mudErr) { drawFrame._mudErr = 1; console.warn('[rain-mud]', e); } }
+      }
       if (window.LUNCBattle && LUNCBattle.craters && LUNCBattle.craters.update) {
         try { LUNCBattle.craters.update(); } catch (e) { if (!drawFrame._crErr) { drawFrame._crErr = 1; console.warn('[craters]', e); } }
       }

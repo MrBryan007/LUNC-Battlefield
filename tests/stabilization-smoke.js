@@ -65,7 +65,8 @@ const checks = [
   ['host market link wired', read('js/ui/netplay.js').includes("qs.get('hostmarket') !== '0'") && read('js/ui/netplay.js').includes('function onPx(') && read('js/battle-engine.js').includes('pushRemoteSpot: function') && read('js/battle-engine.js').includes('if (remoteMkt.on && source!==SRC.HOST) return;')],
   ['online link-up wired', index.includes('js/ui/netplay.js') && read('js/ui/netplay.js').includes("qs.get('online') !== '0'") && read('js/ui/netplay.js').includes('MAX_MSG = 2048') && read('js/commander.js').includes('LB.netplay.strike(ability, p.x, p.z)')],
   ['power-ups wired', index.includes('js/theaters/powerups.js') && read('js/theaters/powerups.js').includes("qs.get('powerups') !== '0'") && read('js/commander.js').includes('PU.scoreMult()') && read('js/commander.js').includes('LB.powerups.strikeAt(') && read('js/theaters/supply.js').includes("LB.powerups.grant(null, 'crate')")],
-  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.56')]
+  ['rain & mud wired', index.includes('js/fx/rain-mud.js') && index.indexOf('fx/rain-mud.js') > index.indexOf('fx/realism-armies.js') && read('js/fx/rain-mud.js').includes("qs.get('mud') !== '0'") && read('js/fx/realism-armies.js').includes('setWear: function') && read('js/fx/realism-armies.js').includes('uRzWet: WEAR.wet') && engine.includes('LUNCBattle.rainMud.update()')],
+  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.57')]
 ];
 
 let failed = 0;

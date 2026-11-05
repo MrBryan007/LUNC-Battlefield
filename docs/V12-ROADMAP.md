@@ -47,7 +47,7 @@ Camo PBR materials (object-space shader: Bulls woodland/olive drab, Bears grey-g
 **Still open after part 2:**
 - **Scale:** MBTs are about 4.4 m long against a 1.8 m soldier (a real one is about 10 m). Going further needs an authored MBT model with real proportions, because uniform scaling of the stubby procedural/GLB hulls makes them too tall. The GLB soldier is still 1.25 m against the 1.85 m procedural one. At HIGH counts (121 MBT + 66 SPG per side) the formations reach about 75 m behind the front.
 - **Motion:** GLB (v11) tanks are merged meshes, so their turrets can't slew (procedural tanks do). There's no track/wheel slip, and units don't take terrain-aware routes around obstacles.
-- **Materials:** camo is shader noise, not authored skins. There are no decals (numbers, mud splatter maps) and no wet/muddy variation by weather.
+- **Materials:** camo is shader noise, not authored skins. There are no decals (numbers, mud splatter maps). ~~No wet/muddy variation by weather~~ (shipped v12.0.57, `js/fx/rain-mud.js`, `?mud=0`: wet gloss, mud line that cakes and flakes off, mud spray, puddles with ripples).
 - From part 1: dynamic sun-angle shadows on LOW, ~~terrain tracks that persist under vehicles~~ (v12.0.36), shoreline foam, aircraft banking, ship roll, fires burning out over minutes, Doppler, brevity codes, NATO-ish minimap symbols.
 
 ## v12.0.15 "Realism pass, part 3: sea & air" (shipped 2026-10-17)

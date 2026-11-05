@@ -88,9 +88,9 @@
   // Single source of truth for current release metadata.
   // Historical comments and changelog entries are left untouched.
   const BUILD = Object.freeze({
-    version: 'v12.0.56',
-    codename: 'Shared map pings',
-    date: '2026-11-04'
+    version: 'v12.0.57',
+    codename: 'Rain and mud',
+    date: '2026-11-05'
   });
 
   const config = {
