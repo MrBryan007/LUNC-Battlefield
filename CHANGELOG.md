@@ -1,5 +1,20 @@
 # Changelog
 
+## v12.0.58 — Flight controls: flaps, control surfaces, speed brake and wingtip vapour (2026-11-05, AI build)
+- From the roadmap's sea & air list ("flaps/slats animation"). Jets already had landing gear, hooks and afterburners, but the airframe itself was rigid and nothing moved when a jet banked, pitched, landed or braked.
+- New module `js/fx/flight-controls.js`. Every theater jet gets hinged parts sized from its own airframe (the delta wing and the fin are measured, so the parts sit on the real edges), painted with the jet's own camo:
+  - **Elevons** on the trailing edge of the delta wing (flaps, elevators and ailerons in one surface, like a real delta fighter). They droop as flaps on the takeoff roll, on final approach and through the landing rollout, tilt trailing-edge-up when the nose pitches up, and split up/down when the jet rolls into a turn.
+  - **Leading-edge flaps** along both swept edges. They droop at low speed, on final and in hard turns.
+  - **Rudder** on the fin. It follows the turn in the air and steers on the ground.
+  - **Speed brake** on the spine. It opens on the landing rollout, on a fast approach and when a fighter bleeds speed in a dogfight.
+  - Every hinge has a speed limit, so nothing snaps from one position to another.
+- **Wingtip vapour** (MEDIUM and up): hard dogfight turns pull white vortices off both wingtips. In humid air (rain, fog, or ground still wet from v12.0.57's rain) they show at lower g. The number per frame is capped.
+- Visual only (SIMULATED theater layer). It never changes how jets fly, fight or score, and never touches market data, the front or data-truth labels. The market-driven frontline, Moon Shot, Commander, the v11.4 HUD/dock, Hide UI, the v12.x systems and all `?flags` are unchanged. Kill switch: `?flightctl=0` (also off with `?seaair=0` / `?realism=0`).
+- Version bump to v12.0.58 (BUILD, quality api, index tags, footer label, cache-bust `?v=20261105v12058` on all 98 local css/js tags).
+- Tested: `node --check` on all JS files, stabilization-smoke 55/55 passing (adds a flight-controls wiring check), asset-lifecycle 33/33 passing, headless HIGH / MEDIUM / LOW / iPhone 390x844 plus `?flightctl=0` and `?realism=0` loads with 0 page errors and 0 shader errors.
+  - Flight-controls probe (`tests/flight-controls-harness.js`): all 8 MEDIUM theater jets got their parts. A test airframe driven through each phase showed: on final, flaps fully down and speed brake out; in cruise, everything clean; rolling in, elevons split ±0.28; pitching up, both elevons trailing-edge up; in a turn, rudder over; on the rollout, flaps down and brake out. A 2.8 g turn pulled vapour in dry air; a 1.85 g turn pulled vapour only in rain. On an iPhone (LOW) there was no vapour, and with `?flightctl=0` no parts were added. Screenshots in `docs/v12058-shots/`.
+- Build hours (real timestamps): see the last entry of the day for the running total.
+
 ## v12.0.57 — Rain and mud on the armies (2026-11-05, AI build)
 - From the realism checklist (Materials: "no wet or muddy variation by weather"). Until now rain only darkened the ground and made tread prints wetter. Every tank, gun and soldier stayed bone-dry.
 - New module `js/fx/rain-mud.js` tracks how wet and how muddy the battlefield is from the weather setting (Settings → WORLD). Everything soaks in and dries out gradually:
