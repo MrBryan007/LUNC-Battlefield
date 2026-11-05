@@ -30,15 +30,15 @@
   // kind → { mul: base brightness, scale: pattern frequency (1/unit), pat: pattern strength, low: grime band,
   //          rough, metal, dirt }
   var KIND = {
-    armor:     { mul: 1.0,  scale: 1.15, pat: 1.0,  lowY: 0.55, lowK: 2.2, rough: 0.74, metal: 0.22, dirt: 1.0, mudH: 0.9 },
-    armorDark: { mul: 0.72, scale: 1.15, pat: 0.8,  lowY: 0.5,  lowK: 2.2, rough: 0.8,  metal: 0.2,  dirt: 1.0, mudH: 0.8 },
-    art:       { mul: 0.95, scale: 1.2,  pat: 1.0,  lowY: 0.5,  lowK: 2.2, rough: 0.76, metal: 0.2,  dirt: 1.0, mudH: 0.85 },
+    armor:     { mul: 1.0,  scale: 1.15, pat: 1.0,  lowY: 0.55, lowK: 2.2, rough: 0.74, metal: 0.22, dirt: 1.0, mudH: 0.6 },
+    armorDark: { mul: 0.72, scale: 1.15, pat: 0.8,  lowY: 0.5,  lowK: 2.2, rough: 0.8,  metal: 0.2,  dirt: 1.0, mudH: 0.5 },
+    art:       { mul: 0.95, scale: 1.2,  pat: 1.0,  lowY: 0.5,  lowK: 2.2, rough: 0.76, metal: 0.2,  dirt: 1.0, mudH: 0.55 },
     uniform:   { mul: 1.08, scale: 5.5,  pat: 0.85, lowY: 0,    lowK: 0,   rough: 0.9,  metal: 0.02, dirt: 0.55, mudH: 0.0 },
     trousers:  { mul: 0.9,  scale: 5.5,  pat: 0.85, lowY: 0,    lowK: 0,   rough: 0.92, metal: 0.02, dirt: 0.7, mudH: 0.55 },
     gear:      { mul: 0.8,  scale: 4.0,  pat: 0.35, lowY: 0,    lowK: 0,   rough: 0.85, metal: 0.04, dirt: 0.5, mudH: 0.25 },
     air:       { mul: 1.0,  scale: 0.6,  pat: 0.18, lowY: 0,    lowK: 0,   rough: 0.55, metal: 0.35, dirt: 0.25, air: true, mudH: 0.0 },
     // v11 GLB layers (vertex colours already carry the base; the pattern only modulates)
-    glbVeh:    { mul: 1.0,  scale: 1.2,  pat: 1.0,  lowY: 0.45, lowK: 2.4, rough: 0.68, metal: 0.28, dirt: 0.9, glb: true, mudH: 0.8 },
+    glbVeh:    { mul: 1.0,  scale: 1.2,  pat: 1.0,  lowY: 0.45, lowK: 2.4, rough: 0.68, metal: 0.28, dirt: 0.9, glb: true, mudH: 0.5 },
     glbInf:    { mul: 1.0,  scale: 5.0,  pat: 0.8,  lowY: 0,    lowK: 0,   rough: 0.85, metal: 0.04, dirt: 0.5, glb: true, mudH: 0.4 }
   };
   var SCALE = { 1: 1.45, 2: 1.3 };                 // MBT / SPG uniform scale
