@@ -88,8 +88,8 @@
   // Single source of truth for current release metadata.
   // Historical comments and changelog entries are left untouched.
   const BUILD = Object.freeze({
-    version: 'v12.0.57',
-    codename: 'Rain and mud',
+    version: 'v12.0.58',
+    codename: 'Flight controls',
     date: '2026-11-05'
   });
 
