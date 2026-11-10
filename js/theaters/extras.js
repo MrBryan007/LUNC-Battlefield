@@ -109,6 +109,7 @@
     for (var i = 0; i < drones.length; i++) { var d = drones[i]; if (d.ctl) continue; d.a += dt * 0.25; d.g.position.set(d.cx + Math.cos(d.a) * d.r, d.y, d.cz + Math.sin(d.a) * d.r); d.g.rotation.y = -d.a; }
     for (var s = 0; s < subs.length; s++) if (!subs[s].ctl) tickSub(subs[s], dt, F); tickTorps(dt, F);   // v12.0.20: asw.js drives ctl subs
     for (var k = 0; k < silos.length; k++) tickSilo(silos[k], dt, F);
+    if (LB.silos && LB.silos.isEnabled()) { try { LB.silos.update(dt); } catch (err) { if (!update._siErr) { update._siErr = 1; console.warn('[silos]', err); } } }   // v12.0.59 missile test range
     for (var q = icbms.length - 1; q >= 0; q--) tickIcbm(icbms[q], dt, F, q);
     cyberT -= dt; if (cyberT <= 0) { cyberT = rnd(35, 70); cyber(); }
     if (rain && rain.visible) { var cp = e.camera.position; rain.position.set(cp.x, 0, cp.z); var a = rain.geometry.attributes.position; for (var r = 1; r < a.array.length; r += 3) { a.array[r] -= dt * 38; if (a.array[r] < 0) a.array[r] = 60; } a.needsUpdate = true; }
@@ -161,6 +162,7 @@
     }
   }
   function tickSilo(S, dt, F) {
+    if (S.ctl) return;   // v12.0.59: js/theaters/silos.js drives the test range
     S.t -= dt;
     if (S.t < 6 && S.t > 0) S.lid.position.x = Math.min(3.4, (6 - S.t) * 0.7);
     if (S.t <= 0) {
@@ -226,8 +228,10 @@
     // v12.0.45: hold the sun at k (0 night … 0.5 noon … 1 night) without changing the day/night setting; null releases it
     setTimeLock: function (k) { if (k == null || !isFinite(+k)) { timeLock = null; setDay(opt.daynight ? dayT : 0.5); return null; } timeLock = Math.max(0, Math.min(1, +k)); setDay(timeLock); return timeLock; },
     getTimeLock: function () { return timeLock; },
-    getDayK: function () { return timeLock != null ? timeLock : opt.daynight ? dayT : null; },   // v12.0.51 sky-light: null = cycle off (fixed noon) setSpectator: function (v) { opt.spectator = !!v; save(); applyFow(); }, cyber: cyber,
-    launchTest: function () { if (silos[0]) silos[0].t = 0.01; },
+    getDayK: function () { return timeLock != null ? timeLock : opt.daynight ? dayT : null; },   // v12.0.51 sky-light: null = cycle off (fixed noon)
+    setSpectator: function (v) { opt.spectator = !!v; save(); applyFow(); }, cyber: cyber,
+    launchTest: function () { if (LB.silos && LB.silos.isEnabled() && LB.silos.getState().ready) return LB.silos.launch(); if (silos[0]) silos[0].t = 0.01; },
+    _siloList: function () { return silos; },   // v12.0.59: js/theaters/silos.js takes these over
     ambushTest: function () { var S = subs[0]; if (!S) return false; S.st = 'deep'; S.t = 0.01; return true; },   // v12.0.5 test hook: next frame surfaces + fires
     _fow: function () { tickFow(); },   // test hook
     _droneList: function () { return drones; },   // v12.0.17: js/theaters/uav.js takes these over

@@ -1,5 +1,21 @@
 # Changelog
 
+## v12.0.59 — Missile test range: a full inert ICBM test launch (2026-11-10, AI build)
+- The last "basic in v12.0" roadmap item. The two ICBM silos were a box lid that slid and a white cylinder that slid along a sine arc into the sea. The 11/6–11/9 daily runs never produced output, so this carry-over plan from 11/5 was built today.
+- New module `js/theaters/silos.js` takes both silos over:
+  - **Test sites**: concrete apron with hazard stripes, split blast doors over a visible launch tube, two amber warning beacons, a perimeter fence and a small control bunker with an antenna.
+  - **Countdown on the radio** (30 s, your side clear, the enemy side labelled INTERCEPTED): range clear at T-30, doors open at T-10, final go at T-3. Beacons flash and the doors slide open.
+  - **Cold launch**: a gas-ejection puff pops the missile out of the tube, then the motor lights (flame cone plus smoke). It climbs vertically, pitches over onto a ballistic arc and always points along its flight path. Stage 1 separates and tumbles into the sea, stage 2 burns out and falls away, and the inert re-entry vehicle comes down glowing into a marked test box of four buoys (splash, "RV in the box. Test complete").
+  - Smoke trail and contrail are rate-limited and thinner on LOW / phones.
+  - **Tactical map** (inset and full): both silos, the test boxes, the dotted ground track and the live missile.
+  - **Settings → WORLD** shows "next test window in m:ss" with a **Watch next launch** button; the camera frames the silo, then follows the missile until the RV lands. Windows open every 2.5–4 minutes, alternating sides.
+- Fix found along the way: a v12.0.51 comment in `extras.js` swallowed `setSpectator` and `cyber` from the `LUNCBattle.v12extras` API; both work again.
+- Everything is SIMULATED · inert game FX. It never touches market data, armies, the front, combat or data-truth labels. The market-driven frontline, Moon Shot, Commander, the v11.4 HUD/dock, Hide UI, v12.x systems, quality tiers and all `?flags` are unchanged. Kill switch: `?silos=0` restores the v12.0 display.
+- Version bump to v12.0.59 (BUILD, quality api, index tags, footer label, cache-bust `?v=20261110v12059` on all local css/js tags).
+- Tested: `node --check` on all JS files, stabilization-smoke (adds a silos wiring check), asset-lifecycle 33/33, headless HIGH / MEDIUM / LOW / iPhone 390x844 plus `?silos=0`, `?flightctl=0` and `?realism=0` loads with 0 page errors and 0 shader errors; flight-controls and rain-mud probes still pass.
+  - Silos probe (`tests/silos-harness.js`): a window 31 s out starts the countdown, doors fully open by T-10, the climb starts vertical (heading 0.99 up), is level at the apex (about 171 units high) and ends steeply down (heading -0.72). Stage 1 and stage 2 both splashed into the sea, the RV landed in the box, 7 radio lines per launch with INTERCEPTED on the enemy side, the follow camera stayed on the missile, `?silos=0` builds nothing, and `setSpectator` / `cyber` are functions again. Screenshots in `docs/v12059-shots/`.
+- Build hours (real timestamps): see the last entry of the day for the running total.
+
 ## v12.0.58 — Flight controls: flaps, control surfaces, speed brake and wingtip vapour (2026-11-05, AI build)
 - From the roadmap's sea & air list ("flaps/slats animation"). Jets already had landing gear, hooks and afterburners, but the airframe itself was rigid and nothing moved when a jet banked, pitched, landed or braked.
 - New module `js/fx/flight-controls.js`. Every theater jet gets hinged parts sized from its own airframe (the delta wing and the fin are measured, so the parts sit on the real edges), painted with the jet's own camo:

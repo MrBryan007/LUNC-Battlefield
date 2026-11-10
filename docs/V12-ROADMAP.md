@@ -13,7 +13,7 @@ Solid:
 **BASIC in v12.0** (to be deepened in v12.1):
 - **UAV drones**: orbit only; they don't spot or strike (they give vision only when fog of war is on). *Deepened in v12.0.17.*
 - **Submarines**: one per side, surfacing to periscope depth with a torpedo ambush on the nearest enemy ship. No sonar and no ASW. *Deepened in v12.0.20.*
-- **ICBM silos**: an occasional *inert test launch* arcing into the ocean. Cosmetic only, with no damage.
+- **ICBM silos**: an occasional *inert test launch* arcing into the ocean. Cosmetic only, with no damage. *Deepened in v12.0.59 (`js/theaters/silos.js`, `?silos=0`): test sites, countdown, cold launch, staging, RV re-entry into a marked test box, map symbols and a Watch button.*
 - **Cyber layer**: a periodic screen-glitch pulse and a radio message (SIMULATED). No gameplay effect. *Deepened in v12.0.18.*
 - **Weather**: Clear / Rain / Fog toggle (rain particles and a shorter fog range). Weather doesn't affect combat. *Affects combat since v12.0.18.*
 - **Day/night**: optional 4-minute light cycle (sun and hemi intensity plus a night tint).
