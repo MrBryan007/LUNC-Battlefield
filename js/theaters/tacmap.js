@@ -104,6 +104,7 @@
     c.strokeStyle = '#ffd36a'; c.lineWidth = big ? 2 : 1.3; c.beginPath(); c.moveTo(fX, Math.max(0, z0)); c.lineTo(fX, z1); c.stroke();
     c.beginPath(); for (var yy = Math.max(0, z0) + r; yy < z1 - r; yy += r * 3.2) { c.moveTo(fX, yy - r); c.arc(fX, yy, r, -Math.PI / 2, Math.PI / 2, face < 0); } c.stroke();
     if (LB.roads && LB.roads.drawMap) { try { LB.roads.drawMap(c, X, Z, big, own); } catch (_) {} }   // v12.0.60 roads under the symbols
+    if (LB.revetments && LB.revetments.drawMap) { try { LB.revetments.drawMap(c, X, Z, big, own); } catch (_) {} }   // v12.0.61 gate checkpoints
     // installations: HQs, airbases, depots, forts
     var V = th.VIEWS;
     [['bullHq', -1, 'HQ'], ['bearHq', 1, 'HQ'], ['airW', -1, 'AB'], ['airE', 1, 'AB']].forEach(function (q) {
