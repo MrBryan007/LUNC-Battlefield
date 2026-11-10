@@ -41,7 +41,9 @@
     var s2 = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.55, 2.6, 12), body); s2.position.y = 5.7; g.add(s2);
     var rv = new THREE.Mesh(new THREE.ConeGeometry(0.42, 1.5, 12), M.rv); rv.position.y = 7.75; g.add(rv);
     var nose = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.35, 8), dark); nose.position.y = 8.65; g.add(nose);
-    g.userData = { s1: s1, band: nz, s2: s2, rv: rv, nose: nose };
+    var fl = new THREE.Mesh(new THREE.ConeGeometry(0.5, 3.2, 10, 1, true), M.flame); fl.rotation.x = Math.PI; fl.position.y = -1.5; fl.visible = false; g.add(fl);
+    var fl2 = new THREE.Mesh(new THREE.ConeGeometry(0.26, 2.0, 8, 1, true), M.flameCore); fl2.rotation.x = Math.PI; fl2.position.y = -0.95; fl2.visible = false; g.add(fl2);
+    g.userData = { fl: fl, fl2: fl2, s1: s1, band: nz, s2: s2, rv: rv, nose: nose };
     return g;
   }
   function buildSite(sl, M) {
@@ -90,7 +92,9 @@
       conc: std(0x8e8b83, 0.95), black: new THREE.MeshBasicMaterial({ color: 0x050505 }), dark: std(0x2b2f31, 0.6, 0.4), door: std(0x575c5e, 0.7, 0.5),
       stripe: std(0xd6a21b, 0.8), glass: std(0x16262f, 0.2, 0.6), beacon: new THREE.MeshBasicMaterial({ color: 0x3a2a08 }), buoy: std(0xe9e6df, 0.7),
       fence: new THREE.LineBasicMaterial({ color: 0x9aa0a2, transparent: true, opacity: 0.8 }), boxLine: new THREE.LineBasicMaterial({ color: 0xffb02e, transparent: true, opacity: 0.55 }),
-      body: std(0xe6e2d8, 0.55, 0.15), band: std(0x2a2d2f, 0.6, 0.3), rv: std(0xb8b4aa, 0.4, 0.5)
+      body: std(0xe6e2d8, 0.55, 0.15), band: std(0x2a2d2f, 0.6, 0.3), rv: std(0xb8b4aa, 0.4, 0.5),
+      flame: new THREE.MeshBasicMaterial({ color: 0xff7a1a, transparent: true, opacity: 0.8, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }),
+      flameCore: new THREE.MeshBasicMaterial({ color: 0xfff1b0, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })
     };
     var list = LB.v12extras && LB.v12extras._siloList ? LB.v12extras._siloList() : [];
     for (var i = 0; i < list.length; i++) buildSite(list[i], M);
@@ -161,7 +165,8 @@
       if (S.ct <= 0) { S.st = 'eject'; S.t = 0; S.mis.visible = true; S.off = 0; S.sep1 = S.sep2 = false; S.mis.userData.s1.visible = S.mis.userData.band.visible = S.mis.userData.s2.visible = true; S.mis.userData.rv.visible = S.mis.userData.nose.visible = true; S.mis.userData.rv.material = S.M.rv; S.mis.position.set(0, -3, 0); S.mis.quaternion.identity(); stats.launches++; say(S, 'go', 'Launch. Inert test round away'); }
       return;
     }
-    if (S.st === 'eject') {            // cold launch: gas ejection pops the missile out of the tube, then the motor lights
+    if (S.st === 'eject') {
+      S.mis.userData.fl.visible = S.mis.userData.fl2.visible = S.t > 1.0;            // cold launch: gas ejection pops the missile out of the tube, then the motor lights
       S.t += dt; beacons(S, blink); var k = Math.min(1, S.t / 1.3);
       S.mis.position.y = -3 + (6.2 * k * (2 - k)); doorTo(S, 1, dt);
       if (f && Math.random() < dt * (l ? 14 : 36)) f.puff({ kind: 'dust', x: S.x + rnd(-0.8, 0.8), y: 0.6, z: S.z + rnd(-0.8, 0.8), vy: 4, size: 1.2, grow: 3.6, life: 1.6, color: 0xe8e8e8, opacity: 0.7 });
@@ -174,14 +179,15 @@
       if (!S.sep1 && w >= SEP1) { S.sep1 = true; var ud = S.mis.userData; S.off = 0; spawnDebris(S, ud.s1, 1, Math.min(90, sepSpeed(S))); ud.s1.visible = false; ud.band.visible = false; S.mis.userData.s2.position.y -= 4.4; ud.rv.position.y -= 4.4; ud.nose.position.y -= 4.4; say(S, 's1', 'Stage one separation confirmed'); S.sepFlash = 0.6; }
       if (!S.sep2 && w >= SEP2) { S.sep2 = true; spawnDebris(S, S.mis.userData.s2, 2, 0); S.mis.userData.s2.visible = false; S.mis.userData.rv.position.y -= 3.0; S.mis.userData.nose.position.y -= 3.0; say(S, 's2', 'Stage two burnout. Reentry vehicle separated'); }
       setFlight(S);
+      var ud2 = S.mis.userData, fk = burning ? 0.85 + Math.random() * 0.3 : 0; ud2.fl.visible = ud2.fl2.visible = burning; if (burning) { var fs = S.sep1 ? 0.7 : 1; ud2.fl.scale.set(fs, fs * fk, fs); ud2.fl2.scale.set(fs, fs * fk, fs); ud2.fl.position.y = S.sep1 ? -1.5 + 0.2 : -1.5; ud2.fl2.position.y = S.sep1 ? -0.75 : -0.95; }
       var tail = new THREE.Vector3().copy(S.mis.position).add(S.g.position).addScaledVector(S.dir, S.sep1 ? -0.4 : -0.1);
       if (burning && f) {
-        var n = (l ? 1 : 2) * (S.t < 0 ? 0 : 1);
+        var n = l ? (Math.random() < 0.5 ? 1 : 0) : 1;
         for (var i = 0; i < n; i++) f.puff({ kind: 'fire', x: tail.x, y: tail.y, z: tail.z, size: S.sep1 ? 1.6 : 2.4, grow: 0.1, life: 0.35, color: 0xffa23c, opacity: 0.95 });
         if (Math.random() < dt * (l ? 8 : 20)) f.puff({ kind: 'smoke', x: tail.x, y: tail.y, z: tail.z, size: 2.4, grow: 3, life: 6, color: 0xeceae6, opacity: 0.5, drag: 0.99 });
       }
       if (f) {   // lingering contrail: thin, long-lived, rate-limited
-        S.trail -= dt; if (S.trail <= 0) { S.trail = l ? 0.4 : 0.16; f.puff({ kind: 'smoke', x: tail.x, y: tail.y, z: tail.z, size: 1.8, grow: 2.2, life: l ? 7 : 11, color: 0xf2f4f5, opacity: 0.32, drag: 1 }); }
+        S.trail -= dt; if (S.trail <= 0) { S.trail = l ? 0.4 : 0.22; f.puff({ kind: 'smoke', x: tail.x, y: tail.y, z: tail.z, size: 1.8, grow: 2.2, life: l ? 7 : 9, color: 0xf2f4f5, opacity: 0.32, drag: 1 }); }
       }
       if (w >= REENTRY) {   // re-entry glow
         S.mis.userData.rv.material = S.M.rvHot;
@@ -198,7 +204,7 @@
     return hz / Math.max(1, tf);
   }
   function impact(S) {
-    S.mis.visible = false; S.st = 'done'; S.t = 10; stats.rvInBox++; stats.lastResult = 'RV in the box';
+    S.mis.visible = false; S.mis.userData.fl.visible = S.mis.userData.fl2.visible = false; S.st = 'done'; S.t = 10; stats.rvInBox++; stats.lastResult = 'RV in the box';
     var f = F(), x = S.pos.x, z = S.pos.z; if (TH() && TH().splash) TH().splash(x, z, 3.2);
     if (f) { f.puff({ kind: 'dust', x: x, y: 1.5, z: z, size: 5, grow: 9, life: 2.6, color: 0xf2f8fa, opacity: 0.9 }); f.puff({ kind: 'fire', x: x, y: 1.8, z: z, size: 3, grow: 3, life: 0.8, color: 0xffb04a, opacity: 0.9 }); }
     say(S, 'rv', 'RV in the box. Test complete'); if (follow && followSite === S) follow = false;
@@ -208,12 +214,12 @@
   function watch() {
     var S = null; for (var i = 0; i < sites.length; i++) if (sites[i].st !== 'idle' && sites[i].st !== 'done') S = sites[i];
     if (!S) S = sites[nextIdx % sites.length]; if (!S) return false;
-    follow = true; followSite = S; var th = TH(); if (th && th.flyToPoint) th.flyToPoint(S.x, S.z, 46); return true;
+    follow = true; followSite = S; var th = TH(); if (th && th.flyToPoint && S.st !== 'eject' && S.st !== 'flight') th.flyToPoint(S.x, S.z, 46); return true;
   }
   function tickFollow(dt) {
     if (!follow || !followSite) return; var S = followSite, e = E(); if (!e || !e.controls) return;
     if (S.st !== 'flight' && S.st !== 'eject') return;
-    var p = S.st === 'flight' ? S.pos : _v.set(S.x, 4, S.z), T = e.controls.target, k = Math.min(1, dt * 3);
+    var p = S.st === 'flight' ? S.pos : _v.set(S.x, 4, S.z), T = e.controls.target, k = 1 - Math.exp(-dt * 8);
     var dx = (p.x - T.x) * k, dy = (p.y - T.y) * k, dz = (p.z - T.z) * k;
     T.x += dx; T.y += dy; T.z += dz; e.camera.position.x += dx; e.camera.position.y += dy; e.camera.position.z += dz;
   }

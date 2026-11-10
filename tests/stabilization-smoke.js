@@ -67,6 +67,7 @@ const checks = [
   ['power-ups wired', index.includes('js/theaters/powerups.js') && read('js/theaters/powerups.js').includes("qs.get('powerups') !== '0'") && read('js/commander.js').includes('PU.scoreMult()') && read('js/commander.js').includes('LB.powerups.strikeAt(') && read('js/theaters/supply.js').includes("LB.powerups.grant(null, 'crate')")],
   ['rain & mud wired', index.includes('js/fx/rain-mud.js') && index.indexOf('fx/rain-mud.js') > index.indexOf('fx/realism-armies.js') && read('js/fx/rain-mud.js').includes("qs.get('mud') !== '0'") && read('js/fx/realism-armies.js').includes('setWear: function') && read('js/fx/realism-armies.js').includes('uRzWet: WEAR.wet') && engine.includes('LUNCBattle.rainMud.update()')],
   ['flight controls wired', index.includes('js/fx/flight-controls.js') && read('js/fx/flight-controls.js').includes("qs.get('flightctl') !== '0'") && read('js/theaters/theaters.js').includes('LB.flightControls.pose(J, dt)') && read('js/theaters/theaters.js').includes('LB.flightControls.tick(wdt)')],
+  ['silos wired', index.includes('js/theaters/silos.js') && read('js/theaters/silos.js').includes("qs.get('silos') !== '0'") && read('js/theaters/extras.js').includes('LB.silos.update(dt)') && read('js/theaters/tacmap.js').includes('LB.silos.drawMap') && read('js/theaters/extras.js').includes('_siloList')],
   ['loadBuild aligned', index.includes('id="loadBuild">v12.0.59')]
 ];
 
