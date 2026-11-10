@@ -1,5 +1,19 @@
 # Changelog
 
+## v12.0.60 — Base roads: asphalt, shoulders, lane markings and a boat ramp (2026-11-10, AI build)
+- From the realism checklist (Scale & spacing: "base roads incomplete"). The only road was a thin slab on the HQ supply line and a mud strip down the middle; the airbases, the missile silos and the beach had no way in.
+- New module `js/fx/roads.js` builds a small road network for each side, draped on the real terrain height:
+  - the **HQ supply road** (double yellow centre line, white edge lines, dirt shoulders) replaces the flat slab look,
+  - an **airbase spur**, a **silo access spur** that leads to the v12.0.59 missile range, and a **beach spur** that ends in a concrete boat ramp with a yellow stop line at the waterline.
+  - Sign posts at the junctions and reflector bollards along the supply road (MEDIUM and up; none on LOW / phones, which also use coarser road segments).
+  - **Wet asphalt**: the road goes darker and glossier as the ground gets wet from rain (v12.0.57 wet level), then dries again.
+  - The **tactical map** (inset and full) draws the road network as thin lines under the unit symbols.
+- Visual only (SIMULATED game layer). It never changes movement, combat, the front, market data or data-truth labels. The market-driven frontline, Moon Shot, Commander, the v11.4 HUD/dock, Hide UI, v12.x systems, quality tiers and all `?flags` are unchanged. Kill switch: `?roads=0` (also off with `?realism=0`).
+- Version bump to v12.0.60 (BUILD, quality api, index tags, footer label, cache-bust `?v=20261110v12060` on all local css/js tags).
+- Tested: `node --check` on all JS files, stabilization-smoke (adds a roads wiring check), asset-lifecycle 33/33, headless HIGH / MEDIUM / LOW / iPhone 390x844 plus `?roads=0`, `?silos=0`, `?flightctl=0` and `?realism=0` loads with 0 page errors and 0 shader errors; the silos probe still passes.
+  - Roads probe (`tests/roads-harness.js`): 8 roads built (4 per side), road surface within 0.00001 of the terrain height at every sampled point, centre and edge lines and both ramps present, 48 bollards and 8 signs on MEDIUM and none on the phone profile, asphalt roughness falling from 0.95 to 0.47 after 40 s of rain, `?roads=0` builds nothing. Screenshots in `docs/v12060-shots/`.
+- Build hours (real timestamps): see the last entry of the day for the running total.
+
 ## v12.0.59 — Missile test range: a full inert ICBM test launch (2026-11-10, AI build)
 - The last "basic in v12.0" roadmap item. The two ICBM silos were a box lid that slid and a white cylinder that slid along a sine arc into the sea. The 11/6–11/9 daily runs never produced output, so this carry-over plan from 11/5 was built today.
 - New module `js/theaters/silos.js` takes both silos over:
