@@ -510,6 +510,7 @@
     var nd = navalNear ? wdt : (doFar ? fdt : 0);
     stats.simHz = navalNear ? 'full' : '4Hz';
     if (nd) { for (var i = 0; i < ships.length; i++) tickShip(ships[i], nd); tickShells(nd); }
+    if (LB.roads && LB.roads.tick) { try { LB.roads.tick(wdt); } catch (e) { if (!update._rdErr) { update._rdErr = 1; console.warn('[roads]', e); } } }   // v12.0.60 base roads
     if (LB.flightControls && LB.flightControls.tick) LB.flightControls.tick(wdt);   // v12.0.58 vapour budget
     for (var j = 0; j < jets.length; j++) tickJet(jets[j], wdt);   // aircraft cross theaters → always full rate (few)
     tickMissiles(wdt);
