@@ -115,6 +115,7 @@
       if (big || W >= 120) label(c, q[2], px, pz, Math.max(6, ss * 0.95), '#f2f6f3');
       n++;
     });
+    if (LB.silos && LB.silos.drawMap) { try { n += LB.silos.drawMap(c, X, Z, s * 0.8, big, own); } catch (_) {} }   // v12.0.59 missile range
     if (LB.lines && LB.lines.depots) LB.lines.depots().forEach(function (d) { var px = X(d.x), pz = Z(d.z), ss = s * 0.7; sideColNow = sideCol(d.side); frame(c, px, pz, ss, d.side === own, 'inst', d.side); if (big) label(c, d.hp > 0 ? 'SUP' : 'SUP✕', px, pz, Math.max(6, ss * 0.9), d.hp > 0 ? '#f2f6f3' : '#ffb4a8'); n++; });
     if (big && LB.forts && LB.forts.list) LB.forts.list().forEach(function (f) { var px = X(f.x), pz = Z(f.z); c.fillStyle = sideCol(f.side); c.beginPath(); c.moveTo(px, pz - 3); c.lineTo(px + 3, pz + 2.5); c.lineTo(px - 3, pz + 2.5); c.closePath(); c.fill(); n++; });
     // v12.0.21 ridge sector: crest line, Hill 402 OP (holder's colour) and the mountain teams
