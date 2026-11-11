@@ -69,7 +69,8 @@ const checks = [
   ['flight controls wired', index.includes('js/fx/flight-controls.js') && read('js/fx/flight-controls.js').includes("qs.get('flightctl') !== '0'") && read('js/theaters/theaters.js').includes('LB.flightControls.pose(J, dt)') && read('js/theaters/theaters.js').includes('LB.flightControls.tick(wdt)')],
   ['silos wired', index.includes('js/theaters/silos.js') && read('js/theaters/silos.js').includes("qs.get('silos') !== '0'") && read('js/theaters/extras.js').includes('LB.silos.update(dt)') && read('js/theaters/tacmap.js').includes('LB.silos.drawMap') && read('js/theaters/extras.js').includes('_siloList')],
   ['roads wired', index.includes('js/fx/roads.js') && read('js/fx/roads.js').includes("qs.get('roads') !== '0'") && read('js/theaters/theaters.js').includes('LB.roads.tick(wdt)') && read('js/theaters/tacmap.js').includes('LB.roads.drawMap')],
-  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.60')]
+  ['revetments wired', index.includes('js/fx/revetments.js') && read('js/fx/revetments.js').includes("qs.get('revet') !== '0'") && read('js/theaters/theaters.js').includes('LB.revetments.tick(wdt)') && read('js/theaters/tacmap.js').includes('LB.revetments.drawMap')],
+  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.61')]
 ];
 
 let failed = 0;
