@@ -1,5 +1,19 @@
 # Changelog
 
+## v12.0.61 — Gate checkpoints and HESCO revetments (2026-11-10, AI build)
+- From the realism checklist (Scale & spacing: "revetments incomplete"). With the v12.0.60 roads in place, the base entrances were still bare tarmac.
+- New module `js/fx/revetments.js` puts a checkpoint on each side's HQ supply road, airbase spur and silo spur (six in all), sitting on the real terrain height:
+  - **HESCO** (sand-filled wire-cage) walls flanking the road, with a staggered chicane of blocks on the two spurs, and **Jersey barriers** at the road edges.
+  - A **guard booth** with a window and a side-coloured flag, and a **floodlight mast** (MEDIUM and up).
+  - On the two spurs, a red-and-white **boom barrier** that lifts and drops on a 14 s cycle. The HQ supply road carries the convoy trucks, so it has no boom and no blocks in the lane.
+  - LOW and phones get shorter walls and no floodlight.
+  - The **tactical map** shows each checkpoint as a small gate symbol.
+- Visual only (SIMULATED game layer). It never changes movement, combat, the front, market data or data-truth labels. The market-driven frontline, Moon Shot, Commander, the v11.4 HUD/dock, Hide UI, v12.x systems, quality tiers and all `?flags` are unchanged. Kill switch: `?revet=0` (also off with `?realism=0`).
+- Version bump to v12.0.61 (BUILD, quality api, index tags, footer label, cache-bust `?v=20261110v12061` on all local css/js tags).
+- Tested: `node --check` on all JS files, stabilization-smoke (adds a revetments wiring check), asset-lifecycle 33/33, headless HIGH / MEDIUM / LOW / iPhone 390x844 plus `?revet=0`, `?roads=0`, `?silos=0`, `?flightctl=0` and `?realism=0` loads with 0 page errors and 0 shader errors; the roads probe still passes.
+  - Revetments probe (`tests/revetments-harness.js`): 6 checkpoints with 208 HESCO blocks, 24 Jersey barriers, 6 booths and 6 floodlights on MEDIUM; the 4 boom barriers swing from closed (0) to fully up (-1.25 rad) and back over the 14 s cycle; the phone profile has 88 HESCO blocks and no floodlights; `?revet=0` builds nothing. Screenshots in `docs/v12061-shots/`.
+- Build hours (real timestamps): see the last entry of the day for the running total.
+
 ## v12.0.60 — Base roads: asphalt, shoulders, lane markings and a boat ramp (2026-11-10, AI build)
 - From the realism checklist (Scale & spacing: "base roads incomplete"). The only road was a thin slab on the HQ supply line and a mud strip down the middle; the airbases, the missile silos and the beach had no way in.
 - New module `js/fx/roads.js` builds a small road network for each side, draped on the real terrain height:
