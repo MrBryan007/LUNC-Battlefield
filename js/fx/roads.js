@@ -16,7 +16,7 @@
   var lastWet = -1, acc = 0;
 
   function E() { return LB.engine; }
-  function H(x, z) { try { return E().terrainHeight(x, z) || 0; } catch (_) { return 0; } }
+  function H(x, z) { try { return (LB.groundY ? LB.groundY(x, z) : E().terrainHeight(x, z)) || 0; } catch (_) { return 0; } }   // v12.0.62: visible ground (js/fx/ground.js)
   function tier() { try { return LB.quality.getEffectiveName(); } catch (_) { return 'HIGH'; } }
   function lite() { return tier() === 'LOW' || !!(E() && E().mobile) || global.innerWidth < 760; }
 
@@ -26,7 +26,7 @@
     return [
       { id: 'supply', w: 3.4, sh: 1.3, dbl: true, edge: true, pts: [[s * 40, -32], [s * 90, -32], [s * 140, -32], [s * 190, -32], [s * 222, -32]] },
       { id: 'airbase', w: 2.8, sh: 1.1, edge: true, pts: [[s * 176, -32], [s * 188, -39], [s * 198, -47], [s * 204, -52]] },
-      { id: 'silo', w: 2.4, sh: 1.0, pts: [[s * 148, -32], [s * 148, -55], [s * 149, -75], [s * 150, -88]] },
+      { id: 'silo', w: 2.4, sh: 1.0, pts: [[s * 116, -32], [s * 115.5, -46], [s * 115, -62], [s * 115.5, -76], [s * 120, -84], [s * 126, -85.5], [s * 146, -85.5], [s * 150, -88]] },   // v12.0.62: leaves the supply road west of the fuel depot and runs round the SAM pads (it used to cut straight through one) into the silo range
       { id: 'beach', w: 2.8, sh: 1.1, edge: true, ramp: true, pts: [[s * 72, -32], [s * 72, -8], [s * 76, 20], [s * 82, 46], [s * 85, 58]] }
     ];
   }
@@ -80,6 +80,7 @@
   }
   function build() {
     var e = E(); THREE = e.THREE; root = new THREE.Group(); root.name = 'v12-roads'; e.scene.add(root);
+    try { e.scene.traverse(function (o) { if (o.name === 'supply-slab') { o.visible = false; stats.slabsHidden = (stats.slabsHidden || 0) + 1; } }); } catch (_) {}   // v12.0.62: the old flat supply slab is replaced
     var l = lite(), step = l ? 8 : 4;
     mats.shoulder = mk(0x6a5e48, 1, 1); mats.asphalt = mk(0x3a3c3f, 0.95, 2); mats.line = mk(0xe8e4d2, 0.8, 3); mats.yellow = mk(0xe0b53a, 0.8, 3); mats.ramp = mk(0x8e8b83, 0.9, 3);
     mats.asphalt.userData.base = 0x3a3c3f;
@@ -101,14 +102,14 @@
   }
   function buildRamp(x, z, pl) {   // concrete ramp running down into the water at the end of the beach spur
     var a = pl[pl.length - 2], b = pl[pl.length - 1], ang = Math.atan2(b[0] - a[0], b[1] - a[1]);
-    var g = new THREE.BoxGeometry(4.6, 0.3, 9), m = new THREE.Mesh(g, mats.ramp); m.position.set(x + Math.sin(ang) * 4, Math.max(H(x, z), 0) - 0.02, z + Math.cos(ang) * 4); m.rotation.y = ang; m.rotation.x = 0.07; m.name = 'boat-ramp'; root.add(m);
-    var lg = new THREE.BoxGeometry(5, 0.2, 0.3), m2 = new THREE.Mesh(lg, mats.yellow); m2.position.set(x, Math.max(H(x, z), 0) + 0.18, z); m2.rotation.y = ang; root.add(m2); stats.ramps++;
+    var g = new THREE.BoxGeometry(4.6, 0.3, 9), m = new THREE.Mesh(g, mats.ramp); m.position.set(x + Math.sin(ang) * 4, Math.max(H(x, z), -0.32) - 0.02, z + Math.cos(ang) * 4); m.rotation.y = ang; m.rotation.x = 0.07; m.name = 'boat-ramp'; root.add(m);
+    var lg = new THREE.BoxGeometry(5, 0.2, 0.3), m2 = new THREE.Mesh(lg, mats.yellow); m2.position.set(x, Math.max(H(x, z), -0.32) + 0.18, z); m2.rotation.y = ang; root.add(m2); stats.ramps++;
   }
   function buildPosts() {   // reflector bollards along the supply road + sign posts at the junctions (instanced)
     var bol = [], sig = [];
     [-1, 1].forEach(function (s) {
       for (var x = 56; x <= 210; x += 14) bol.push([s * x, -32 + 2.6], [s * x, -32 - 2.6]);
-      [[s * 72, -28.5], [s * 148, -28.5], [s * 176, -28.5], [s * 72, -35.5]].forEach(function (p) { sig.push(p); });
+      [[s * 72, -28.5], [s * 116, -28.5], [s * 176, -28.5], [s * 72, -35.5]].forEach(function (p) { sig.push(p); });
     });
     var bg = new THREE.CylinderGeometry(0.07, 0.07, 0.8, 6), bm = new THREE.MeshStandardMaterial({ color: 0xe8e4d2, roughness: 0.6, emissive: 0x222018 });
     posts = new THREE.InstancedMesh(bg, bm, bol.length); var d = new THREE.Object3D();

@@ -18,7 +18,7 @@ const OUT = process.env.OUT || 'docs/v12060-shots';
   const A = await mk('MEDIUM', false, '');
   out.state = await A.evaluate(() => LUNCBattle.roads.getState());
   out.drape = await A.evaluate(() => { const r = LUNCBattle.roads._root(), e = LUNCBattle.engine; let worst = 0, n = 0, nonmono = 0;
-    r.children.forEach(m => { if (m.name !== 'road-asphalt') return; const p = m.geometry.attributes.position; for (let i = 0; i < p.count; i += 7) { const h = e.terrainHeight(p.getX(i), p.getZ(i)) || 0; worst = Math.max(worst, Math.abs(p.getY(i) - 0.06 - h)); n++; } });
+    r.children.forEach(m => { if (m.name !== 'road-asphalt') return; const p = m.geometry.attributes.position; for (let i = 0; i < p.count; i += 7) { const h = (LUNCBattle.groundY ? LUNCBattle.groundY(p.getX(i), p.getZ(i)) : e.terrainHeight(p.getX(i), p.getZ(i))) || 0;   // v12.0.62: visible ground worst = Math.max(worst, Math.abs(p.getY(i) - 0.06 - h)); n++; } });
     const names = {}; r.children.forEach(m => names[m.name] = (names[m.name] || 0) + 1); return { worst, n, names }; });
   // wet asphalt
   out.wet = await A.evaluate(async () => { const R = LUNCBattle.roads, rm = LUNCBattle.rainMud, root = R._root(); const mat = root.children.find(m => m.name === 'road-asphalt').material, dry = mat.roughness;
