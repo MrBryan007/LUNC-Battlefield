@@ -161,7 +161,7 @@
       mesh('box', m, 0, 0.7, 0, 2.2, 1.2, 1.1, g); mesh('box', mat('dark', { color: 0x2b2e30, roughness: 0.8 }), 1.3, 0.55, 0, 0.8, 0.9, 1.0, g); root.add(g);   // v12.0.15: was {} → cached a WHITE 'dark' (ship turrets)
       convoys.push({ g: g, side: side, t: i / cap.convoy, dir: 1 });
     }
-    var road = new THREE.Mesh(geos.box, mat('road', { color: 0x5b5446, roughness: 1 })); road.scale.set(170, 0.05, 2.4); road.position.set(side * 125, -0.32, -32); root.add(road);
+    var road = new THREE.Mesh(geos.box, mat('road', { color: 0x5b5446, roughness: 1 })); road.scale.set(170, 0.05, 2.4); road.position.set(side * 125, -0.32, -32); road.name = 'supply-slab'; root.add(road);   // v12.0.62: hidden by js/fx/roads.js (it poked through the grounded road)
   }
   function build() {
     var e = E(); THREE = e.THREE; scene = e.scene; tierN = tierName(); cap = CAPS[tierN] || CAPS.MEDIUM;
@@ -402,7 +402,8 @@
       v.t += v.dir * dt * 0.03;
       if (v.t > 1) { v.t = 1; v.dir = -1; } else if (v.t < 0) { v.t = 0; v.dir = 1; }
       var x0 = v.side * 205, x1 = E().getFrontlineX() + v.side * 46, x = x0 + (x1 - x0) * v.t;
-      v.g.position.set(x, -0.3, -32 + (v.dir > 0 ? -0.7 : 0.7)); v.g.rotation.y = (x1 > x0) === (v.dir > 0) ? 0 : Math.PI;
+      var vz = -32 + (v.dir > 0 ? -0.7 : 0.7), vy = -0.3; if (LB.roads && LB.roads.surfaceY && LB.roads.isEnabled()) { try { vy = LB.roads.surfaceY(x, vz) - 0.03; } catch (_) {} } else if (LB.groundY) { try { vy = LB.groundY(x, vz) - 0.03; } catch (_) {} }   // v12.0.62: trucks ride on the road surface
+      v.g.position.set(x, vy, vz); v.g.rotation.y = (x1 > x0) === (v.dir > 0) ? 0 : Math.PI;
     }
   }
 

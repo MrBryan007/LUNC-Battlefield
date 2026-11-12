@@ -24,7 +24,7 @@
   function TH() { return LB.theaters; }
   function tierName() { try { return LB.quality.getEffectiveName(); } catch (_) { return 'MEDIUM'; } }
   function low() { var t = tierName(); return t === 'LOW' || !!(E() && E().mobile); }
-  function H(x, z) { try { return (LB.los && LB.los.ground ? LB.los.ground(x, z) : E().terrainHeight(x, z)) || 0; } catch (_) { return 0; } }
+  function H(x, z) { try { return (LB.groundY ? LB.groundY(x, z) : LB.los && LB.los.ground ? LB.los.ground(x, z) : E().terrainHeight(x, z)) || 0; } catch (_) { return 0; } }   // v12.0.62: visible ground (pools sat 9-13 m over the aprons)
   function hqX() { try { var c = LB.config; return (c && c.layout && c.layout.hqX) || 96; } catch (_) { return 96; } }
   function sstep(a, b, x) { var t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); }
   function dayK() { try { var X = LB.v12extras; return X && X.getDayK ? X.getDayK() : null; } catch (_) { return null; } }
