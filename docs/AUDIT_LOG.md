@@ -238,3 +238,35 @@ Live production page load only (desktop browser). Canvas present. No quality-tie
 - Rank thresholds, XP rates, DataTruth, market math, aircraft state machines, Three.js version, density, quality tiers, graphics styling
 
 **Status:** On branch `fix/v12.0.62-p0-verify`. PR #16. Not merged. Not deployed.
+
+---
+
+## 2026-11-12 — Master A-to-Z Forensic Audit & Upgrade Planning
+
+**Objective:** Inspect the full repository, document condition, and produce a ranked backlog. No gameplay, graphics, or engine changes.
+
+**Timestamp:** 2026-11-12 ~10:04 PST
+
+**Starting branch / commit:** `main` @ `9d12a25af5cc0e37bbc3303b67be1307a01ec204`
+
+**Files inspected:** ~605 tracked files; 121 JS (~36,100 lines); 16 tests; 49 markdown; 20 GLB; 1 workflow.
+
+**Files changed:**
+- `docs/MASTER_AUDIT_2026-11.md` (new)
+- `docs/AUDIT_LOG.md` (this entry)
+
+**Code changes:** None.
+
+**Security (this pass):** No new P0. P1: no CSP, CDN Three.js without SRI, unclassified theater status HTML in asw.js/ridge.js. esc()/safeNum() remain correct. No eval, no document.write, no secrets.
+
+**Tests run:** None new. Prior verification tests remain the CI suite. This work order is inspection only.
+
+**Browser/graphics tested:** Not re-run. Prior smoke (desktop MEDIUM, iPhone LOW, forced HIGH/LOW) still stands.
+
+**Performance:** Not measured. Lighthouse ~17 treated as structural for WebGL, not a P0 regression.
+
+**Systems left unchanged:** Everything in the application. Three.js r128. DataTruth. Market math. Aircraft contracts. Rank thresholds.
+
+**Report:** `docs/MASTER_AUDIT_2026-11.md`
+
+**Status:** Documentation only. Pushed for review. No backlog implementation started.
