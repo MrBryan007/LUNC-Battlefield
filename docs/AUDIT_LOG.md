@@ -168,3 +168,73 @@ Live production page load only (desktop browser). Canvas present. No quality-tie
 - Rank thresholds, XP rates, DataTruth semantics, market/frontline math, aircraft state machines, Three.js version, army density, quality tiers, graphics styling.
 
 **Status:** On branch `fix/v12.0.62-p0-verify`. Not merged. Not deployed.
+
+---
+
+## 2026-11-12 — P0 Verification & Closure (browser XSS, CI, duplicate cleanup)
+
+**Objective:** Close remaining P0 verification items. Real browser XSS test, CI gating, duplicate commander.js removal, truthful regression matrix, Lighthouse notes.
+
+**Timestamp:** 2026-11-12 ~09:47 PST
+
+**Starting branch / commit:**  
+- `main` @ `279e948b9a01`  
+- Continued on `fix/v12.0.62-p0-verify` @ `695a7344b65a`
+
+**Files changed (this closure):**
+- `tests/xss-browser.js` — new browser-level XSS harness
+- `.github/workflows/ci.yml` — updated to install Chromium and run browser XSS test
+- `docs/AUDIT_LOG.md` — this entry
+
+**Issues confirmed:**
+- Prior static XSS test did not exercise the live DOM. Browser test now does.
+- Root `commander.js` was unused (confirmed: index.html loads `js/commander.js` only; files were identical). Removed on this branch.
+- No CI existed on main. Workflow added on this branch.
+
+**Exact fixes:**
+- `tests/xss-browser.js` loads the real page, stubs `LB.burns/whales/governance.getLatest()` with hostile strings, calls the real `LB.ui.renderIntelPanels()` and `LB.ui.renderBattleStrength()`, and asserts no script/img-onerror/svg-onload nodes and no dialogs.
+- CI installs Chromium + puppeteer-core and runs syntax, p0-hardening, progression-persist, stabilization-smoke, and xss-browser. Does not touch Pages deploy.
+- Root `commander.js` already removed on this branch.
+
+**Tests added:** `tests/xss-browser.js`
+
+**Tests actually run:**
+- `node tests/xss-browser.js` — ALL PASS (no dialogs; burns/whales/gov/validators/strengthParts: no script, no img onerror, no svg onload, no raw script, hostile text present)
+- `node tests/p0-hardening.js` — ALL PASS
+- `node tests/progression-persist.js` — ALL PASS
+- `node tests/stabilization-smoke.js` — PASS
+- Puppeteer smoke:
+  - desktop 1280x800: title v12.0.62, canvas true, quality MEDIUM, HUD present, 0 page errors
+  - iPhone 390x844: canvas true, quality LOW (auto), HUD present, 0 page errors
+  - forced HIGH via localStorage: canvas true, quality HIGH
+  - forced LOW via localStorage: canvas true, quality LOW
+
+**Not run:**
+- Full Playwright harnesses (ground, roads, aircraft, netplay) — those scripts hardcode a playwright path not present here
+- Lighthouse audit — not executed in this environment
+- Shader-error probe — not executed
+- Network/online-link harness — not executed
+
+**Lighthouse findings (investigation only, score not re-measured):**
+- A Performance score near 17 on a Three.js WebGL page is consistent with: large JS (Three.js r128 from CDN + many game scripts), no server render, canvas-first boot, and Lighthouse treating the page as a document rather than a game.
+- P0 changes (esc, persistence, CI, brevity escape) do not add render-blocking assets or change the boot path in a way that would explain a 17 score. The score is structural, not a regression from this hardening.
+- Recommendations for a later performance work order: vendor/pin Three.js, defer non-critical theater scripts, measure TTI with the existing boot-stage marks, consider a lighter first paint before optional systems. No trivial fix applied in this pass.
+
+**Browser/device/graphics profiles actually tested:**
+- Chromium headless, desktop 1280x800 (MEDIUM)
+- Chromium headless, iPhone-sized 390x844 (LOW auto)
+- Chromium headless, forced HIGH and LOW
+- Live production page load (prior turn): title and canvas confirmed
+
+**Console/shader errors:** 0 page errors on the smokes above. Shader probe not run.
+
+**Remaining warnings / debt:**
+- `asw.js` / `ridge.js` status HTML not fully classified
+- CSP not enforced; Three.js on CDN without SRI
+- Persistence is localStorage only
+- CI chromium package name may differ on ubuntu (`chromium` vs `chromium-browser`); workflow tries both
+
+**Systems left unchanged:**
+- Rank thresholds, XP rates, DataTruth, market math, aircraft state machines, Three.js version, density, quality tiers, graphics styling
+
+**Status:** On branch `fix/v12.0.62-p0-verify`. PR #16. Not merged. Not deployed.
