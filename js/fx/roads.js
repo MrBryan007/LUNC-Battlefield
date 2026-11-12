@@ -30,6 +30,11 @@
       { id: 'beach', w: 2.8, sh: 1.1, edge: true, ramp: true, pts: [[s * 72, -32], [s * 72, -8], [s * 76, 20], [s * 82, 46], [s * 85, 58]] }
     ];
   }
+  function HS(x, z) {   // v12.0.62: at a step in the visible ground (core mesh edge, skirt to beach) take the higher side so the road never dips under it
+    var c = H(x, z), m = c, r = 1.6, v;
+    v = H(x + r, z); if (v > m) m = v; v = H(x - r, z); if (v > m) m = v; v = H(x, z + r); if (v > m) m = v; v = H(x, z - r); if (v > m) m = v;
+    return m - c > 0.15 ? m : c;
+  }
   function sample(pts, step) {
     var out = [], acc = 0, i, d, n, t;
     out.push([pts[0][0], pts[0][1]]);
@@ -47,7 +52,7 @@
       var p = pl[i], q = pl[Math.min(pl.length - 1, i + 1)], o = pl[Math.max(0, i - 1)];
       var dx = q[0] - o[0], dz = q[1] - o[1], l = Math.hypot(dx, dz) || 1, nx = -dz / l, nz = dx / l;
       if (i) len += Math.hypot(p[0] - pl[i - 1][0], p[1] - pl[i - 1][1]);
-      for (var k = -1; k <= 1; k += 2) { var x = p[0] + nx * (halfW * k + (off || 0)), z = p[1] + nz * (halfW * k + (off || 0)); pos.push(x, H(x, z) + lift, z); nor.push(0, 1, 0); uv.push(k < 0 ? 0 : 1, len); }
+      for (var k = -1; k <= 1; k += 2) { var x = p[0] + nx * (halfW * k + (off || 0)), z = p[1] + nz * (halfW * k + (off || 0)); pos.push(x, HS(x, z) + lift, z); nor.push(0, 1, 0); uv.push(k < 0 ? 0 : 1, len); }
     }
     for (i = 0; i < pl.length - 1; i++) { var a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
     var g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx);
@@ -62,7 +67,7 @@
         if (on) {
           var x0 = a[0] + dx * t, z0 = a[1] + dz * t, x1 = x0 + dx * step, z1 = z0 + dz * step, ox = nx * (off || 0), oz = nz * (off || 0);
           var q = [[x0 + ox - nx * halfW, z0 + oz - nz * halfW], [x0 + ox + nx * halfW, z0 + oz + nz * halfW], [x1 + ox - nx * halfW, z1 + oz - nz * halfW], [x1 + ox + nx * halfW, z1 + oz + nz * halfW]];
-          for (var k = 0; k < 4; k++) pos.push(q[k][0], H(q[k][0], q[k][1]) + lift, q[k][1]);
+          for (var k = 0; k < 4; k++) pos.push(q[k][0], HS(q[k][0], q[k][1]) + lift, q[k][1]);
           idx.push(vi, vi + 1, vi + 2, vi + 1, vi + 3, vi + 2); vi += 4;
         }
         t += step; rem -= step; if (rem <= 1e-6) { on = !on; rem = on ? dash : gap; }
@@ -102,8 +107,9 @@
   }
   function buildRamp(x, z, pl) {   // concrete ramp running down into the water at the end of the beach spur
     var a = pl[pl.length - 2], b = pl[pl.length - 1], ang = Math.atan2(b[0] - a[0], b[1] - a[1]);
-    var g = new THREE.BoxGeometry(4.6, 0.3, 9), m = new THREE.Mesh(g, mats.ramp); m.position.set(x + Math.sin(ang) * 4, Math.max(H(x, z), -0.32) - 0.02, z + Math.cos(ang) * 4); m.rotation.y = ang; m.rotation.x = 0.07; m.name = 'boat-ramp'; root.add(m);
-    var lg = new THREE.BoxGeometry(5, 0.2, 0.3), m2 = new THREE.Mesh(lg, mats.yellow); m2.position.set(x, Math.max(H(x, z), -0.32) + 0.18, z); m2.rotation.y = ang; root.add(m2); stats.ramps++;
+    var g = new THREE.BoxGeometry(4.6, 0.3, 9), m = new THREE.Mesh(g, mats.ramp); var ry = HS(x, z) + 0.08 - 0.15 - 4.5 * Math.sin(0.008);   // v12.0.62: land end flush with the asphalt, then a gentle fall into the surf
+    m.position.set(x + Math.sin(ang) * 4, ry, z + Math.cos(ang) * 4); m.rotation.order = 'YXZ'; m.rotation.y = ang; m.rotation.x = 0.008; m.name = 'boat-ramp'; root.add(m);
+    var lg = new THREE.BoxGeometry(5, 0.2, 0.3), m2 = new THREE.Mesh(lg, mats.yellow); m2.position.set(x, HS(x, z) + 0.1, z); m2.rotation.y = ang; root.add(m2); stats.ramps++;
   }
   function buildPosts() {   // reflector bollards along the supply road + sign posts at the junctions (instanced)
     var bol = [], sig = [];
