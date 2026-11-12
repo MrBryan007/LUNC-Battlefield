@@ -60,10 +60,11 @@
       for (var x = -35; x <= 35.01; x += step) { addStatic(ox + x, 0.08, oz - 3.75, WHITE, 0.55); addStatic(ox + x, 0.08, oz + 3.75, WHITE, 0.55); }
       for (var zz = -3; zz <= 3.01; zz += lo ? 2 : 1) { [-1, 1].forEach(function (e) { addStatic(ox + e * 35.6, 0.08, oz + zz, GREEN, 0.5); addStatic(ox + e * 36.4, 0.08, oz + zz, RED, 0.5); }); }
       for (var i = 0; i < (lo ? 4 : 7); i++) addStatic(ox + side * (40 + i * 5), 0.3, oz, [1, 1, 1], 0.9, 'rabbit', i / (lo ? 4 : 7));   // approach strobe runs toward the runway
-      for (var t = 1; t <= 34; t += lo ? 6 : 3) addStatic(ox - side * t, 0.06, oz - 5.2, BLUE, 0.38);
+      var jr = !!(LB.jetRevet && LB.jetRevet.isEnabled());   // v12.0.63: the revetment rows take the old mast / edge-light line, so both move to the runway side of the back walls
+      for (var t = 1; t <= 34; t += lo ? 6 : 3) addStatic(ox - side * t, 0.06, oz - (jr ? 4.4 : 5.2), BLUE, 0.38);
       addStatic(ox + side * 26, 9.9, oz - 12, [1, 1, 1], 0.9, 'beaconW'); addStatic(ox + side * 26, 9.9, oz - 12, GREEN, 0.9, 'beaconG');   // tower beacon (white / green)
       addStatic(ox + side * 34, 6.1, oz - 20, RED, 0.6, 'slow', side > 0 ? 0.5 : 0);   // radar obstruction light
-      [-4, -18, -32].forEach(function (mx) { mastAt(ox + side * mx, oz - 6.4, ox + side * mx, oz - 13, SODIUM); });   // apron flood masts
+      (jr ? [-9, -21, -33] : [-4, -18, -32]).forEach(function (mx) { mastAt(ox + side * mx, oz - (jr ? 4.4 : 6.4), ox + side * mx, oz - 13, SODIUM); });   // apron flood masts
     });
     // HQ bases: two masts behind each HQ
     var hq = hqX();

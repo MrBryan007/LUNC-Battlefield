@@ -113,7 +113,8 @@
     mesh('box', tarmac, 0, -0.12, 0, 70, 0.2, 7, g);                       // runway (along x)
     for (var i = -3; i <= 3; i++) mesh('box', concrete, i * 9, -0.01, 0, 3.5, 0.02, 0.35, g);   // centre line
     mesh('box', tarmac, -side * 18, -0.12, -14, 34, 0.2, 18, g);           // apron
-    for (var h = 0; h < 3; h++) { mesh('box', steel, -side * (8 + h * 11), 2.2, -24, 9, 4.4, 8, g); mesh('box', tint, -side * (8 + h * 11), 4.5, -24, 9.2, 0.3, 8.2, g); }
+    var hz = LB.jetRevet ? LB.jetRevet.hangarZ(-24) : -24;   // v12.0.63: hangars 5 m back to make room for the rear revetment row
+    for (var h = 0; h < 3; h++) { mesh('box', steel, -side * (8 + h * 11), 2.2, hz, 9, 4.4, 8, g); mesh('box', tint, -side * (8 + h * 11), 4.5, hz, 9.2, 0.3, 8.2, g); }
     mesh('box', concrete, side * 26, 4, -12, 3, 8, 3, g); mesh('box', mat('glass', { color: 0x9fd3e8, roughness: 0.2, metalness: 0.6 }), side * 26, 8.6, -12, 4, 1.4, 4, g);
     // radar (sweeps)
     var rad = new THREE.Group(); rad.position.set(side * 34, 0, -20); g.add(rad);
@@ -200,7 +201,9 @@
   }
   function park(J) {
     J.st = 'parked'; J.sp = 0; J.y = 0.6; J.hp = 1; J.flare = 2;
-    J.x = J.side * BASE_X - J.side * (6 + (J.slot % 6) * 6); J.z = BASE_Z - 12 - Math.floor(J.slot / 6) * 6; J.hd = J.side < 0 ? 0 : Math.PI;
+    var JR = (LB.jetRevet && LB.jetRevet.isEnabled() ? LB.jetRevet : null); J._push = false; J._jr = null;
+    if (JR) { var sl = JR.slot(J.side, J.slot); J.x = sl.x; J.z = sl.z; J.hd = sl.hd; }   // v12.0.63: nose-out in its own blast revetment
+    else { J.x = J.side * BASE_X - J.side * (6 + (J.slot % 6) * 6); J.z = BASE_Z - 12 - Math.floor(J.slot / 6) * 6; J.hd = J.side < 0 ? 0 : Math.PI; }
     J.g.visible = true; J.g.rotation.set(0, 0, 0);
   }
   function sortieRate() {   // market weight: |momentum| (ESTIMATED), 0.5…1.6
@@ -223,6 +226,7 @@
     var AO = LB.airOps && LB.airOps.isEnabled() ? LB.airOps : null;   // v12.0.33 air ops: catapult shots + carrier recoveries
     if (AO && AO.tick(J, dt, homeCtx(J))) { J.g.position.set(J.x, J.y, J.z); if (SA()) SA().jetPose(J, dt); AO.pose(J, dt); if (LB.flightControls) LB.flightControls.pose(J, dt); return; }
     if (J.st === 'parked') { if (J.t <= 0 && airborne() < cap.jets) { J.st = 'taxi'; J.sp = 3; } }
+    else if (J.st === 'taxi' && (LB.jetRevet && LB.jetRevet.isEnabled() ? LB.jetRevet : null)) { if (LB.jetRevet.taxiOut(J, dt)) { J.st = 'takeoff'; J.sp = 0; J.hd = LB.jetRevet.takeoffHd(J.side); } }   // v12.0.63: out of the revetment, lane, link, runway
     else if (J.st === 'taxi') { J.x -= J.side * J.sp * dt * -1; if (Math.abs(J.x - J.side * BASE_X) < 30) { J.z += (BASE_Z - J.z) * Math.min(1, dt * 2); } if (Math.abs(J.z - BASE_Z) < 0.6) { J.st = 'takeoff'; J.hd = J.side < 0 ? 0 : Math.PI; } }
     else if (J.st === 'takeoff' && SA() && J.y < 0.9 && !SA().lineUp(J, dt)) { J.sp = 0; }   // v12.0.15: turn onto the runway first
     else if (J.st === 'takeoff') { J.sp = Math.min(34, J.sp + 14 * dt); J.x += Math.cos(J.hd) * J.sp * dt; if (J.sp > 20) J.y += dt * 6; J.g.rotation.set(0, J.hd, J.sp > 20 ? 0.18 : 0); if (J.y > 18) { J.st = 'cruise'; J.t = rnd(28, 45); pickTarget(J); } }
@@ -263,7 +267,7 @@
   var _home = null;
   function homeCtx(J) {
     if (!_home) _home = { bx: 0, bz: BASE_Z, steer: steer, park: park, rnd: rnd, rate: sortieRate,
-      slotXZ: function (j) { return { x: j.side * BASE_X - j.side * (6 + (j.slot % 6) * 6), z: BASE_Z - 12 - Math.floor(j.slot / 6) * 6 }; } };
+      slotXZ: function (j) { if (LB.jetRevet && LB.jetRevet.isEnabled()) return LB.jetRevet.slot(j.side, j.slot); return { x: j.side * BASE_X - j.side * (6 + (j.slot % 6) * 6), z: BASE_Z - 12 - Math.floor(j.slot / 6) * 6 }; } };
     _home.bx = J.side * BASE_X; return _home;
   }
   function airborne() { var n = 0; for (var i = 0; i < jets.length; i++) { var s = jets[i].st; if (s === 'cruise' || s === 'fight' || s === 'rtb' || s === 'takeoff') n++; } return n; }
@@ -511,6 +515,7 @@
     var nd = navalNear ? wdt : (doFar ? fdt : 0);
     stats.simHz = navalNear ? 'full' : '4Hz';
     if (nd) { for (var i = 0; i < ships.length; i++) tickShip(ships[i], nd); tickShells(nd); }
+    if (LB.jetRevet && LB.jetRevet.tick) { try { LB.jetRevet.tick(wdt); } catch (e) { if (!update._jrErr) { update._jrErr = 1; console.warn('[jetrevet]', e); } } }   // v12.0.63 aircraft blast revetments
     if (LB.revetments && LB.revetments.tick) { try { LB.revetments.tick(wdt); } catch (e) { if (!update._rvErr) { update._rvErr = 1; console.warn('[revetments]', e); } } }   // v12.0.61 gate checkpoints
     if (LB.roads && LB.roads.tick) { try { LB.roads.tick(wdt); } catch (e) { if (!update._rdErr) { update._rdErr = 1; console.warn('[roads]', e); } } }   // v12.0.60 base roads
     if (LB.flightControls && LB.flightControls.tick) LB.flightControls.tick(wdt);   // v12.0.58 vapour budget
@@ -531,6 +536,7 @@
     oceanUniform: function () { return oceanU; }, oceanZ: function () { return SHORE + 160; }, update: update, flyTo: flyTo, tour: startTour, isWater: isWater, splash: splash, onStrike: onStrike,
     VIEWS: VIEWS, CAPS: CAPS, flyToPoint: flyToPoint,
     getStats: function () { return Object.assign({ tier: tierN, cap: cap }, stats); },
-    _ships: function () { return ships; }, _jets: function () { return jets; }
+    _ships: function () { return ships; }, _jets: function () { return jets; },
+    _tickJet: function (J, dt) { tickJet(J, dt); }   // v12.0.63: probes fast-forward one jet (headless frames are too slow for a full sortie)
   };
 })(window);

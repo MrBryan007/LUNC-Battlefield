@@ -200,6 +200,8 @@
         J.hd += clamp(wrap(hd0 - J.hd), -dt * 0.6, dt * 0.6);
         J.x += Math.cos(J.hd) * J.sp * dt; J.z -= Math.sin(J.hd) * J.sp * dt; J.z += (zR - J.z) * Math.min(1, dt * 1.2);
         if (J.sp <= 3.6) a.ap = 4;
+      } else if (a.ap === 4 && LB.jetRevet && LB.jetRevet.isEnabled()) {   // v12.0.63: runway → link → lane → tug push-back into the revetment
+        if (LB.jetRevet.taxiIn(J, dt)) { C.park(J); J.t = C.rnd(8, 18) / C.rate(); a.ap = 0; stats.taxiIns++; return true; }
       } else if (a.ap === 4) {                  // taxi-in along the runway to the slot's x, then onto the apron
         var sl = C.slotXZ(J), tx = sl.x, tz = sl.z, onRw = Math.abs(J.z - zR) < 1.5 && Math.abs(J.x - tx) > 1.2;
         var px = onRw ? tx : tx, pz = onRw ? zR : tz;
@@ -250,6 +252,7 @@
       yaw = a.vyaw;
     } else a.vyaw = J.hd;
     if (st === 'parked' && mv > 40) { a.vyaw = J.hd; yaw = J.hd; }
+    if (J._push) { a.vyaw = J.hd; yaw = J.hd; }   // v12.0.63: towed / pushed back: the nose does not follow the (backwards) motion
     J.g.rotation.order = 'YZX';
     J.g.rotation.set(a.bank, yaw, a.pitch);
     if (st !== 'down') stats.maxBank = Math.max(stats.maxBank * 0.998, Math.abs(a.bank));
