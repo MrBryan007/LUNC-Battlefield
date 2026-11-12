@@ -402,7 +402,7 @@
       v.t += v.dir * dt * 0.03;
       if (v.t > 1) { v.t = 1; v.dir = -1; } else if (v.t < 0) { v.t = 0; v.dir = 1; }
       var x0 = v.side * 205, x1 = E().getFrontlineX() + v.side * 46, x = x0 + (x1 - x0) * v.t;
-      var vz = -32 + (v.dir > 0 ? -0.7 : 0.7), vy = -0.3; if (LB.groundY) { try { vy = LB.groundY(x, vz) - 0.03; } catch (_) {} }   // v12.0.62: trucks ride on the road surface
+      var vz = -32 + (v.dir > 0 ? -0.7 : 0.7), vy = -0.3; if (LB.roads && LB.roads.surfaceY && LB.roads.isEnabled()) { try { vy = LB.roads.surfaceY(x, vz) - 0.03; } catch (_) {} } else if (LB.groundY) { try { vy = LB.groundY(x, vz) - 0.03; } catch (_) {} }   // v12.0.62: trucks ride on the road surface
       v.g.position.set(x, vy, vz); v.g.rotation.y = (x1 > x0) === (v.dir > 0) ? 0 : Math.PI;
     }
   }

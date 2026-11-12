@@ -26,10 +26,10 @@ const OUT = process.env.OUT || 'docs/v12062-shots';
     }
     const res = {};
     // 1) road surface: every 6th asphalt vertex vs what is under the road (roads themselves excluded)
-    const roadRoot = e.scene.getObjectByName('v12-roads'), inRoads = o => { for (let q = o; q; q = q.parent) if (q === roadRoot) return true; return false; };
+    const roadRoot = e.scene.getObjectByName('v12-roads'), inRoads = o => { if (o.name === 'road-fill') return false; for (let q = o; q; q = q.parent) if (q === roadRoot) return true; return false; };   // the earth embankment is ground
     let worst = 0, n = 0, where = null; const asph = []; roadRoot && roadRoot.traverse(o => { if (o.name === 'road-asphalt') asph.push(o); });
     asph.forEach(o => { const P = o.geometry.attributes.position, v = new T.Vector3(); for (let i = 0; i < P.count; i += 6) { v.fromBufferAttribute(P, i).applyMatrix4(o.matrixWorld); surf.ref = v.y; const s = surf(v.x, v.z, v.y + 3, inRoads); surf.ref = null; if (!s) continue; const g = v.y - s.y; n++; if (Math.abs(g) > Math.abs(worst)) { worst = g; where = [+v.x.toFixed(1), +v.z.toFixed(1), s.n]; } } });
-    res.road = { samples: n, worstGap: +worst.toFixed(2), where };
+    res.road = { samples: n, worstGap: +worst.toFixed(2), where }; try { const st = L.roads.getState(); res.road.maxGrade = st.maxGrade; res.road.maxLift = st.maxLift; res.road.fills = st.fills || 0; } catch (_) {}
     // 2) boat ramps vs the beach
     res.ramps = []; roadRoot && roadRoot.traverse(o => { if (o.name === 'boat-ramp') { const s = surf(o.position.x, o.position.z - 3, 20, inRoads); res.ramps.push({ y: +o.position.y.toFixed(2), under: s && +s.y.toFixed(2), on: s && s.n }); } });
     // 3) checkpoints: lowest block base vs the ground beside it
@@ -48,6 +48,7 @@ const OUT = process.env.OUT || 'docs/v12062-shots';
   await cam(A, 128, 7, -40, 150, 0, -70); await A.waitForTimeout(2500); await A.screenshot({ path: OUT + '/silo-spur.png', timeout: 120000 });
   await cam(A, 70, 6, 40, 85, -0.3, 58); await A.waitForTimeout(2000); await A.screenshot({ path: OUT + '/boat-ramp.png', timeout: 120000 });
   await cam(A, 175, 9, -40, 200, 0, -48); await A.waitForTimeout(2000); await A.screenshot({ path: OUT + '/airbase-gate.png', timeout: 120000 });
+  await cam(A, 84, 3.2, -22, 70, -0.2, -32); await A.waitForTimeout(2000); await A.screenshot({ path: OUT + '/road-embankment.png', timeout: 120000 });   // supply road leaving the core mesh on its fill
   out.mediumErrs = A.errs; await A.context().close();
   const K = await mk('MEDIUM', false, '?ground=0');
   out.off = await K.evaluate(() => ({ on: LUNCBattle.ground.isEnabled(), y: +LUNCBattle.groundY(150, -88).toFixed(2), th: +LUNCBattle.engine.terrainHeight(150, -88).toFixed(2) }));
