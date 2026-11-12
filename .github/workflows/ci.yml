@@ -1,0 +1,32 @@
+name: CI
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install Chromium and puppeteer-core
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y chromium-browser || sudo apt-get install -y chromium
+          npm install --no-save puppeteer-core
+      - name: Syntax check
+        run: |
+          find js tests -name '*.js' -print0 | xargs -0 -n1 node --check
+      - name: Security, persistence, and smoke tests
+        run: |
+          node tests/p0-hardening.js
+          node tests/progression-persist.js
+          node tests/stabilization-smoke.js
+      - name: Browser XSS regression
+        run: node tests/xss-browser.js
+        env:
+          CHROME: /usr/bin/chromium-browser
