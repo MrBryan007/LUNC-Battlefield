@@ -90,3 +90,81 @@ Live site after Pages build confirmed:
 - `js/ui.js` `esc()` contains `&` / `<` / `>`
 
 **Status:** Merged to main. Live.
+
+---
+
+## 2026-11-12 — P0 Hardening Verification & Forensic DOM Audit
+
+**Objective:** Forensic verification of the P0 hardening work. No new features. Confirm esc()/safeNum(), classify DOM insertion sites, remove unused duplicate, add CI, record exactly what was tested.
+
+**Timestamp:** 2026-11-12 ~08:41 PST (started)
+
+**Starting branch / commit:**  
+- `main` @ `279e948b9a01` — Merge pull request #15 from docs/audit-log
+
+**Branch:** `fix/v12.0.62-p0-verify`
+
+**Files inspected:**  
+All `.js` and `.html` under the repo (125 files). Focused review of `js/ui.js`, `js/commander.js`, `js/theaters/voice.js`, `js/theaters/brevity.js`, `js/ui/hotseat.js`, `js/config.js`, `index.html`, and every file containing `innerHTML` / `insertAdjacentHTML` / `outerHTML` / `document.write`.
+
+**Files changed:**
+- `js/theaters/brevity.js` — escape glossary word before HTML insertion
+- `commander.js` (root) — removed (duplicate of `js/commander.js`, unused)
+- `.github/workflows/ci.yml` — new CI workflow
+- `tests/p0-hardening.js` — added iframe and javascript: href samples
+- `docs/AUDIT_LOG.md` — this entry
+
+**Unsafe rendering locations found:**
+- `js/theaters/brevity.js` glossary inserted `w` raw. `w` comes from internal brevity codes, not remote user input, but was unescaped. Fixed.
+
+**Locations determined safe:**
+- `js/ui.js` `esc()` encodes `& < > " '` in the correct order. Verified by reading source and by `tests/p0-hardening.js`.
+- `js/ui.js` burns/whales/proposals use `esc()`. Validator power uses `safeNum()`. Battle Strength name/detail escaped. Source label escaped.
+- `js/theaters/voice.js` has its own `esc()` and uses it for who/tag/text.
+- Most theater/UI `innerHTML` sites are static trusted markup (panel chrome, SIMULATED labels).
+- `js/commander.js` rank/XP display uses `textContent` for the rank name and numeric formatting for XP.
+- No query-string values were found being inserted into HTML.
+
+**Unresolved:**
+- Theater status strings built as `h` then assigned to `innerHTML` in `asw.js` and `ridge.js` were not fully traced in this pass. Marked UNRESOLVED pending a line-by-line review of those status builders.
+- Static `innerHTML` for trusted chrome remains (acceptable, not a vulnerability).
+
+**Exact fixes:**
+- Brevity glossary words are now escaped before insertion.
+- Root `commander.js` removed. `index.html` loads `js/commander.js` only. The two files were identical at audit time.
+- CI workflow runs syntax check + `p0-hardening.js` + `progression-persist.js` + `stabilization-smoke.js` on pull requests and pushes to main. Does not touch Pages deploy.
+
+**Tests added:**  
+Expanded `tests/p0-hardening.js` with `<iframe src=javascript:alert(1)>` and `<a href="javascript:alert(1)">`.
+
+**Tests actually run:**
+- `node tests/p0-hardening.js` — 17/17 PASS
+- `node tests/progression-persist.js` — 15/15 PASS
+- `node tests/stabilization-smoke.js` — PASS (no failures)
+- `node --check` on all `tests/*.js` and `js/ui.js`, `js/commander.js`, `js/config.js`, `js/theaters/brevity.js` — OK
+- Live site smoke via browser: title `v12.0.62 — Ground truth`, `loadBuild` `v12.0.62`, canvas present. No profile matrix.
+
+**Not run (do not claim):**
+- HIGH / MEDIUM / LOW graphics profile harnesses (require Playwright + local server; Playwright module not available in this environment)
+- iPhone-sized viewport harness
+- Shader-error harness
+- Road/ground-contact harness
+- Aircraft/vehicle harness
+- Online-link/network harness
+- Lighthouse Performance audit (not executed; no Lighthouse run in this environment)
+
+**Browser / device / graphics profiles tested:**  
+Live production page load only (desktop browser). Canvas present. No quality-tier or mobile-viewport matrix was executed.
+
+**Performance impact:** Not measured. No Lighthouse run. No FPS or draw-call numbers.
+
+**Warnings / remaining risks:**
+- Theater status HTML in `asw.js` / `ridge.js` not fully classified.
+- CSP still not enforced. Three.js still on CDN without SRI.
+- Persistence is localStorage only.
+- CI does not run the Playwright harnesses.
+
+**Systems deliberately left unchanged:**
+- Rank thresholds, XP rates, DataTruth semantics, market/frontline math, aircraft state machines, Three.js version, army density, quality tiers, graphics styling.
+
+**Status:** On branch `fix/v12.0.62-p0-verify`. Not merged. Not deployed.
