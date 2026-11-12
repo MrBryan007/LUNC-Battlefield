@@ -1,0 +1,22 @@
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Syntax check
+        run: |
+          find js tests -name '*.js' -print0 | xargs -0 -n1 node --check
+      - name: Security and persistence tests
+        run: |
+          node tests/p0-hardening.js
+          node tests/progression-persist.js
+          node tests/stabilization-smoke.js
