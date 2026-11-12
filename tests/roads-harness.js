@@ -17,9 +17,9 @@ const OUT = process.env.OUT || 'docs/v12060-shots';
   const out = {}; process.on('exit', () => { if (!out._printed) console.log(JSON.stringify(out, null, 1)); });
   const A = await mk('MEDIUM', false, '');
   out.state = await A.evaluate(() => LUNCBattle.roads.getState());
-  out.drape = await A.evaluate(() => { const r = LUNCBattle.roads._root(), e = LUNCBattle.engine; let worst = 0, n = 0, nonmono = 0;
-    r.children.forEach(m => { if (m.name !== 'road-asphalt') return; const p = m.geometry.attributes.position; for (let i = 0; i < p.count; i += 7) { const h = (LUNCBattle.groundY ? LUNCBattle.groundY(p.getX(i), p.getZ(i)) : e.terrainHeight(p.getX(i), p.getZ(i))) || 0; worst = Math.max(worst, Math.abs(p.getY(i) - 0.06 - h)); n++; } });
-    const names = {}; r.children.forEach(m => names[m.name] = (names[m.name] || 0) + 1); return { worst, n, names }; });
+  out.drape = await A.evaluate(() => { const r = LUNCBattle.roads._root(), e = LUNCBattle.engine; let worst = 0, n = 0, nonmono = 0, lifted = 0; const lim = (LUNCBattle.roads.getState().maxLift || 0) + 0.3;   // v12.0.62: stretches on an embankment ride above the drape by design (ground probe checks the fill)
+    r.children.forEach(m => { if (m.name !== 'road-asphalt') return; const p = m.geometry.attributes.position; for (let i = 0; i < p.count; i += 7) { const h = (LUNCBattle.groundY ? LUNCBattle.groundY(p.getX(i), p.getZ(i)) : e.terrainHeight(p.getX(i), p.getZ(i))) || 0; const gp = p.getY(i) - 0.06 - h; if (gp > 0.01 && gp <= lim) lifted++; else worst = Math.max(worst, Math.abs(gp)); n++; } });
+    const names = {}; r.children.forEach(m => names[m.name] = (names[m.name] || 0) + 1); return { worst, n, lifted, names }; });
   // wet asphalt
   out.wet = await A.evaluate(async () => { const R = LUNCBattle.roads, rm = LUNCBattle.rainMud, root = R._root(); const mat = root.children.find(m => m.name === 'road-asphalt').material, dry = mat.roughness;
     LUNCBattle.v12extras.setWeather('rain'); rm._soak('rain', 40); R.tick(0.6); R.tick(0.6); const wet = mat.roughness; LUNCBattle.v12extras.setWeather('clear'); return { dry, wet, lvl: rm.levels().wet }; });
