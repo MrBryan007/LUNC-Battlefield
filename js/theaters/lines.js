@@ -18,7 +18,7 @@
   function low() { try { return LB.quality.getEffectiveName() === 'LOW' || E().mobile; } catch (_) { return false; } }
   function radio(side, text) { if (LB.ai && LB.ai.send) try { LB.ai.send({ side: side, type: 'lines', text: text }); } catch (_) {} }
   function frontX() { try { return E().getFrontlineX() || 0; } catch (_) { return 0; } }
-  function H(x, z) { try { return E().terrainHeight(x, z) || 0; } catch (_) { return 0; } }
+  function H(x, z) { try { return (LB.groundY ? LB.groundY(x, z) : E().terrainHeight(x, z)) || 0; } catch (_) { return 0; } }   // v12.0.62: visible ground (js/fx/ground.js)
   function isCut(side) { for (var i = 0; i < depots.length; i++) if (depots[i].side === side && depots[i].hp <= 0) return true; return false; }
 
   function build() {

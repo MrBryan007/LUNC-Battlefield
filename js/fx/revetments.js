@@ -19,7 +19,7 @@
   var THREE = null, root = null, built = false, cps = [], mats = null, pools = [], lastNight = -1, stats = { checkpoints: 0, hesco: 0, jersey: 0, booths: 0, booms: 0, lights: 0, boomUp: 0, snapped: 0, night: 0 };
   var clock = 0, col2 = null;
   function E() { return LB.engine; }
-  function H(x, z) { try { return E().terrainHeight(x, z) || 0; } catch (_) { return 0; } }
+  function H(x, z) { try { return (LB.groundY ? LB.groundY(x, z) : E().terrainHeight(x, z)) || 0; } catch (_) { return 0; } }   // v12.0.62: visible ground (js/fx/ground.js)
   function tier() { try { return LB.quality.getEffectiveName(); } catch (_) { return 'HIGH'; } }
   function lite() { return tier() === 'LOW' || !!(E() && E().mobile) || global.innerWidth < 760; }
 
@@ -27,7 +27,7 @@
     return [
       { id: 'hq', x: s * 60, z: -32, dx: s, dz: 0, hw: 1.7, boom: false, chicane: false },
       { id: 'airbase', x: s * 194.5, z: -44.7, dx: s * 0.82, dz: -0.57, hw: 1.4, boom: true, chicane: true },
-      { id: 'silo', x: s * 149.3, z: -78, dx: 0.04 * s, dz: -1, hw: 1.2, boom: true, chicane: true }
+      { id: 'silo', x: s * 135, z: -85.5, dx: s, dz: 0, hw: 1.2, boom: true, chicane: true, bs: -s }   // v12.0.62: on the re-routed silo spur's last straight
     ];
   }
   function canvasTex(draw, w, h) { var c = doc.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); var t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t; }
@@ -107,14 +107,16 @@
     d.scale.set(1, 1, 1);
     jp.forEach(function (p, i) { d.position.set(p[0], grounded(g, p[0], 0, p[1]) - 0.03, p[1]); d.rotation.set(0, (Math.random() - 0.5) * 0.05, 0); d.updateMatrix(); jm.setMatrixAt(i, d.matrix); }); g.add(jm); stats.jersey += jp.length;
     // guard booth on the shoulder, on the +Z side, with a window facing the road and a flag
-    var bz = off + 2.6, b = new THREE.Group(); b.position.set(0, grounded(g, 0, 0, bz), bz); g.add(b);
+    var bs = D.bs || 1, bz = bs * (off + 2.6), b = new THREE.Group();   // bs: which shoulder gets the booth (away from the SAM pad on the silo spur)
+    if (bs < 0) b.rotation.y = Math.PI;
+    b.position.set(0, grounded(g, 0, 0, bz), bz); g.add(b);
     box(b, 2.2, 2.3, 2.2, mats.wall, 0, 1.15, 0); box(b, 2.6, 0.18, 2.6, mats.roof, 0, 2.4, 0); box(b, 1.4, 0.7, 0.06, mats.glass, 0, 1.45, -1.12); box(b, 0.7, 1.5, 0.06, mats.dark, 0.5, 0.75, 1.12);
     box(b, 2.4, 0.15, 2.4, mats.jersey, 0, -0.02, 0);   // concrete pad under the booth
     box(b, 0.05, 3.2, 0.05, mats.post, 1.0, 3.9, 1.0); box(b, 0.9, 0.55, 0.03, new THREE.MeshStandardMaterial({ color: sideCol, roughness: 0.8, side: THREE.DoubleSide }), 1.45, 5.1, 1.0);
     stats.booths++;
     // floodlight mast + (MEDIUM+) the pool of light it throws on the road at night
     if (!l) {
-      var mz = off + 1.2, mast = new THREE.Group(); mast.position.set(-1.8, grounded(g, -1.8, 0, mz), mz); g.add(mast);
+      var mz = bs * (off + 1.2), mast = new THREE.Group(); mast.position.set(-1.8, grounded(g, -1.8, 0, mz), mz); if (bs < 0) mast.rotation.y = Math.PI; g.add(mast);
       box(mast, 0.12, 5.2, 0.12, mats.dark, 0, 2.6, 0); var head = box(mast, 0.9, 0.25, 0.4, mats.dark, 0, 5.3, -0.1); head.rotation.x = -0.35; box(mast, 0.8, 0.12, 0.3, mats.lamp, 0, 5.15, -0.2).rotation.x = -0.35; stats.lights++;
       var pool = new THREE.Mesh(mats.poolGeo, mats.pool.clone()); pool.rotation.x = -Math.PI / 2; pool.position.set(-1.8, grounded(g, -1.8, 0, 0) + 0.12, 0); pool.renderOrder = 3; pool.visible = false; g.add(pool); pools.push(pool);
     }

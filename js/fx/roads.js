@@ -1,4 +1,4 @@
-/* LUNC Battlefield v12.0.60 — Base roads: asphalt, shoulders, lane markings and a boat ramp (realism checklist, Scale &
+/* LUNC Battlefield v12.0.60 (+ v12.0.62 grade profile / embankments) — Base roads: asphalt, shoulders, lane markings and a boat ramp (realism checklist, Scale &
  * spacing: "base roads incomplete"). Visual only (game layer): never touches market data, armies, the front or labels.
  *  - A road network per side, draped on the real terrain height: the HQ supply road (z = -32), an airbase spur, a silo
  *    access spur (the v12.0.59 missile range) and a beach spur that ends in a concrete boat ramp at the waterline.
@@ -16,7 +16,7 @@
   var lastWet = -1, acc = 0;
 
   function E() { return LB.engine; }
-  function H(x, z) { try { return E().terrainHeight(x, z) || 0; } catch (_) { return 0; } }
+  function H(x, z) { try { return (LB.groundY ? LB.groundY(x, z) : E().terrainHeight(x, z)) || 0; } catch (_) { return 0; } }   // v12.0.62: visible ground (js/fx/ground.js)
   function tier() { try { return LB.quality.getEffectiveName(); } catch (_) { return 'HIGH'; } }
   function lite() { return tier() === 'LOW' || !!(E() && E().mobile) || global.innerWidth < 760; }
 
@@ -26,9 +26,14 @@
     return [
       { id: 'supply', w: 3.4, sh: 1.3, dbl: true, edge: true, pts: [[s * 40, -32], [s * 90, -32], [s * 140, -32], [s * 190, -32], [s * 222, -32]] },
       { id: 'airbase', w: 2.8, sh: 1.1, edge: true, pts: [[s * 176, -32], [s * 188, -39], [s * 198, -47], [s * 204, -52]] },
-      { id: 'silo', w: 2.4, sh: 1.0, pts: [[s * 148, -32], [s * 148, -55], [s * 149, -75], [s * 150, -88]] },
-      { id: 'beach', w: 2.8, sh: 1.1, edge: true, ramp: true, pts: [[s * 72, -32], [s * 72, -8], [s * 76, 20], [s * 82, 46], [s * 85, 58]] }
+      { id: 'silo', w: 2.4, sh: 1.0, pts: [[s * 116, -32], [s * 115.5, -46], [s * 115, -62], [s * 115.5, -76], [s * 120, -84], [s * 126, -85.5], [s * 146, -85.5], [s * 150, -88]] },   // v12.0.62: leaves the supply road west of the fuel depot and runs round the SAM pads (it used to cut straight through one) into the silo range
+      { id: 'beach', w: 2.8, sh: 1.1, edge: true, ramp: true, pts: [[s * 75, -32], [s * 75, -8], [s * 77.5, 20], [s * 82, 46], [s * 85, 58]] }   // v12.0.62: 3 m further out so its inner shoulder clears the step at the core mesh edge (x = 69)
     ];
+  }
+  function HS(x, z) {   // v12.0.62: at a step in the visible ground (core mesh edge, skirt to beach) take the higher side so the road never dips under it
+    var c = H(x, z), m = c, r = 1.6, v;
+    v = H(x + r, z); if (v > m) m = v; v = H(x - r, z); if (v > m) m = v; v = H(x, z + r); if (v > m) m = v; v = H(x, z - r); if (v > m) m = v;
+    return m - c > 0.15 ? m : c;
   }
   function sample(pts, step) {
     var out = [], acc = 0, i, d, n, t;
@@ -41,19 +46,45 @@
     var sm = [out[0]]; for (i = 1; i < out.length - 1; i++) { var p = out[i - 1], c = out[i], q = out[i + 1]; sm.push([(p[0] + 2 * c[0] + q[0]) / 4, (p[1] + 2 * c[1] + q[1]) / 4]); } sm.push(out[out.length - 1]);
     return sm;
   }
-  function ribbon(pl, halfW, lift, off) {   // off = lateral offset of the ribbon centre
+  // v12.0.62: per-road vertical profile. The visible ground has steps (core battlefield mesh edge -> skirt), so a road
+  // that simply drapes jumps up and down there. prof(pl) keeps the drape everywhere it can, but limits the grade to
+  // GRADE (6 %, a real limit for loaded trucks), carries the height of the road it branches off at a junction, and
+  // returns lift[i] = how far the road rides above its own drape at sample i (filled with an earth embankment).
+  var GRADE = 0.06, profs = [];
+  function prof(pl, halfW) {
+    var n = pl.length, g0 = [], b = [], env = [], lift = [], i, j, d;
+    for (i = 0; i < n; i++) { g0[i] = H(pl[i][0], pl[i][1]); b[i] = HS(pl[i][0], pl[i][1]); }
+    profs.forEach(function (P) {   // junction: if this sample sits on an earlier road, start from that road's surface
+      for (i = 0; i < n; i++) { var best = 1e9, bj = -1; for (j = 0; j < P.pl.length; j++) { d = Math.hypot(P.pl[j][0] - pl[i][0], P.pl[j][1] - pl[i][1]); if (d < best) { best = d; bj = j; } }
+        if (best <= P.hw) b[i] = Math.max(b[i], P.g0[bj] + P.lift[bj]); }
+    });
+    env[0] = b[0]; for (i = 1; i < n; i++) { d = Math.hypot(pl[i][0] - pl[i - 1][0], pl[i][1] - pl[i - 1][1]); env[i] = Math.max(b[i], env[i - 1] - GRADE * d); }
+    for (i = n - 2; i >= 0; i--) { d = Math.hypot(pl[i + 1][0] - pl[i][0], pl[i + 1][1] - pl[i][1]); env[i] = Math.max(env[i], env[i + 1] - GRADE * d); }
+    var maxLift = 0, maxGrade = 0;   // lift is measured from the true drape, so stretches HS() raises over a step get a fill too
+    for (i = 0; i < n; i++) { lift[i] = Math.max(0, env[i] - g0[i]); if (lift[i] > maxLift) maxLift = lift[i]; if (i) { d = Math.hypot(pl[i][0] - pl[i - 1][0], pl[i][1] - pl[i - 1][1]) || 1; maxGrade = Math.max(maxGrade, Math.abs(env[i] - env[i - 1]) / d); } }
+    var P = { pl: pl, g0: g0, lift: lift, env: env, hw: halfW, maxLift: maxLift, maxGrade: maxGrade }; profs.push(P); return P;
+  }
+  function Y(x, z, lf) { var h = H(x, z) + (lf || 0), hs = HS(x, z); return hs > h ? hs : h; }   // road bed height: drape + profile lift, never under a step within 1.6 m
+  function surfaceY(x, z) {   // asphalt top under (x, z) if it is on a road, else the visible ground
+    var best = null;
+    for (var k = 0; k < profs.length; k++) { var P = profs[k], pl = P.pl, bd = 1e9, bj = 0;
+      for (var j = 0; j < pl.length; j++) { var d = Math.hypot(pl[j][0] - x, pl[j][1] - z); if (d < bd) { bd = d; bj = j; } }
+      if (bd <= P.hw) { var y = Y(x, z, P.lift[bj]) + 0.06; if (best == null || y > best) best = y; } }
+    return best == null ? H(x, z) : best;
+  }
+  function ribbon(pl, halfW, lift, off, LF) {   // off = lateral offset of the ribbon centre, LF = profile lift per sample
     var pos = [], idx = [], nor = [], uv = [], len = 0, i;
     for (i = 0; i < pl.length; i++) {
       var p = pl[i], q = pl[Math.min(pl.length - 1, i + 1)], o = pl[Math.max(0, i - 1)];
       var dx = q[0] - o[0], dz = q[1] - o[1], l = Math.hypot(dx, dz) || 1, nx = -dz / l, nz = dx / l;
       if (i) len += Math.hypot(p[0] - pl[i - 1][0], p[1] - pl[i - 1][1]);
-      for (var k = -1; k <= 1; k += 2) { var x = p[0] + nx * (halfW * k + (off || 0)), z = p[1] + nz * (halfW * k + (off || 0)); pos.push(x, H(x, z) + lift, z); nor.push(0, 1, 0); uv.push(k < 0 ? 0 : 1, len); }
+      for (var k = -1; k <= 1; k += 2) { var x = p[0] + nx * (halfW * k + (off || 0)), z = p[1] + nz * (halfW * k + (off || 0)); pos.push(x, Y(x, z, LF ? LF[i] : 0) + lift, z); nor.push(0, 1, 0); uv.push(k < 0 ? 0 : 1, len); }
     }
     for (i = 0; i < pl.length - 1; i++) { var a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
     var g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx);
     stats.verts += pos.length / 3; stats.segments += pl.length - 1; return g;
   }
-  function dashes(pl, halfW, lift, dash, gap, off) {   // merged quads
+  function dashes(pl, halfW, lift, dash, gap, off, LF) {   // merged quads
     var pos = [], idx = [], run = 0, on = true, rem = dash, i, vi = 0;
     for (i = 1; i < pl.length; i++) {
       var a = pl[i - 1], b = pl[i], L = Math.hypot(b[0] - a[0], b[1] - a[1]), dx = (b[0] - a[0]) / L, dz = (b[1] - a[1]) / L, nx = -dz, nz = dx, t = 0;
@@ -62,7 +93,8 @@
         if (on) {
           var x0 = a[0] + dx * t, z0 = a[1] + dz * t, x1 = x0 + dx * step, z1 = z0 + dz * step, ox = nx * (off || 0), oz = nz * (off || 0);
           var q = [[x0 + ox - nx * halfW, z0 + oz - nz * halfW], [x0 + ox + nx * halfW, z0 + oz + nz * halfW], [x1 + ox - nx * halfW, z1 + oz - nz * halfW], [x1 + ox + nx * halfW, z1 + oz + nz * halfW]];
-          for (var k = 0; k < 4; k++) pos.push(q[k][0], H(q[k][0], q[k][1]) + lift, q[k][1]);
+          var l0 = LF ? LF[i - 1] + (LF[i] - LF[i - 1]) * (t / L) : 0, l1 = LF ? LF[i - 1] + (LF[i] - LF[i - 1]) * Math.min(1, (t + step) / L) : 0, lq = [l0, l0, l1, l1];
+          for (var k = 0; k < 4; k++) pos.push(q[k][0], Y(q[k][0], q[k][1], lq[k]) + lift, q[k][1]);
           idx.push(vi, vi + 1, vi + 2, vi + 1, vi + 3, vi + 2); vi += 4;
         }
         t += step; rem -= step; if (rem <= 1e-6) { on = !on; rem = on ? dash : gap; }
@@ -70,6 +102,23 @@
     }
     if (!pos.length) return null;
     var g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals(); stats.verts += pos.length / 3; return g;
+  }
+  function fill(pl, halfW, LF) {   // earth embankment under any stretch that rides above its drape: 1:2 side slopes down to the ground
+    var pos = [], idx = [], any = false, i, n = pl.length, up2 = [[], []];
+    for (var side = -1; side <= 1; side += 2) {
+      var base = pos.length / 3;
+      for (i = 0; i < n; i++) {
+        var p = pl[i], q = pl[Math.min(n - 1, i + 1)], o = pl[Math.max(0, i - 1)], dx = q[0] - o[0], dz = q[1] - o[1], l = Math.hypot(dx, dz) || 1, nx = -dz / l * side, nz = dx / l * side;
+        var xi = p[0] + nx * halfW, zi = p[1] + nz * halfW, yi = Y(xi, zi, LF[i]), up = yi - H(xi, zi), lf = up > 0.04 ? up : 0; if (lf) any = true; up2[side < 0 ? 0 : 1][i] = lf;
+        var xo = p[0] + nx * (halfW + lf * 2), zo = p[1] + nz * (halfW + lf * 2);
+        pos.push(xi, yi + 0.035, zi, xo, Math.min(H(xo, zo), yi) - 0.03, zo);
+      }
+      for (i = 0; i < n - 1; i++) { var a = base + i * 2; if (side < 0) idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); else idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
+    }
+    if (!any) return null;
+    // deck: the top of the fill under the road itself (index 0 = left inner edge row, n*2 = right inner edge row)
+    for (i = 0; i < n - 1; i++) if (up2[0][i] || up2[0][i + 1] || up2[1][i] || up2[1][i + 1]) { var L0 = i * 2, L1 = (i + 1) * 2, R0 = n * 2 + i * 2, R1 = n * 2 + (i + 1) * 2; idx.push(L0, R0, L1, L1, R0, R1); }
+    var g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals(); stats.fills = (stats.fills || 0) + 1; stats.verts += pos.length / 3; return g;
   }
   function add(g, mat, order, name) {
     if (!g) return null; var m = new THREE.Mesh(g, mat); m.renderOrder = order || 0; m.name = name || 'road'; m.frustumCulled = false; m.receiveShadow = true; root.add(m); return m;
@@ -80,17 +129,20 @@
   }
   function build() {
     var e = E(); THREE = e.THREE; root = new THREE.Group(); root.name = 'v12-roads'; e.scene.add(root);
+    try { e.scene.traverse(function (o) { if (o.name === 'supply-slab') { o.visible = false; stats.slabsHidden = (stats.slabsHidden || 0) + 1; } }); } catch (_) {}   // v12.0.62: the old flat supply slab is replaced
     var l = lite(), step = l ? 8 : 4;
-    mats.shoulder = mk(0x6a5e48, 1, 1); mats.asphalt = mk(0x3a3c3f, 0.95, 2); mats.line = mk(0xe8e4d2, 0.8, 3); mats.yellow = mk(0xe0b53a, 0.8, 3); mats.ramp = mk(0x8e8b83, 0.9, 3);
+    mats.shoulder = mk(0x6a5e48, 1, 1); mats.asphalt = mk(0x3a3c3f, 0.95, 2); mats.line = mk(0xe8e4d2, 0.8, 3); mats.yellow = mk(0xe0b53a, 0.8, 3); mats.ramp = mk(0x8e8b83, 0.9, 3); mats.fill = mk(0x5c5240, 1, 0); mats.fill.side = THREE.DoubleSide;
     mats.asphalt.userData.base = 0x3a3c3f;
     [-1, 1].forEach(function (side) {
       defs(side).forEach(function (R) {
-        var pl = sample(R.pts, step);
-        add(ribbon(pl, R.w / 2 + R.sh, 0.045, 0), mats.shoulder, 1, 'road-shoulder');
-        add(ribbon(pl, R.w / 2, 0.06, 0), mats.asphalt, 2, 'road-asphalt');
-        if (R.dbl) { add(dashes(pl, 0.07, 0.075, 6, 0, 0.14), mats.yellow, 3, 'road-centre'); add(dashes(pl, 0.07, 0.075, 6, 0, -0.14), mats.yellow, 3, 'road-centre'); }
-        else add(dashes(pl, 0.08, 0.075, 1.6, 2.2, 0), mats.line, 3, 'road-centre');
-        if (R.edge) { add(dashes(pl, 0.06, 0.075, 8, 0, R.w / 2 - 0.2), mats.line, 3, 'road-edge'); add(dashes(pl, 0.06, 0.075, 8, 0, -(R.w / 2 - 0.2)), mats.line, 3, 'road-edge'); }
+        var pl = sample(R.pts, step), P = prof(pl, R.w / 2 + R.sh), LF = P.lift;
+        stats.maxLift = Math.max(stats.maxLift || 0, +P.maxLift.toFixed(2)); stats.maxGrade = Math.max(stats.maxGrade || 0, +P.maxGrade.toFixed(3));
+        var fm = add(fill(pl, R.w / 2 + R.sh, LF), mats.fill, 0, 'road-fill'); if (fm) fm.castShadow = false;
+        add(ribbon(pl, R.w / 2 + R.sh, 0.045, 0, LF), mats.shoulder, 1, 'road-shoulder');
+        add(ribbon(pl, R.w / 2, 0.06, 0, LF), mats.asphalt, 2, 'road-asphalt');
+        if (R.dbl) { add(dashes(pl, 0.07, 0.075, 6, 0, 0.14, LF), mats.yellow, 3, 'road-centre'); add(dashes(pl, 0.07, 0.075, 6, 0, -0.14, LF), mats.yellow, 3, 'road-centre'); }
+        else add(dashes(pl, 0.08, 0.075, 1.6, 2.2, 0, LF), mats.line, 3, 'road-centre');
+        if (R.edge) { add(dashes(pl, 0.06, 0.075, 8, 0, R.w / 2 - 0.2, LF), mats.line, 3, 'road-edge'); add(dashes(pl, 0.06, 0.075, 8, 0, -(R.w / 2 - 0.2), LF), mats.line, 3, 'road-edge'); }
         var end = R.pts[R.pts.length - 1], first = R.pts[0];
         if (R.ramp) buildRamp(end[0], end[1], pl);
         nets.push({ side: side, id: R.id, pts: R.pts.slice(), w: R.w }); stats.roads++;
@@ -101,27 +153,28 @@
   }
   function buildRamp(x, z, pl) {   // concrete ramp running down into the water at the end of the beach spur
     var a = pl[pl.length - 2], b = pl[pl.length - 1], ang = Math.atan2(b[0] - a[0], b[1] - a[1]);
-    var g = new THREE.BoxGeometry(4.6, 0.3, 9), m = new THREE.Mesh(g, mats.ramp); m.position.set(x + Math.sin(ang) * 4, Math.max(H(x, z), 0) - 0.02, z + Math.cos(ang) * 4); m.rotation.y = ang; m.rotation.x = 0.07; m.name = 'boat-ramp'; root.add(m);
-    var lg = new THREE.BoxGeometry(5, 0.2, 0.3), m2 = new THREE.Mesh(lg, mats.yellow); m2.position.set(x, Math.max(H(x, z), 0) + 0.18, z); m2.rotation.y = ang; root.add(m2); stats.ramps++;
+    var g = new THREE.BoxGeometry(4.6, 0.3, 9), m = new THREE.Mesh(g, mats.ramp); var ry = HS(x, z) + 0.08 - 0.15 - 4.5 * Math.sin(0.008);   // v12.0.62: land end flush with the asphalt, then a gentle fall into the surf
+    m.position.set(x + Math.sin(ang) * 4, ry, z + Math.cos(ang) * 4); m.rotation.order = 'YXZ'; m.rotation.y = ang; m.rotation.x = 0.008; m.name = 'boat-ramp'; root.add(m);
+    var lg = new THREE.BoxGeometry(5, 0.2, 0.3), m2 = new THREE.Mesh(lg, mats.yellow); m2.position.set(x, HS(x, z) + 0.1, z); m2.rotation.y = ang; root.add(m2); stats.ramps++;
   }
   function buildPosts() {   // reflector bollards along the supply road + sign posts at the junctions (instanced)
     var bol = [], sig = [];
     [-1, 1].forEach(function (s) {
       for (var x = 56; x <= 210; x += 14) bol.push([s * x, -32 + 2.6], [s * x, -32 - 2.6]);
-      [[s * 72, -28.5], [s * 148, -28.5], [s * 176, -28.5], [s * 72, -35.5]].forEach(function (p) { sig.push(p); });
+      [[s * 75, -28.5], [s * 116, -28.5], [s * 176, -28.5], [s * 75, -35.5]].forEach(function (p) { sig.push(p); });
     });
     var bg = new THREE.CylinderGeometry(0.07, 0.07, 0.8, 6), bm = new THREE.MeshStandardMaterial({ color: 0xe8e4d2, roughness: 0.6, emissive: 0x222018 });
     posts = new THREE.InstancedMesh(bg, bm, bol.length); var d = new THREE.Object3D();
-    bol.forEach(function (p, i) { d.position.set(p[0], H(p[0], p[1]) + 0.4, p[1]); d.rotation.set(0, 0, 0); d.updateMatrix(); posts.setMatrixAt(i, d.matrix); }); posts.frustumCulled = false; root.add(posts); stats.bollards = bol.length;
+    bol.forEach(function (p, i) { d.position.set(p[0], surfaceY(p[0], p[1]) - 0.06 + 0.4, p[1]); d.rotation.set(0, 0, 0); d.updateMatrix(); posts.setMatrixAt(i, d.matrix); }); posts.frustumCulled = false; root.add(posts); stats.bollards = bol.length;
     var sp = new THREE.CylinderGeometry(0.05, 0.05, 2.2, 6), sm = new THREE.MeshStandardMaterial({ color: 0x55595b, roughness: 0.6 }), pg = new THREE.BoxGeometry(0.9, 0.6, 0.05), pm = new THREE.MeshStandardMaterial({ color: 0x1f6b3c, roughness: 0.5, emissive: 0x06150c });
-    sig.forEach(function (p) { var y = H(p[0], p[1]); var a = new THREE.Mesh(sp, sm); a.position.set(p[0], y + 1.1, p[1]); root.add(a); var b = new THREE.Mesh(pg, pm); b.position.set(p[0], y + 2.0, p[1]); b.rotation.y = p[1] > -32 ? Math.PI : 0; root.add(b); }); stats.signs = sig.length;
+    sig.forEach(function (p) { var y = surfaceY(p[0], p[1]) - 0.06; var a = new THREE.Mesh(sp, sm); a.position.set(p[0], y + 1.1, p[1]); root.add(a); var b = new THREE.Mesh(pg, pm); b.position.set(p[0], y + 2.0, p[1]); b.rotation.y = p[1] > -32 ? Math.PI : 0; root.add(b); }); stats.signs = sig.length;
   }
   function tick(dt) {
     if (!enabled) return;
     if (!built) { var th = LB.theaters; if (!th || !th.isEnabled || !th.isEnabled() || !E() || !E().terrainHeight) return; try { build(); } catch (err) { console.warn('[roads]', err); built = true; enabled = false; return; } }
     acc += dt; if (acc < 0.5) return; acc = 0;
     var wet = 0; try { wet = LB.rainMud && LB.rainMud.isEnabled() ? LB.rainMud.levels().wet : 0; } catch (_) {}
-    if (Math.abs(wet - lastWet) > 0.02) { lastWet = wet; mats.asphalt.roughness = 0.95 - 0.55 * wet; mats.asphalt.color.setHex(mats.asphalt.userData.base).multiplyScalar(1 - 0.35 * wet); mats.shoulder.roughness = 1 - 0.3 * wet; mats.shoulder.color.setHex(0x6a5e48).multiplyScalar(1 - 0.3 * wet); stats.wet = +wet.toFixed(2); }
+    if (Math.abs(wet - lastWet) > 0.02) { lastWet = wet; mats.asphalt.roughness = 0.95 - 0.55 * wet; mats.asphalt.color.setHex(mats.asphalt.userData.base).multiplyScalar(1 - 0.35 * wet); mats.shoulder.roughness = 1 - 0.3 * wet; mats.shoulder.color.setHex(0x6a5e48).multiplyScalar(1 - 0.3 * wet); if (mats.fill) mats.fill.color.setHex(0x5c5240).multiplyScalar(1 - 0.3 * wet); stats.wet = +wet.toFixed(2); }
   }
   function drawMap(c, X, Z, big, own) {
     if (!enabled || !built) return 0;
@@ -133,7 +186,7 @@
     c.restore(); return nets.length;
   }
   LB.roads = {
-    version: 'v12.0.60', isEnabled: function () { return enabled; }, tick: tick, drawMap: drawMap,
+    version: 'v12.0.62', isEnabled: function () { return enabled; }, tick: tick, drawMap: drawMap, surfaceY: function (x, z) { return built ? surfaceY(x, z) : H(x, z); }, _profs: function () { return profs; },
     getState: function () { return Object.assign({ enabled: enabled, built: built, meshes: root && root.children ? root.children.length : 0 }, stats); },
     _nets: function () { return nets; }, _root: function () { return root; }
   };

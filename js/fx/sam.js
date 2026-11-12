@@ -31,7 +31,7 @@
   function phone() { var e = E(); return global.innerWidth < 760 || !!(e && e.mobile); }
   function lowFx() { return phone() || tier() === 'LOW'; }
   function F() { return LB.heavyFx || null; }
-  function H(x, z) { try { return E().terrainHeight(x, z) || 0; } catch (_) { return 0; } }
+  function H(x, z) { try { return (LB.groundY ? LB.groundY(x, z) : E().terrainHeight(x, z)) || 0; } catch (_) { return 0; } }   // v12.0.62: visible ground (js/fx/ground.js)
   function WXM(side) { try { return LB.wxCombat && LB.wxCombat.isEnabled() ? LB.wxCombat.mod('aa', side) : 1; } catch (_) { return 1; } }
   function OFF(side) { try { return !!(LB.wxCombat && LB.wxCombat.isEnabled() && LB.wxCombat.offline(side, 'aa')); } catch (_) { return false; } }
   function jets() { try { return LB.theaters && LB.theaters._jets ? LB.theaters._jets() : []; } catch (_) { return []; } }
