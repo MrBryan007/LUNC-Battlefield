@@ -15,7 +15,10 @@
 (function (global) {
   'use strict';
   var LB = global.LUNCBattle = global.LUNCBattle || {};
-  var STORE = 'luncBattle.commander.v10';
+  var STORE = 'luncBattlefield.playerProgress';
+  var STORE_BACKUP = 'luncBattlefield.playerProgress.backup';
+  var LEGACY_STORE = 'luncBattle.commander.v10';
+  var SCHEMA = 1;
   // v12: adaptive layer hooks (js/learn/learn.js). No-ops when the layer is absent or ?learn=0.
   function learn(type, data) { var L = LB.learn; if (L && L.emit) { try { L.emit(type, data); } catch (_) {} } }
   var doc = global.document;
@@ -50,13 +53,75 @@
 
   var POINTS = { 0: 10, 1: 30, 2: 45 }; // infantry / armor / artillery
 
-  function load() {
-    try { return Object.assign({ xp: 0, best: 0, side: 'bull', seenIntro: false, bestStreak: 0 }, JSON.parse(localStorage.getItem(STORE) || '{}')); }
-    catch (_) { return { xp: 0, best: 0, side: 'bull', seenIntro: false, bestStreak: 0 }; }
+  function defaultProfile() {
+    return { schemaVersion: SCHEMA, xp: 0, best: 0, side: 'bull', seenIntro: false, bestStreak: 0, promotions: [], lastSavedAt: null };
   }
-  function save() { try { localStorage.setItem(STORE, JSON.stringify(profile)); } catch (_) {} }
+
+  function migratePlayerProgress(save) {
+    if (!save || typeof save !== 'object') return null;
+    var out = defaultProfile();
+    var xp = Number(save.xp);
+    if (isFinite(xp) && xp >= 0) out.xp = Math.floor(xp);
+    else return null;
+    var best = Number(save.best);
+    if (isFinite(best) && best >= 0) out.best = Math.floor(best);
+    if (save.side === 'bull' || save.side === 'bear') out.side = save.side;
+    if (typeof save.seenIntro === 'boolean') out.seenIntro = save.seenIntro;
+    var streak = Number(save.bestStreak);
+    if (isFinite(streak) && streak >= 0) out.bestStreak = Math.floor(streak);
+    if (Array.isArray(save.promotions)) {
+      out.promotions = save.promotions.filter(function (x) { return typeof x === 'string'; }).slice(0, 20);
+    }
+    out.schemaVersion = SCHEMA;
+    out.lastSavedAt = (typeof save.lastSavedAt === 'string') ? save.lastSavedAt : null;
+    return out;
+  }
+
+  function load() {
+    var raw = null;
+    try { raw = localStorage.getItem(STORE); } catch (_) {}
+    if (!raw) {
+      try { raw = localStorage.getItem(LEGACY_STORE); } catch (_) {}
+    }
+    if (!raw) return defaultProfile();
+    var parsed;
+    try { parsed = JSON.parse(raw); } catch (_) { return defaultProfile(); }
+    var migrated = migratePlayerProgress(parsed);
+    return migrated || defaultProfile();
+  }
+
+  function save() {
+    if (!profile || !isFinite(profile.xp) || profile.xp < 0) return;
+    profile.schemaVersion = SCHEMA;
+    var rank = rankFor(profile.xp);
+    profile.rank = rank.idx;
+    profile.rankName = rank.name;
+    profile.lastSavedAt = new Date().toISOString();
+    try {
+      var prev = localStorage.getItem(STORE);
+      if (prev) localStorage.setItem(STORE_BACKUP, prev);
+      localStorage.setItem(STORE, JSON.stringify(profile));
+    } catch (_) {}
+  }
+
+  function resetProgressConfirmed() {
+    var ok = false;
+    try {
+      ok = global.confirm('RESET COMMANDER PROGRESS?\n\nThis will permanently reset Rank, XP, and related progression.\n\nCancel to keep your progress.');
+    } catch (_) { ok = false; }
+    if (!ok) return false;
+    profile = defaultProfile();
+    save();
+    try { renderAll(); } catch (_) {}
+    try { toast('PROGRESS RESET', 'Rank and XP cleared', 'info'); } catch (_) {}
+    return true;
+  }
 
   var profile = load();
+  try {
+    global.addEventListener('pagehide', save);
+    global.addEventListener('beforeunload', save);
+  } catch (_) {}
   var session = null;
   var armed = null;
   var cds = { arty: 0, air: 0, moon: 0, cluster: 0, emp: 0, flare: 0, moab: 0, cbomb: 0, napalm: 0, gas: 0, a10: 0, nuke: 0 };
@@ -174,6 +239,10 @@
     profile.xp += gained;
     var after = rankFor(profile.xp);
     if (session.score > profile.best) profile.best = session.score;
+    if (after.idx > before.idx) {
+      if (!Array.isArray(profile.promotions)) profile.promotions = [];
+      profile.promotions.push(after.name);
+    }
     save();
     if (after.idx > before.idx) {
       toast('PROMOTED', after.name, 'rank');
@@ -757,7 +826,7 @@
           '<li><b>Call the Front:</b> predict the next 30s LIVE price move for bonus XP.</li>' +
           '<li><kbd>WASD</kbd> pan · drag to orbit · scroll/pinch zoom · <kbd>F</kbd> frontline · <kbd>P</kbd> pause · <kbd>M</kbd> mute</li>' +
         '</ul>' +
-        '<div class="cmd-card-actions"><button class="cmd-primary-btn" id="cmdStart">Deploy</button><button class="cmd-ghost-btn" id="cmdRestart">Restart session</button><button class="cmd-ghost-btn" id="cmdWatch">Just watch</button></div>' +
+        '<div class="cmd-card-actions"><button class="cmd-primary-btn" id="cmdStart">Deploy</button><button class="cmd-ghost-btn" id="cmdRestart">Restart session</button><button class="cmd-ghost-btn" id="cmdResetProgress" title="Permanently reset rank and XP">Reset progress</button><button class="cmd-ghost-btn" id="cmdWatch">Just watch</button></div>' +
         '<div class="cmd-card-foot">Game layer only — strikes are cosmetic and never change market data, armies or the frontline. Calls are not financial advice.</div>' +
         '<div class="cmd-card-stats" id="cmdCardStats"></div>' +
       '</div>';
@@ -789,6 +858,8 @@
     doc.getElementById('cmdStart').addEventListener('click', function () { deploy(); });
     doc.getElementById('cmdWatch').addEventListener('click', function () { watchMode(); });
     el.cmdRestart.addEventListener('click', function () { newSession(); deploy(); toast('SESSION RESTARTED', 'Fresh orders, score reset', 'info'); });
+    var resetBtn = doc.getElementById('cmdResetProgress');
+    if (resetBtn) resetBtn.addEventListener('click', function () { resetProgressConfirmed(); });
     renderSide(); renderMute();
   }
 
@@ -904,6 +975,8 @@
     el.cmdOverlayTitle.textContent = mode === 'pause' ? 'Paused' : 'Take Command';
     doc.getElementById('cmdStart').textContent = mode === 'pause' ? 'Resume' : 'Deploy';
     el.cmdRestart.style.display = (mode === 'pause' && session) ? '' : 'none';
+    var rp = doc.getElementById('cmdResetProgress');
+    if (rp) rp.style.display = (mode === 'pause' && session) ? '' : 'none';
     var r = rankFor(profile.xp);
     el.cmdCardStats.innerHTML = '<span>Rank <b>' + r.name + '</b></span><span>XP <b>' + profile.xp.toLocaleString() + '</b></span><span>Best <b>' + (profile.best || 0).toLocaleString() + '</b></span><span>Best streak <b>' + (profile.bestStreak || 0) + '</b></span>';
   }
@@ -1008,6 +1081,8 @@
   }
 
   LB.commander = {
+    _test: { migrate: migratePlayerProgress, defaultProfile: defaultProfile, rankFor: rankFor, RANKS: RANKS },
+    resetProgress: resetProgressConfirmed,
     init: init, tick: tick, arm: arm, deploy: deploy, togglePause: togglePause,
     getState: function () { return { started: started, session: session, profile: profile, mission: mission, call: call, armed: armed, cds: cds }; },
     // v12.0.31 hot-seat: switch the commanded side (not saved unless keep) and swap per-player session + cooldowns

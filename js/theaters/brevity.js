@@ -98,7 +98,7 @@
     if (!glossEl || !glossEl.isConnected) { glossEl = doc.createElement('div'); glossEl.className = 'rs-gloss'; glossEl.id = 'radioGlossary'; }
     if (glossEl.parentNode !== logEl) logEl.appendChild(glossEl);
     var words = Object.keys(heard);
-    glossEl.innerHTML = words.length ? '<b>Brevity heard</b>' + words.map(function (w) { return '<div><code>' + w + '</code> ' + GLOSS[w] + '</div>'; }).join('') : '';
+    glossEl.innerHTML = words.length ? '<b>Brevity heard</b>' + words.map(function (w) { var safe = String(w).replace(/[&<>"']/g, function (c) { return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); return '<div><code>' + safe + '</code> ' + (GLOSS[w] || '') + '</div>'; }).join('') : '';
   }
 
   var lastF = 0, gT = 0;
