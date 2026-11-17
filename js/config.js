@@ -90,7 +90,7 @@
   const BUILD = Object.freeze({
     version: 'v12.0.63',
     codename: 'Airbase revetments',
-    date: '2026-11-12'
+    date: '2026-11-17'
   });
 
   const config = {
