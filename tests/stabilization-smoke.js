@@ -71,7 +71,7 @@ const checks = [
   ['roads wired', index.includes('js/fx/roads.js') && read('js/fx/roads.js').includes("qs.get('roads') !== '0'") && read('js/theaters/theaters.js').includes('LB.roads.tick(wdt)') && read('js/theaters/tacmap.js').includes('LB.roads.drawMap')],
   ['jet revetments wired', index.includes('js/fx/jet-revet.js') && read('js/fx/jet-revet.js').includes("qs.get('jetrevet') !== '0'") && read('js/theaters/theaters.js').includes('LB.jetRevet.tick(wdt)') && read('js/theaters/theaters.js').includes('LB.jetRevet.taxiOut(J, dt)') && read('js/fx/realism-seaair.js').includes('LB.jetRevet.taxiIn(J, dt)')],
   ['revetments wired', index.includes('js/fx/revetments.js') && read('js/fx/revetments.js').includes("qs.get('revet') !== '0'") && read('js/theaters/theaters.js').includes('LB.revetments.tick(wdt)') && read('js/theaters/tacmap.js').includes('LB.revetments.drawMap')],
-  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.63')],
+  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.64')],
   ['ground wired', index.includes('fx/ground.js') && index.indexOf('fx/ground.js') < index.indexOf('fx/roads.js') && read('js/fx/roads.js').includes('LB.groundY') && read('js/fx/sky-light.js').includes('LB.groundY') && read('js/theaters/theaters.js').includes('LB.groundY(x, vz)')]
 ];
 
