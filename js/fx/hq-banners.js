@@ -136,9 +136,14 @@
     if (e.isPaused && e.isPaused()) return;
     frame++; if (low() && frame % 2) return;
     var t = (now - t0) / 1000, wind = (rain() ? 1.35 : 1) * (0.85 + 0.15 * Math.sin(t * 0.37));
+    // v12.0.64: fly downwind on the shared wind (js/fx/wind.js, ?wind=0); the wave strength follows its speed and gusts
+    var WD = LB.wind && LB.wind.isEnabled() ? LB.wind.get() : null, yawW = null;
+    if (WD) { wind = Math.max(0.6, Math.min(1.75, 0.5 + WD.kt / 15)); yawW = Math.atan2(-WD.dirZ, WD.dirX); stats.windYaw = +yawW.toFixed(3); }
     var cam = e.camera, lw = low(), n = 0;
     for (var s in flags) {
-      var F = flags[s]; F.g.rotation.y = 0.35 + Math.sin(t * 0.05) * 0.1;
+      var F = flags[s];
+      if (yawW == null) F.g.rotation.y = 0.35 + Math.sin(t * 0.05) * 0.1;
+      else { if (F.yaw == null) F.yaw = yawW; var dy = yawW - F.yaw; while (dy > Math.PI) dy -= 2 * Math.PI; while (dy < -Math.PI) dy += 2 * Math.PI; F.yaw += dy * Math.min(1, dt * 1.2); F.g.rotation.y = F.yaw + Math.sin(t * 0.9 + F.ph) * 0.04 * wind; }
       // far flags (beyond ~260 m, or ~160 m on LOW / phones) freeze in their last pose: you can't see the cloth move from there
       if (cam) { var dx = cam.position.x - F.g.position.x, dz = cam.position.z - F.g.position.z, far = lw ? 160 : 260; if (dx * dx + dz * dz > far * far) { stats.culled++; continue; } }
       wave(F, t, wind, !lw || frame % 4 < 2); n++;

@@ -247,6 +247,7 @@
       // v12: theaters of war (wide world, naval + air theaters, fly camera); visual sim only
       if (window.LUNCBattle && LUNCBattle.theaters && LUNCBattle.theaters.update) {
         try { LUNCBattle.theaters.update(); } catch (e) { if (!drawFrame._thErr) { drawFrame._thErr = 1; console.warn('[theaters]', e); } }
+        if (LUNCBattle.wind) { try { LUNCBattle.wind.update(); } catch (e) { if (!drawFrame._wdErr) { drawFrame._wdErr = 1; console.warn('[wind]', e); } } }   // v12.0.64 shared wind + windsocks
         if (LUNCBattle.hqBanners) { try { LUNCBattle.hqBanners.update(); } catch (e) { if (!drawFrame._hbErr) { drawFrame._hbErr = 1; console.warn('[hqBanners]', e); } } }   // v12.0.32
         if (LUNCBattle.navalDetail) { try { LUNCBattle.navalDetail.update(); } catch (e) { if (!drawFrame._ndErr) { drawFrame._ndErr = 1; console.warn('[navalDetail]', e); } } }   // v12.0.30
         if (LUNCBattle.v12extras) { try { LUNCBattle.v12extras.update(); } catch (e) { if (!drawFrame._exErr) { drawFrame._exErr = 1; console.warn('[v12-extras]', e); } } }

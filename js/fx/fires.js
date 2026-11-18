@@ -14,7 +14,7 @@
   var qs = new URLSearchParams(global.location.search);
   var enabled = qs.get('fires') !== '0';
   var CAPS = { LOW: { sites: 8, near: 3, lights: 0 }, MEDIUM: { sites: 16, near: 6, lights: 2 }, HIGH: { sites: 28, near: 10, lights: 3 }, ULTRA: { sites: 36, near: 14, lights: 4 } };
-  var THREE = null, ready = false, last = 0, sites = [], lights = [], rankT = 0, wind = { a: Math.random() * 6.28, s: 0.9, x: 0, z: 0 };
+  var THREE = null, ready = false, last = 0, sites = [], lights = [], rankT = 0, wind = { a: Math.random() * 6.28, s: 0.9, x: 0, z: 0, fx: 0, fz: 0 };
   var stats = { added: 0, merged: 0, burning: 0, smouldering: 0, out: 0, dropped: 0, emitted: 0, skipped: 0, lights: 0 };
   function E() { return LB.engine; }
   function tier() { try { var t = LB.quality.getEffectiveName(); return CAPS[t] ? t : 'HIGH'; } catch (_) { return 'HIGH'; } }
@@ -110,7 +110,7 @@
         if (S.fT <= 0) {
           S.fT = 1 / (3.5 + 4 * h * Math.min(2, r));
           var a = Math.random() * 6.28, rr = Math.sqrt(Math.random()) * r * 0.7;
-          P(F, { kind: 'fire', x: x + Math.cos(a) * rr, y: y + 0.25, z: z + Math.sin(a) * rr, vy: 1.2 + h * 1.4, vx: wind.x * 0.2, vz: wind.z * 0.2,
+          P(F, { kind: 'fire', x: x + Math.cos(a) * rr, y: y + 0.25, z: z + Math.sin(a) * rr, vy: 1.2 + h * 1.4, vx: wind.fx * 0.35, vz: wind.fz * 0.35,
             size: (0.85 + Math.random() * 0.6) * r * (0.6 + 0.6 * h), grow: 0.35, life: 0.6 + Math.random() * 0.35, color: Math.random() < 0.5 ? 0xff7a1a : 0xffb347, opacity: 0.85 * Math.min(1, 0.4 + h), flicker: true });
         }
       }
@@ -132,11 +132,15 @@
       if (full && k > 0.45) { S.eT -= dt; if (S.eT <= 0) { S.eT = rnd(0.8, 2.2); P(F, { kind: 'fire', x: x + rnd(-0.5, 0.5) * r, y: y + 0.12, z: z + rnd(-0.5, 0.5) * r, vy: 0.4, size: 0.22 * r, grow: 0.2, life: 0.5, color: 0xff6a1a, opacity: 0.8 * k, flicker: true }); } }
     }
   }
+  var _sw = { x: 0, z: 0 }, shared = false;
   function step(dt) {
     var F = LB.heavyFx, steam = rain();
     // wind veers slowly, 0.6–1.4 m/s (calmer in rain)
     wind.a += (Math.random() - 0.5) * dt * 0.08; wind.s += (1 + Math.sin(performance.now() / 47000) * 0.4 - wind.s) * dt * 0.05;
     var ws = wind.s * (steam ? 0.7 : 1); wind.x = Math.cos(wind.a) * ws; wind.z = Math.sin(wind.a) * ws;
+    // v12.0.64: with the shared wind on (js/fx/wind.js) heavy-fx carries the smoke itself, so puffs leave with no private
+    // breeze (no double drift) and flames lean a little toward the shared wind instead
+    if (LB.wind && LB.wind.isEnabled()) { LB.wind.drift(0, _sw); wind.x = 0; wind.z = 0; wind.fx = _sw.x; wind.fz = _sw.z; shared = true; } else { wind.fx = wind.x; wind.fz = wind.z; shared = false; }
     rankT -= dt; if (rankT <= 0) { rankT = 0.5; rank(); }
     var budgetOk = true;
     if (F && F.getStats) { var st = F.getStats(); budgetOk = st.sprites < st.cap * 0.7; }
@@ -174,7 +178,7 @@
   LB.fires = {
     version: 'v12.0.19', isEnabled: function () { return enabled && ready; }, update: update, add: add,
     list: function () { return sites.map(function (s) { return { x: +s.x.toFixed(1), z: +s.z.toFixed(1), r: +s.r.toFixed(2), ph: s.ph, t: +s.t.toFixed(1), burnT: +s.burnT.toFixed(0), smT: +s.smT.toFixed(0), src: s.src, rank: s.rank }; }); },
-    wind: function () { return { x: +wind.x.toFixed(2), z: +wind.z.toFixed(2), speed: +Math.hypot(wind.x, wind.z).toFixed(2) }; },
+    wind: function () { var x = shared ? wind.fx : wind.x, z = shared ? wind.fz : wind.z; return { x: +(x || 0).toFixed(2), z: +(z || 0).toFixed(2), speed: +Math.hypot(x || 0, z || 0).toFixed(2), shared: shared }; },
     getStats: function () { return Object.assign({ sites: sites.length, cap: cap().sites }, stats); },
     clear: function () { sites.length = 0; live.length = 0; },
     _step: function (sec) { for (var t = 0; t < sec; t += 0.1) step(0.1); return sites.length; }

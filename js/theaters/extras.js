@@ -112,7 +112,7 @@
     if (LB.silos && LB.silos.isEnabled()) { try { LB.silos.update(dt); } catch (err) { if (!update._siErr) { update._siErr = 1; console.warn('[silos]', err); } } }   // v12.0.59 missile test range
     for (var q = icbms.length - 1; q >= 0; q--) tickIcbm(icbms[q], dt, F, q);
     cyberT -= dt; if (cyberT <= 0) { cyberT = rnd(35, 70); cyber(); }
-    if (rain && rain.visible) { var cp = e.camera.position; rain.position.set(cp.x, 0, cp.z); var a = rain.geometry.attributes.position; for (var r = 1; r < a.array.length; r += 3) { a.array[r] -= dt * 38; if (a.array[r] < 0) a.array[r] = 60; } a.needsUpdate = true; }
+    if (rain && rain.visible) { var cp = e.camera.position; rain.position.set(cp.x, 0, cp.z); var a = rain.geometry.attributes.position; var rw = LB.wind && LB.wind.isEnabled() ? LB.wind.get() : null, rx = rw ? rw.x * dt * 1.6 : 0, rz = rw ? rw.z * dt * 1.6 : 0; for (var r = 1; r < a.array.length; r += 3) { a.array[r] -= dt * 38; if (a.array[r] < 0) a.array[r] = 60; if (rw) { var ax = a.array[r - 1] + rx, az = a.array[r + 1] + rz; a.array[r - 1] = ax > 90 ? ax - 180 : ax < -90 ? ax + 180 : ax; a.array[r + 1] = az > 90 ? az - 180 : az < -90 ? az + 180 : az; } } a.needsUpdate = true; }
     var f = e.scene.fog; if (f && f.isFog && base.far) { var tf = opt.weather === 'fog' ? 0.35 : opt.weather === 'rain' ? 0.7 : 1; f.far += (base.far * tf - f.far) * Math.min(1, dt); if (f.far < f.near + 10) f.near = f.far * 0.4; }
     if (timeLock != null) setDay(timeLock);   // v12.0.45 mission editor start condition (time of day held for the run)
     else if (opt.daynight) { dayT = (dayT + dt / 240) % 1; setDay(dayT); }
