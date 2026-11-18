@@ -107,8 +107,9 @@
     var fillWant = Math.min(1, c.speed * KT / 15);       // a real sock is fully out at 15 kt (each band ≈ 3 kt)
     frame++;
     for (var i = 0; i < socks.length; i++) {
-      var S = socks[i], d = want - S.hd; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI;
-      S.hd += d * Math.min(1, dt * 1.6); S.fill += (fillWant - S.fill) * Math.min(1, dt * 1.2);
+      var S = socks[i]; if (S.init !== true) { S.hd = want; S.fill = fillWant; S.init = true; }
+      var d = want - S.hd; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI;
+      S.hd += d * Math.min(1, dt * 2); S.fill += (fillWant - S.fill) * Math.min(1, dt * 1.2);
       var fl = lw ? 0 : (0.04 + 0.12 * c.gust) * (0.4 + S.fill);
       S.yaw.rotation.y = S.hd + Math.sin(t * 3.1 + S.ph) * fl * 0.6;
       // droop: limp (≈ 75° down) in calm air → horizontal when fully filled
@@ -129,7 +130,7 @@
     if (!enabled) return;
     var e = E(); if (!e || !e.THREE || !e.scene) return;
     if (!built) { try { build(); } catch (err) { console.warn('[wind] socks disabled', err); built = true; } }
-    var now = performance.now(), dt = Math.min(0.1, (now - (lastBlend || now)) / 1000); lastBlend = now;
+    var now = performance.now(), dt = Math.min(0.25, (now - (lastBlend || now)) / 1000); lastBlend = now;
     if (e.isPaused && e.isPaused()) return;
     if (socks.length) tickSocks(dt);
   }
