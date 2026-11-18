@@ -29,6 +29,9 @@
     var focusLerp = null; // smooth focus helper
 
     function clampTarget(tx, tz) {
+      // v12: wide world — theaters.js publishes larger bounds while enabled
+      var T = global.LUNCBattle && global.LUNCBattle.theaters;
+      if (T && T.bounds && T.isEnabled()) bounds = T.bounds;
       return {
         x: THREE.MathUtils.clamp(tx, bounds.minX, bounds.maxX),
         z: THREE.MathUtils.clamp(tz, bounds.minZ, bounds.maxZ)
@@ -44,7 +47,9 @@
       camera.position.x = THREE.MathUtils.clamp(camera.position.x, bounds.minX - 25, bounds.maxX + 25);
       camera.position.z = THREE.MathUtils.clamp(camera.position.z, bounds.minZ - 25, bounds.maxZ + 35);
       // Never drop below a classic RTS height floor
-      if (camera.position.y < 12) camera.position.y = 12;
+      var T2 = global.LUNCBattle && global.LUNCBattle.theaters;
+      var floorY = T2 && T2.isEnabled() ? 2.5 : 12;   // v12: street-level zoom allowed in the wide world
+      if (camera.position.y < floorY) camera.position.y = floorY;
     }
 
     function notifyUserInput() {
@@ -55,7 +60,8 @@
     function panWASD(dt, keys) {
       if (!keys) return false;
       var moved = false;
-      var speed = ((keys.ShiftLeft || keys.ShiftRight) ? 24 : 12) * dt;
+      var spK = Math.max(1, camera.position.distanceTo(controls.target) / 45);   // v12: pan faster when zoomed out
+      var speed = ((keys.ShiftLeft || keys.ShiftRight) ? 24 : 12) * dt * spK;
       camera.getWorldDirection(_tmpForward);
       _tmpForward.y = 0;
       if (_tmpForward.lengthSq() < 1e-6) _tmpForward.set(0, 0, -1);
@@ -138,11 +144,11 @@
     }
 
     function focusBullBase(smooth) {
-      focusWorld(BULL_BASE_X, 0, smooth !== false);
+      focusWorld(-((global.LUNCBattle && LUNCBattle.config && LUNCBattle.config.layout && LUNCBattle.config.layout.hqX) || 48), 0, smooth !== false);
     }
 
     function focusBearBase(smooth) {
-      focusWorld(BEAR_BASE_X, 0, smooth !== false);
+      focusWorld(((global.LUNCBattle && LUNCBattle.config && LUNCBattle.config.layout && LUNCBattle.config.layout.hqX) || 48), 0, smooth !== false);
     }
 
     function requestCinematic(spec) {
@@ -196,8 +202,20 @@
       };
     }
 
+    function shakeScale() {
+      try {
+        if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return 0;
+        var q = new URLSearchParams(location.search).get('shake');
+        if (q === '0' || q === 'off') return 0;
+        if (q === 'low') return 0.35;
+        if (window.LUNCBattle && LUNCBattle.config && LUNCBattle.config.cameraShake === 'off') return 0;
+        if (window.LUNCBattle && LUNCBattle.config && LUNCBattle.config.cameraShake === 'low') return 0.35;
+      } catch (_) {}
+      return 1;
+    }
+
     function update(dt, keys, cameraShake) {
-      var shake = cameraShake || 0;
+      var shake = (cameraShake || 0) * shakeScale();
       // Remove prior frame shake before pan/orbit so controls see a clean pose
       camera.position.sub(shakeOffset);
       shakeOffset.set(0, 0, 0);

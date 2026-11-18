@@ -234,6 +234,8 @@
 
   function push(ev) {
     const entry = normalize(ev);
+    // v12: passive tap for the adaptive layer (reads only; never changes the event)
+    if (LB.learn && LB.learn.emit) { try { LB.learn.emit('market', { type: entry.type, importance: entry.importance, headline: entry.headline, truth: entry.truth }); } catch (_) {} }
     events.unshift(entry);
     while (events.length > MAX_EVENTS) events.pop();
     render(true);
