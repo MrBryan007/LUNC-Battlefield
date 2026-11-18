@@ -428,6 +428,7 @@
       }
     }
 
+    const _wndV = { x: 0, z: 0 };   // v12.0.64 wind scratch
     function muzzleSmoke(x, y, z, scale) {
       if (!tryParticle(true)) return;
       const p = acquireParticle(true);
@@ -1214,6 +1215,8 @@
         }
       }
 
+      // v12.0.64: smoke puffs ride the shared wind (js/fx/wind.js, ?wind=0) — they ease up to the drift speed, more aloft
+      const WND = (window.LUNCBattle && LUNCBattle.wind && LUNCBattle.wind.isEnabled()) ? LUNCBattle.wind.drift(0, _wndV) : null;
       for (let i = particlePool.length - 1; i >= 0; i--) {
         const q = particlePool[i];
         if (camPos && lodFx && lodFx.shouldUpdateFx &&
@@ -1231,6 +1234,7 @@
           q.rotation.z += ud.spin * 0.7 * dt;
         }
         if (ud.smoke) {
+          if (WND) { const sh = 1 + 0.8 * Math.min(1, Math.max(0, q.position.y) / 14), ea = Math.min(1, dt * 1.6); ud.vx += (WND.x * sh - ud.vx) * ea; ud.vz += (WND.z * sh - ud.vz) * ea; }
           q.scale.multiplyScalar(1 + dt * 0.45);
           ud.vy -= (ud.gravity != null ? ud.gravity : 0.2) * dt;
         } else if (ud._poolKind === 'flash') {

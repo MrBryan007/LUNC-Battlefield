@@ -88,9 +88,9 @@
   // Single source of truth for current release metadata.
   // Historical comments and changelog entries are left untouched.
   const BUILD = Object.freeze({
-    version: 'v12.0.63',
-    codename: 'Airbase revetments',
-    date: '2026-11-17'
+    version: 'v12.0.64',
+    codename: 'Wind',
+    date: '2026-11-18'
   });
 
   const config = {
