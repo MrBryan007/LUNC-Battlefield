@@ -174,6 +174,8 @@
         }
       }
     }
+    // v12.0.64: smoke / gas / dust are carried by the shared wind (js/fx/wind.js, ?wind=0): naval exhaust, napalm, gas, fires
+    var WD = LB.wind && LB.wind.isEnabled() ? LB.wind : null;
     for (var s = sprites.length - 1; s >= 0; s--) {
       var sp = sprites[s], p = sp.userData.p;
       if (!dt) continue;
@@ -183,11 +185,13 @@
       if (k >= 1) { sprites.splice(s, 1); recycle(sp); continue; }
       sp.position.x += p.vx * dt; sp.position.y += p.vy * dt; sp.position.z += p.vz * dt;
       p.vx *= p.drag; p.vz *= p.drag; p.vy *= p.drag;
+      if (WD) { var kd = sp.userData.kind; if (kd === 'smoke' || kd === 'gas' || kd === 'dust') { WD.drift(sp.position.y, _wv); var ramp = Math.min(1, p.t / 0.7); sp.position.x += _wv.x * ramp * dt; sp.position.z += _wv.z * ramp * dt; } }
       sp.scale.setScalar(p.size * (0.4 + Math.pow(k, 0.5) * p.grow + 0.6 * Math.min(1, k * 8)));
       sp.material.opacity = p.op * Math.min(1, k * 6) * (1 - k) * (p.flicker ? 0.75 + Math.random() * 0.25 : 1);
     }
   }
 
+  var _wv = { x: 0, z: 0 };
   function clear() {
     sprites.forEach(recycle); sprites.length = 0;
     flybys.forEach(function (f) { if (f.g.parent) f.g.parent.remove(f.g); }); flybys.length = 0;

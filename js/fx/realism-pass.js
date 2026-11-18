@@ -214,14 +214,17 @@
     }
   }
 
+  var _wv = { x: 0, z: 0 };
   function tickColumns(dt) {
+    var WD = LB.wind && LB.wind.isEnabled() ? LB.wind : null;
     for (var i = columns.length - 1; i >= 0; i--) {
       var g = columns[i];
       g.userData.life -= dt;
       var t = 1 - Math.max(0, g.userData.life) / (g.userData.maxLife || 2.5);
       g.children.forEach(function (p, j) {
         p.position.y += (0.35 + j * 0.08) * dt;
-        p.position.x += (g.userData.wind || 0.3) * dt * (0.5 + j * 0.15);
+        if (WD) { WD.drift(p.position.y + g.position.y, _wv); p.position.x += _wv.x * dt * (0.6 + j * 0.12); p.position.z += _wv.z * dt * (0.6 + j * 0.12); }   // v12.0.64 shared wind
+        else p.position.x += (g.userData.wind || 0.3) * dt * (0.5 + j * 0.15);
         var s = 1 + t * (0.4 + j * 0.08);
         p.scale.set(s, s * 1.1, s);
         if (p.material) p.material.opacity = Math.max(0, (p.userData.baseOp || 0.2) * (1 - t));
