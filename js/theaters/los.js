@@ -9,7 +9,7 @@
   var LB = global.LUNCBattle = global.LUNCBattle || {};
   var qs = new URLSearchParams(global.location.search);
   var enabled = qs.get('los') !== '0' && qs.get('theaters') !== '0';
-  var STEP = 1.5, EYE = 1.6, AIM = 1.1, cache = {}, cacheN = 0, cacheT = 0, stats = { checks: 0, cached: 0, blocked: 0, by: { ground: 0, wall: 0, bunker: 0 } };
+  var STEP = 1.5, EYE = 1.6, AIM = 1.1, cache = {}, cacheN = 0, cacheT = 0, stats = { checks: 0, cached: 0, blocked: 0, by: { ground: 0, wall: 0, bunker: 0, smoke: 0 } };
   function E() { return LB.engine; }
   function ground(x, z) {
     var h = 0; try { h = E().terrainHeight(x, z) || 0; } catch (_) {}
@@ -21,6 +21,11 @@
     try { LB.forts.list().forEach(function (f) { if (f.type === 'wall') o.push({ k: 'wall', x: f.x, z0: f.z - 5, z1: f.z + 5, h: 1.5 }); else if (f.type === 'bunker') o.push({ k: 'bunker', x: f.x, z: f.z, r: 3.0, h: 1.6 }); }); } catch (_) {}
     return o;
   }
+  // v12.0.65: thick smoke-screen clouds (js/theaters/smoke.js, ?smoke=0) block sight like a soft cylinder
+  function smokes() {
+    var S = LB.smoke; if (!S || !S.isEnabled || !S.isEnabled()) return null;
+    try { var b = S.blockers(); return b.length ? b : null; } catch (_) { return null; }
+  }
   function trace(x1, z1, x2, z2, eye, aim) {
     var e = eye == null ? EYE : eye, a = aim == null ? AIM : aim, dx = x2 - x1, dz = z2 - z1, L = Math.hypot(dx, dz);
     if (L < 2) return { ok: true };
@@ -28,6 +33,12 @@
     for (var i = 1; i < n; i++) {
       var t = i / n, x = x1 + dx * t, z = z1 + dz * t, y = y1 + (y2 - y1) * t;
       if (ground(x, z) > y - 0.15) return { ok: false, by: 'ground', t: t };
+    }
+    var sm = smokes();
+    if (sm) for (var q = 0; q < sm.length; q++) {   // inside or through the cloud core, below its top → blocked (no end exclusion: you can't see out of smoke either)
+      var C = sm[q], tq = Math.max(0, Math.min(1, ((C.x - x1) * dx + (C.z - z1) * dz) / (L * L))), qx = x1 + dx * tq, qz = z1 + dz * tq;
+      if (Math.hypot(qx - C.x, qz - C.z) > C.r) continue;
+      if (C.y0 + C.h > y1 + (y2 - y1) * tq) { if (LB.smoke._note) LB.smoke._note(1); return { ok: false, by: 'smoke', t: tq }; }
     }
     var obs = obstacles();
     for (var j = 0; j < obs.length; j++) {

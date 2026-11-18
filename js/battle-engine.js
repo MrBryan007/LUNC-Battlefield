@@ -261,6 +261,7 @@
         if (LUNCBattle.forts) { try { LUNCBattle.forts.update(); } catch (e) { if (!drawFrame._fortErr) { drawFrame._fortErr = 1; console.warn('[forts]', e); } } }
         if (LUNCBattle.lines) { try { LUNCBattle.lines.update(); } catch (e) { if (!drawFrame._lnErr) { drawFrame._lnErr = 1; console.warn('[lines]', e); } } }
         if (LUNCBattle.squads) { try { LUNCBattle.squads.update(); } catch (e) { if (!drawFrame._sqErr) { drawFrame._sqErr = 1; console.warn('[squads]', e); } } }
+        if (LUNCBattle.smoke) { try { LUNCBattle.smoke.update(); } catch (e) { if (!drawFrame._smkErr) { drawFrame._smkErr = 1; console.warn('[smoke]', e); } } }   // v12.0.65 smoke screens
         if (LUNCBattle.soundscape) { try { LUNCBattle.soundscape.update(); } catch (e) { if (!drawFrame._sndErr) { drawFrame._sndErr = 1; console.warn('[soundscape]', e); } } }
         if (LUNCBattle.wxCombat) { try { LUNCBattle.wxCombat.update(); } catch (e) { if (!drawFrame._wxErr) { drawFrame._wxErr = 1; console.warn('[wx-combat]', e); } } }
         if (LUNCBattle.fow) { try { LUNCBattle.fow.update(); } catch (e) { if (!drawFrame._fowErr) { drawFrame._fowErr = 1; console.warn('[fow]', e); } } }
