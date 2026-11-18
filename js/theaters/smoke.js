@@ -9,7 +9,7 @@
  *  - Who throws it: the selected squad on a Smoke order (Map → WAR SYSTEMS · SQUADS, 35 s cooldown per squad), and any
  *    squad of either side automatically when it falls back or gets pinned (suppression ≥ 0.85, 45 s cooldown), with a
  *    "Popping smoke!" radio call. Clouds show on the tactical map as grey discs.
- *  - Look: camera-facing smoke sprites (HIGH 7 / MEDIUM 5 / LOW + phones 3 per cloud), a canister spurt at the base
+ *  - Look: camera-facing smoke sprites (HIGH 8 / MEDIUM 6 / LOW + phones 3 per cloud), a canister spurt at the base
  *    while it burns. Max 12 clouds; the oldest clears first.
  * Never touches market data, the front, army counts or data-truth labels. Kill switch: ?smoke=0 (also off with
  * ?squads=0 / ?theaters=0). API: LUNCBattle.smoke.{isEnabled, screen, blockers, drawMap, getState, update, _step}. */
@@ -25,7 +25,7 @@
 
   function E() { return LB.engine; }
   function tier() { try { if (E().mobile) return 'LOW'; return LB.quality.getEffectiveName(); } catch (_) { return 'HIGH'; } }
-  function perCloud() { var t = tier(); return t === 'LOW' ? 3 : t === 'MEDIUM' ? 5 : 7; }
+  function perCloud() { var t = tier(); return t === 'LOW' ? 3 : t === 'MEDIUM' ? 6 : 8; }
   function H(x, z) { try { if (LB.groundY) return LB.groundY(x, z); } catch (_) {} try { return E().terrainHeight(x, z) || 0; } catch (_) { return 0; } }
   function rain() { try { return (LB.v12extras.getOptions().weather || '') === 'rain'; } catch (_) { return false; } }
   function smooth(t) { t = t < 0 ? 0 : t > 1 ? 1 : t; return t * t * (3 - 2 * t); }
@@ -39,7 +39,7 @@
   }
   function sprite() {
     var sp = pool.pop();
-    if (!sp) { sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, color: 0xd9d7cf, transparent: true, opacity: 0, depthWrite: false, fog: true })); sp.renderOrder = 3; }
+    if (!sp) { sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, color: 0xcfcdc4, transparent: true, opacity: 0, depthWrite: false, fog: true })); sp.renderOrder = 3; }
     sp.visible = true; root.add(sp); return sp;
   }
   function recycle(sp) { sp.visible = false; if (sp.parent) sp.parent.remove(sp); if (pool.length < 120) pool.push(sp); }
@@ -84,8 +84,8 @@
         var s = C.sp[j], O = C.off[j], rr = C.r * 0.7 * O.d, a = O.a + now * 0.05;
         var lean = O.y * O.y * 1.4;   // upper puffs lean further downwind
         s.position.set(C.x + Math.cos(a) * rr + _w.x * lean, C.y0 + 0.4 + O.y * C.h + Math.sin(now * 0.7 + O.ph) * 0.15, C.z + Math.sin(a) * rr + _w.z * lean);
-        var sc = (1.4 + C.r * 0.95) * O.s * (0.75 + 0.25 * O.y); s.scale.set(sc, sc, 1);
-        s.material.opacity = 0.82 * C.dens * (0.75 + 0.25 * (1 - O.y));
+        var sc = (1.6 + C.r * 1.1) * O.s * (0.75 + 0.25 * O.y); s.scale.set(sc, sc, 1);
+        s.material.opacity = Math.min(1, (C.sp.length <= 3 ? 1.15 : 1) * C.dens * (0.8 + 0.2 * (1 - O.y)));
         s.material.rotation = O.ph + now * 0.04;
       }
       // canister spurt while it burns (first ~20 s): the lowest sprite pulses at the base
