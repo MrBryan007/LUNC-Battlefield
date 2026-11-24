@@ -20,7 +20,7 @@
   var enabled = qs.get('smoke') !== '0' && qs.get('squads') !== '0' && qs.get('theaters') !== '0';
   var MAX_CLOUDS = 12, BUILD_S = 7, LIFE_S = 45, FADE_S = 12, R_MAX = 4.5, H_MAX = 4.0, AHEAD = 6, SPACING = 5;
   var THREE = null, root = null, tex = null, clouds = [], pool = [], last = 0, ready = false;
-  var stats = { screens: 0, clouds: 0, manual: 0, auto: 0, cleared: 0, blocks: 0, last: '' };
+  var stats = { screens: 0, clouds: 0, manual: 0, auto: 0, medic: 0, cleared: 0, blocks: 0, last: '' };
   var _w = { x: 0, z: 0 };
 
   function E() { return LB.engine; }
@@ -57,7 +57,7 @@
       for (var j = 0; j < k; j++) { var s = sprite(); C.sp.push(s); C.off.push({ a: Math.random() * 6.283, d: Math.sqrt(Math.random()), y: (j + 0.5) / k, ph: Math.random() * 6.283, s: 0.85 + Math.random() * 0.4 }); }
       clouds.push(C); made++;
     }
-    stats.screens++; stats.clouds += made; if (why === 'manual') stats.manual++; else stats.auto++;
+    stats.screens++; stats.clouds += made; if (why === 'manual') stats.manual++; else if (why === 'medic') stats.medic++; else stats.auto++;
     return made;
   }
   /** Thick clouds as LOS obstacles: [{x, z, r, h, y0}] (r is the opaque core, ~85 % of the visible radius). */
