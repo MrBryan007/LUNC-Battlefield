@@ -1,5 +1,22 @@
 # Changelog
 
+## v12.0.66 — Casualty care: triage, covering smoke, casualty drag and a CCP (2026-11-24, AI build)
+- From the realism checklist (Combat behavior: "medic ranges", the last open item there; builds on the v12.0.65 smoke). The v11.3 army medics sprinted up to 45 m straight to any casualty, even one lying in the open next to the enemy, treated every wound for the same 2.2 s where it fell, and the casualty collection point (CCP) was just a row of bodies.
+- `js/ai/medics.js` now does care under fire (TCCC-style):
+  - **Triage:** each wound is MINOR or SERIOUS (closer to the blast → more likely serious). Minor = field dressing in 2.2 s; serious = tourniquet + dressing in ~5 s with a "nine-line" MEDEVAC radio call, and serious casualties are answered first and wait longer before they walk it off.
+  - **Response range** 30 m (was 45 m).
+  - **Danger zone:** an enemy within 14 m that can see the casualty (the v12.0.43 LOS: hills, walls, bunkers and smoke all block). On this dense field every soldier is within ~23 m of an enemy, so distance alone would make everyone "under fire".
+  - **Covering smoke:** for a casualty in the danger zone the medic throws a v12.0.65 smoke screen between it and the nearest enemy (one per side every 20 s; "Popping smoke, moving!") and holds ~2.5 s while it builds.
+  - **Casualty drag:** in the danger zone the medic drags the casualty ~6 m back toward its own lines (1.1 m/s, walking backwards) before treating.
+  - **CCP:** each side's casualty collection point gets an olive aid tent (~4 × 2.8 m), two litters and a CCP sign (MEDIUM and up; LOW / phones get the sign only).
+- Map → WAR SYSTEMS · SQUADS shows a **MEDICS** line (medics, casualties down now, treated, urgent, dragged, cover smoke). The smoke stats count medic screens separately.
+- Game layer (SIMULATED) only: never changes market data, army counts, the front or data-truth labels. The market-driven frontline, Moon Shot, Commander, the v11.4 HUD/dock, Hide UI, v12.x systems, quality tiers and all `?flags` are unchanged. Kill switch: `?casualty=0` (the v11.3 behaviour; also off with `?medics=0`).
+- Version bump to v12.0.66 (BUILD dated 2026-11-24, quality api, index tags, footer label, cache-bust `?v=20261124v12066` on all local css/js tags). `tests/stabilization-smoke.js` checks the casualty-care wiring.
+- Tested on 11/24: `node --check` on all JS files; p0-hardening, progression-persist and stabilization-smoke pass; browser XSS regression ALL PASS. Headless HIGH / MEDIUM / LOW / iPhone 390x844 plus 15 kill-switch loads (incl. new `?casualty=0` and `?medics=0`): 0 page errors, 0 shader errors (`tests/quality-loads-probe.js`).
+  - Casualty probe (`tests/casualty-harness.js`) PASS: danger-zone serious casualty → hold (smoke thrown) → go → drag 5.8 m toward own lines → treat 5.1 s → healed; safe casualty → go → treat 2.2 s with no smoke or drag; `?smoke=0` still drags with no smoke; `?casualty=0` = old go → treat 2.2 s, no CCP, no MEDICS line; CCP on MEDIUM 12 meshes, phone 4 (sign only); MEDICS line updates. A 75 s HIGH run with artillery-style blasts: 24 casualty calls, 10 urgent, a covering smoke screen, 0 errors, medic sim ≤ 0.8 ms/frame. Screenshots in `docs/v12066-shots/`.
+- Known gaps: rear-echelon vehicles can park over the CCP tent; casualties don't evacuate to the CCP (they return to their slot after treatment).
+- Build hours (real timestamps, 11/24 cycle 2): planning 06:24–06:25, building 06:25–06:43, testing 06:43–06:55 PT, deploying from 06:55 PT; the day total (vs the 2–4 h target) is in the last entry of the day.
+
 ## v12.0.65 — Smoke screens: squads pop smoke that blocks line of sight and drifts with the wind (2026-11-24, AI build)
 - From the realism checklist (Combat behavior: "deepen retreat"). A squad that broke just walked back across open ground, and nothing but hills, walls and bunkers ever blocked sight. Started on 11/18 (cycle 2) and finished and tested today.
 - New `js/theaters/smoke.js` (`LUNCBattle.smoke`): **smoke-grenade screens**. A screen is 3 canisters thrown in a line across the threat axis (about 6 m toward the enemy, 5 m apart). Each cloud builds over ~7 s to a thick white-grey cloud (~4.5 m radius, ~4 m high), drifts with the v12.0.64 shared wind (upper puffs lean further downwind), thins over its last 12 s and clears after ~45 s; rain knocks it down faster. Max 12 clouds; the oldest clears first.
