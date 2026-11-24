@@ -72,7 +72,9 @@ require('fs').mkdirSync(OUT, { recursive: true });
   // CCP view
   await A.evaluate(() => { const e = LUNCBattle.engine; e.controls.target.set(-39, 1, -6); e.camera.position.set(-30, 7, 4); e.controls.update(); }); await A.waitForTimeout(2000);
   await A.screenshot({ path: OUT + '/ccp-bulls.png', timeout: 120000 });
+  await A.evaluate(() => LUNCBattle.engine.setPaused(false)); await A.waitForTimeout(2000);
   out.panel = await A.evaluate(() => { const el = document.getElementById('sqMedics'); return el ? el.textContent : null; });
+  if (!out.panel || !/treated [1-9]/.test(out.panel) || !/dragged [1-9]/.test(out.panel)) fails.push('SQUADS panel MEDICS line wrong ' + out.panel);
   if (A.errs.length) fails.push('MEDIUM errors: ' + A.errs.join(' | '));
   await A.context().close();
   // ?smoke=0: still drags, no smoke

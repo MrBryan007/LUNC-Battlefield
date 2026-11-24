@@ -289,7 +289,7 @@
     if (el.med) {   // v12.0.66 casualty care line (army medics, js/ai/medics.js)
       var M = LB.medics && LB.medics.careEnabled && LB.medics.careEnabled() ? LB.medics.getStats() : null;
       el.med.parentNode.hidden = !M;
-      if (M) el.med.textContent = 'MEDICS ' + M.medics + ' · casualties ' + M.wounded + ' · treated ' + M.treated + ' (' + M.serious + ' urgent so far) · dragged ' + M.dragged + ' · cover smoke ' + M.smoked;
+      if (M) el.med.textContent = 'MEDICS ' + M.medics + ' · down now ' + M.wounded + ' · treated ' + M.treated + ' · urgent ' + M.serious + ' · dragged ' + M.dragged + ' · cover smoke ' + M.smoked;
     }
     doc.body.classList.toggle('sq-moving', moveArmed);
   }

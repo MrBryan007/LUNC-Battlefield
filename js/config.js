@@ -88,8 +88,8 @@
   // Single source of truth for current release metadata.
   // Historical comments and changelog entries are left untouched.
   const BUILD = Object.freeze({
-    version: 'v12.0.65',
-    codename: 'Smoke screens',
+    version: 'v12.0.66',
+    codename: 'Casualty care',
     date: '2026-11-24'
   });
 
