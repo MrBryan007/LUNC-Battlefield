@@ -10,7 +10,7 @@
  * v12.0.66 Casualty care (realism checklist, Combat behavior: "medic ranges"; ?casualty=0, also off with ?medics=0):
  * - Triage: each wound is MINOR (field dressing 2.2 s) or SERIOUS (tourniquet + dressing ~5 s, "9-line" MEDEVAC call);
  *   closer to the blast → more likely serious. Serious casualties wait longer before they walk it off.
- * - Response range 30 m (was 45 m). A casualty in the danger zone (an enemy within 24 m) gets covering smoke first:
+ * - Response range 30 m (was 45 m). A casualty in the danger zone (an enemy within 14 m with line of sight) gets covering smoke first:
  *   a v12.0.65 smoke screen between it and the nearest enemy (one per side every 20 s), and the medic holds ~2.5 s.
  * - Casualty drag: in the danger zone the medic drags the casualty ~6 m back toward its own lines (1.1 m/s) before treating.
  * - CCP: each side's casualty collection point gets an aid tent + CCP sign (MEDIUM+; LOW / phones: sign only). */
@@ -20,7 +20,7 @@
   var qs = new URLSearchParams(global.location.search);
   var enabled = qs.get('medics') !== '0';
   var care = enabled && qs.get('casualty') !== '0';   // v12.0.66 casualty care
-  var RANGE = care ? 30 : 45, DANGER = 24, DRAG = 6, smokeT = { '-1': 0, '1': 0 }, ccp = null;
+  var RANGE = care ? 30 : 45, DANGER = 14, DRAG = 6, smokeT = { '-1': 0, '1': 0 }, ccp = null, simNow = 0;
   var E = function () { return LB.engine; };
   var CAP = { LOW: 2, MEDIUM: 4, HIGH: 7, ULTRA: 9 };
   var medics = { '-1': [], '1': [] }, requests = [], ccpCount = { '-1': 0, '1': 0 };
@@ -89,11 +89,18 @@
     stats.requests++; if (care) stats[serious ? 'serious' : 'minor']++;
     say(ud.side, tag(u) + (serious ? ': "Medic! I\'m hit bad!"' : ': "Medic!"'));
   }
-  /** v12.0.66: nearest enemy infantry to (x, z) within DANGER m → {x, z, d} or null. */
+  /** v12.0.66: nearest enemy within DANGER m that can see (x, z) (js/theaters/los.js: hills, walls, bunkers, smoke) → {x, z, d} or null. */
   function threat(side, x, z) {
-    var A = E().getArmies(), L = side < 0 ? A.bears : A.bulls, best = null, bd = DANGER * DANGER;
-    for (var i = 0; i < L.length; i++) { var u = L[i], ud = u.userData; if (!u.parent || !ud || ud.rdDown || ud.air) continue; var dx = u.position.x - x, dz = u.position.z - z, d2 = dx * dx + dz * dz; if (d2 < bd) { bd = d2; best = u; } }
-    return best ? { x: best.position.x, z: best.position.z, d: Math.sqrt(bd) } : null;
+    var A = E().getArmies(), L = side < 0 ? A.bears : A.bulls, near = [], R2 = DANGER * DANGER;
+    for (var i = 0; i < L.length; i++) { var u = L[i], ud = u.userData; if (!u.parent || !ud || ud.rdDown || ud.air) continue; var dx = u.position.x - x, dz = u.position.z - z, d2 = dx * dx + dz * dz; if (d2 < R2) near.push({ u: u, d2: d2 }); }
+    near.sort(function (a, b) { return a.d2 - b.d2; });
+    var los = LB.los && LB.los.isEnabled && LB.los.isEnabled() ? LB.los : null;
+    for (var k = 0; k < near.length && k < 8; k++) {
+      var p = near[k].u.position;
+      if (los) { try { if (!los.trace(p.x, p.z, x, z).ok) continue; } catch (_) {} }
+      return { x: p.x, z: p.z, d: Math.sqrt(near[k].d2) };
+    }
+    return null;
   }
   function findMedic(u) { var l = medics[u.userData.side] || []; for (var i = 0; i < l.length; i++) if (l[i].u === u) return l[i]; return null; }
   function dropTask(m) {
@@ -260,8 +267,8 @@
     c.fillStyle = '#f1efe6'; c.fillRect(0, 0, 128, 64); c.fillStyle = '#c62026'; c.fillRect(8, 22, 30, 10); c.fillRect(18, 12, 10, 30);
     c.fillStyle = '#1d211c'; c.font = 'bold 30px sans-serif'; c.fillText('CCP', 46, 44); c.strokeStyle = '#1d211c'; c.lineWidth = 4; c.strokeRect(2, 2, 124, 60);
     var signTex = new THREE.CanvasTexture(canvas), signMat = new THREE.MeshStandardMaterial({ map: signTex, roughness: 0.8 });
-    var post = new THREE.MeshStandardMaterial({ color: 0x5b4a36, roughness: 0.95 }), canvasMat = new THREE.MeshStandardMaterial({ color: 0x6f7356, roughness: 0.95, side: THREE.DoubleSide });
-    var litter = new THREE.MeshStandardMaterial({ color: 0x4d5a3c, roughness: 0.9 });
+    var post = new THREE.MeshStandardMaterial({ color: 0x5b4a36, roughness: 0.95 }), canvasMat = new THREE.MeshStandardMaterial({ color: 0x4e5236, roughness: 0.95, side: THREE.DoubleSide });
+    var litter = new THREE.MeshStandardMaterial({ color: 0x343d2a, roughness: 0.9 });
     [-1, 1].forEach(function (side) {
       var g = new THREE.Group(), x = rear(side) + side * 2.5, z = -7.5;
       g.position.set(x, e.terrainHeight(x, z), z);
@@ -313,7 +320,7 @@
   LB.medics = { update: update, reset: reset, isEnabled: function () { return enabled; }, careEnabled: function () { return care; },
     // test hooks (v12.0.66): wound a given unit, step the medic sim with a fixed dt, read a medic's state
     _wound: function (u, serious) { if (enabled && u && u.userData && !u.userData.wounded) wound(u, serious, performance.now()); return !!(u && u.userData.wounded); },
-    _step: function (sec) { var e = E(); if (!e) return; var t0 = performance.now(); for (var t = 0; t < sec; t += 0.1) tick(0.1, t0 + t * 1000); },
+    _step: function (sec) { var e = E(); if (!e) return; var t0 = Math.max(performance.now(), simNow); for (var t = 0; t < sec - 1e-6; t += 0.1) tick(0.1, t0 + t * 1000); simNow = t0 + sec * 1000; },
     _medicOf: function (u) { var w = u && u.userData.wounded; return w && w.medic ? { st: w.medic.st, danger: !!(w.medic.task && w.medic.task.danger), x: w.medic.u.position.x, z: w.medic.u.position.z } : null; },
     _medics: function (side) { return (medics[side] || []).map(function (m) { return m.u; }); },
     getStats: function () {
