@@ -23,7 +23,7 @@
   var enabled = qs.get('wind') !== '0' && qs.get('realism') !== '0';
   var DRIFT_K = 0.3, KT = 1.94384, D2R = Math.PI / 180;
   var BASE_X = 205, BASE_Z = -55, SOCK_DX = [-31, 31], SOCK_DZ = 6.2, MAST = 5, SOCK_L = 2.6;
-  var t0 = performance.now(), lastT = -1, wxMul = 1, gustMul = 1, nightK = 0, lastBlend = 0, forced = null;
+  var t0 = performance.now() - Math.random() * 600000, lastT = -1, wxMul = 1, gustMul = 1, nightK = 0, lastBlend = 0, forced = null;
   var cur = { x: 0, z: -1, speed: 4, gust: 0, kt: 8, fromDeg: 190, dirX: 0, dirZ: -1 };
   var THREE = null, root = null, socks = [], built = false, frame = 0;
   var stats = { socks: 0, frames: 0, culled: 0, consumers: {} };

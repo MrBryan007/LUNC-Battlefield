@@ -26,6 +26,23 @@
   function H(x, z) { try { return E().terrainHeight(x, z) || 0; } catch (_) { return 0; } }
   function radio(side, text) { if (LB.ai && LB.ai.send) try { LB.ai.send({ side: side, type: 'squad', text: text }); } catch (_) {} }
   function fogHidden(x, z) { return LB.fow && LB.fow.isActive && LB.fow.isActive() && !LB.fow.visible(x, z); }
+  // v12.0.65 smoke screens (js/theaters/smoke.js, ?smoke=0): manual Smoke order, auto smoke when falling back / pinned
+  var SMOKE_CD = 35, SMOKE_AUTO_CD = 45;
+  function SMK() { return LB.smoke && LB.smoke.isEnabled && LB.smoke.isEnabled() ? LB.smoke : null; }
+  function threatOf(S) {
+    var best = null, bd = 1e9;
+    squads.forEach(function (o) { if (o.side === S.side || o.dead) return; var d = (o.x - S.x) * (o.x - S.x) + (o.z - S.z) * (o.z - S.z); if (d < bd) { bd = d; best = o; } });
+    return best && bd < 60 * 60 ? { x: best.x, z: best.z } : { x: frontX() - S.side * 30, z: S.z };
+  }
+  function popSmoke(S, why) {
+    var K = SMK(); if (!K || S.dead || (S.smokeCd || 0) > 0) return false;
+    var t = threatOf(S); if (!K.screen(S.x, S.z, t.x, t.z, S.side, why === 'manual' ? 'manual' : 'auto')) return false;
+    S.smokeCd = why === 'manual' ? SMOKE_CD : SMOKE_AUTO_CD; stats.smokes = (stats.smokes || 0) + 1;
+    var line = why === 'fallback' ? '"Popping smoke — moving back under the screen!"' : why === 'pinned' ? '"Pinned down — popping smoke!"' : '"Popping smoke!"';
+    radio(S.side, sideName(S.side) + ' ' + S.name.toUpperCase() + ': ' + line + ' (SIMULATED · game FX)');
+    if (S.side === playerSide()) stats.last = S.name + ': smoke out' + (why === 'manual' ? '' : ' (' + why + ')');
+    return true;
+  }
 
   function build() {
     THREE = E().THREE; root = new THREE.Group(); root.name = 'v12-squads'; E().scene.add(root);
@@ -174,7 +191,7 @@
       radio(T.side, sideName(T.side) + ' ' + T.name.toUpperCase() + ': squad out of action. A fresh squad moves up from HQ in ' + RESPAWN_S + ' s. (SIMULATED · game FX)');
       if (T.side === me) stats.last = T.name + ' wiped out — replacements in ' + RESPAWN_S + ' s';
     } else if (n === 1 && !T.fb) {
-      T.fb = true; stats.fallbacks++; order(T, 'move', frontX() + T.side * 60, T.z);
+      T.fb = true; stats.fallbacks++; popSmoke(T, 'fallback'); order(T, 'move', frontX() + T.side * 60, T.z);
       radio(T.side, sideName(T.side) + ' ' + T.name.toUpperCase() + ': "One man left — falling back!" (SIMULATED · game FX)');
     } else if (T.side === me && n === 2) stats.last = T.name + ': taking casualties, ' + n + ' men left';
   }
@@ -195,6 +212,8 @@
     for (var i = 0; i < squads.length; i++) {
       var S = squads[i];
       S.sup = Math.max(0, S.sup - dt * 0.12 * (kitId(S) === 'veteran' ? 1.5 : 1));
+      if (S.smokeCd > 0) S.smokeCd = Math.max(0, S.smokeCd - dt);
+      if (!S.dead && S.sup >= 0.85 && !(S.smokeCd > 0) && SMK()) popSmoke(S, 'pinned');   // v12.0.65: pinned → smoke
       kitStep(S, dt);
       if (S.dead) { S.respawn -= dt; if (S.respawn <= 0) respawn(S); }
       if (S.fb && !S.dead && !S.path.length) { S.regroup = (S.regroup || 0) + dt; if (S.regroup > 20) { S.regroup = 0; S.fb = false; S.men.forEach(function (M) { if (!M.alive) { M.alive = true; M.hp = S.maxHp || 2; M.fall = 0; M.t = 0; M.g.visible = true; M.g.rotation.set(0, 0, 0); } }); radio(S.side, sideName(S.side) + ' ' + S.name.toUpperCase() + ': "Replacements joined, back to full strength." (SIMULATED · game FX)'); renderUi(); } }
@@ -228,22 +247,24 @@
     }
     if (!sel || !sel.path.length) hideRoute();
     aiT -= dt; if (aiT <= 0) { aiT = 14 + Math.random() * 12; var ai = squads.filter(function (s) { return s.side !== me && !s.dead && !s.fb; }), S2 = ai[(Math.random() * ai.length) | 0], r = Math.random(), fx = frontX();
-      if (S2) { if (r < 0.3) order(S2, 'flank'); else if (r < 0.5 && nearestCover(S2)) order(S2, 'cover'); else if (r < 0.8) order(S2, 'move', fx + S2.side * (8 + Math.random() * 16), -40 + Math.random() * 80); else order(S2, 'hold'); } }
+      if (S2) { if (r < 0.3) { if (Math.random() < 0.5) popSmoke(S2, 'cover the flank'); order(S2, 'flank'); } else if (r < 0.5 && nearestCover(S2)) order(S2, 'cover'); else if (r < 0.8) order(S2, 'move', fx + S2.side * (8 + Math.random() * 16), -40 + Math.random() * 80); else order(S2, 'hold'); } }
     uiT -= dt; if (uiT <= 0) { uiT = 0.4; renderUi(); kitT = (kitT || 0) + 1; if (kitT % 5 === 0) refreshKits(); }
   }
 
   function buildUi() {
     var p = doc.createElement('div'); p.id = 'squadsPanel'; p.className = 'supply-panel squads-panel';
     p.innerHTML = '<div class="th-title">WAR SYSTEMS · SQUADS <span class="qual sim">SIMULATED</span></div><div class="sq-list"></div>' +
-      '<div class="econ-actions sq-orders"><button type="button" data-o="move">Move<small>then tap field</small></button><button type="button" data-o="hold">Hold<small>stop &amp; fire</small></button><button type="button" data-o="flank">Flank<small>swing wide</small></button><button type="button" data-o="cover">Cover<small>wall/bunker/depot</small></button></div>' +
+      '<div class="econ-actions sq-orders"><button type="button" data-o="move">Move<small>then tap field</small></button><button type="button" data-o="hold">Hold<small>stop &amp; fire</small></button><button type="button" data-o="flank">Flank<small>swing wide</small></button><button type="button" data-o="cover">Cover<small>wall/bunker/depot</small></button><button type="button" data-o="smoke" id="sqSmoke">Smoke<small>screen · 35 s</small></button></div>' +
       '<div class="sup-row"><span id="sqStatus" class="sup-status"></span></div><div class="th-note">Pick a squad, then an order. In cover = half the incoming fire. Suppression slows a squad. Squads only fire at what they can see (hills, walls and bunkers block line of sight); range, high ground, cover and weather set the hit chance. Game layer: never removes market units or moves the front.</div>';
     el.p = p; el.list = p.querySelector('.sq-list'); el.status = p.querySelector('#sqStatus');
+    if (!SMK()) { var sb = p.querySelector('#sqSmoke'); if (sb) sb.style.display = 'none'; }
     el.list.innerHTML = NAMES.map(function (n, i) { return '<button type="button" class="sq-btn" data-i="' + i + '"><b>' + n + '</b><span class="sq-st"></span><i class="sq-sup"><span></span></i></button>'; }).join('');
     p.addEventListener('click', function (ev) {
       var b = ev.target.closest('.sq-btn'); if (b) { var mine = squads.filter(function (s) { return s.side === playerSide(); }); sel = mine[+b.getAttribute('data-i')] || null; moveArmed = false; renderUi(); return; }
       var o = ev.target.closest('button[data-o]'); if (!o || !sel) return;
       var k = o.getAttribute('data-o');
       if (k === 'move') { moveArmed = !moveArmed; if (moveArmed && LB.dock && LB.dock.close && E().mobile) try { LB.dock.close(); } catch (_) {} stats.last = moveArmed ? sel.name + ': tap the field to move' : ''; renderUi(); }
+      else if (k === 'smoke') { if (!SMK()) { stats.last = 'Smoke is off (?smoke=0)'; } else if (sel.smokeCd > 0) { stats.last = sel.name + ': smoke ready in ' + Math.ceil(sel.smokeCd) + ' s'; } else popSmoke(sel, 'manual'); renderUi(); }
       else order(sel, k);
     });
     placeUi();
@@ -260,7 +281,7 @@
     mine.forEach(function (S, i) {
       var b = el.list.querySelector('[data-i="' + i + '"]'); if (!b) return;
       b.classList.toggle('sel', S === sel);
-      b.querySelector('.sq-st').textContent = (S.kit ? S.kit.icon + ' ' + S.kit.name + ' · ' : '') + (S.dead ? 'OUT · back in ' + Math.ceil(S.respawn) + ' s' : (S.cover ? 'IN COVER' : S.digT > 0 ? 'DIGGING IN' : S.fb ? 'FALLING BACK' : S.mode.toUpperCase()) + (LOS() ? ' · ' + aliveN(S) + '/' + S.n : '') + (S.sup > 0.5 ? ' · SUPPRESSED' : '') + (S.noLos ? ' · NO LOS' : ''));
+      b.querySelector('.sq-st').textContent = (S.kit ? S.kit.icon + ' ' + S.kit.name + ' · ' : '') + (S.dead ? 'OUT · back in ' + Math.ceil(S.respawn) + ' s' : (S.cover ? 'IN COVER' : S.digT > 0 ? 'DIGGING IN' : S.fb ? 'FALLING BACK' : S.mode.toUpperCase()) + (LOS() ? ' · ' + aliveN(S) + '/' + S.n : '') + (S.sup > 0.5 ? ' · SUPPRESSED' : '') + (S.noLos ? ' · NO LOS' : '') + (S === sel && S.smokeCd > 0 ? ' · SMOKE ' + Math.ceil(S.smokeCd) + ' s' : ''));
       b.querySelector('.sq-sup span').style.width = Math.round(S.sup * 100) + '%';
     });
     el.p.querySelectorAll('button[data-o]').forEach(function (b) { b.disabled = !sel; b.classList.toggle('armed', b.getAttribute('data-o') === 'move' && moveArmed); });
@@ -295,6 +316,8 @@
     _place: function (k, x, z) { var S = squads[k]; if (!S) return false; S.x = S.tx = x; S.z = S.tz = z; S.path = []; S.mode = 'hold'; return true; },
     _hitChance: function (a, b) { var S = squads[a], T = squads[b]; return S && T ? hitChance(S, T, Math.hypot(S.x - T.x, S.z - T.z)) : 0; },
     refreshKits: function () { if (ready) refreshKits(); }, kitState: function () { var me = playerSide(); return { stats: Object.assign({}, kitStats), squads: squads.filter(function (S) { return S.side === me; }).map(function (S) { return { name: S.name, kit: kitId(S), maxHp: S.maxHp, range: rangeOf(S), cover: S.cover, digT: +S.digT.toFixed(1), hole: !!(S.hole && S.hole.visible), medT: +S.medT.toFixed(1), alive: aliveN(S) }; }) }; },
-    _step: function (sec) { if (!ready) return; for (var t = 0; t < sec; t += 0.1) step(0.1); }
+    _step: function (sec) { if (!ready) return; for (var t = 0; t < sec; t += 0.1) step(0.1); },
+    smoke: function (i) { var mine = squads.filter(function (s) { return s.side === playerSide(); }), S = i != null ? mine[i] : sel; return S ? popSmoke(S, 'manual') : false; },   // v12.0.65
+    _sq: function (k) { return squads[k]; }, _wound: function (k, by) { var T = squads[k]; if (T) wound(T, null, by); return T ? aliveN(T) : -1; }
   };
 })(window);
