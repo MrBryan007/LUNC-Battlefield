@@ -255,8 +255,8 @@
     var p = doc.createElement('div'); p.id = 'squadsPanel'; p.className = 'supply-panel squads-panel';
     p.innerHTML = '<div class="th-title">WAR SYSTEMS · SQUADS <span class="qual sim">SIMULATED</span></div><div class="sq-list"></div>' +
       '<div class="econ-actions sq-orders"><button type="button" data-o="move">Move<small>then tap field</small></button><button type="button" data-o="hold">Hold<small>stop &amp; fire</small></button><button type="button" data-o="flank">Flank<small>swing wide</small></button><button type="button" data-o="cover">Cover<small>wall/bunker/depot</small></button><button type="button" data-o="smoke" id="sqSmoke">Smoke<small>screen · 35 s</small></button></div>' +
-      '<div class="sup-row"><span id="sqStatus" class="sup-status"></span></div><div class="th-note">Pick a squad, then an order. In cover = half the incoming fire. Suppression slows a squad. Squads only fire at what they can see (hills, walls and bunkers block line of sight); range, high ground, cover and weather set the hit chance. Game layer: never removes market units or moves the front.</div>';
-    el.p = p; el.list = p.querySelector('.sq-list'); el.status = p.querySelector('#sqStatus');
+      '<div class="sup-row"><span id="sqStatus" class="sup-status"></span></div><div class="sup-row"><span id="sqMedics" class="sup-status"></span></div><div class="th-note">Pick a squad, then an order. In cover = half the incoming fire. Suppression slows a squad. Squads only fire at what they can see (hills, walls and bunkers block line of sight); range, high ground, cover and weather set the hit chance. Game layer: never removes market units or moves the front.</div>';
+    el.p = p; el.list = p.querySelector('.sq-list'); el.status = p.querySelector('#sqStatus'); el.med = p.querySelector('#sqMedics');
     if (!SMK()) { var sb = p.querySelector('#sqSmoke'); if (sb) sb.style.display = 'none'; }
     el.list.innerHTML = NAMES.map(function (n, i) { return '<button type="button" class="sq-btn" data-i="' + i + '"><b>' + n + '</b><span class="sq-st"></span><i class="sq-sup"><span></span></i></button>'; }).join('');
     p.addEventListener('click', function (ev) {
@@ -286,6 +286,11 @@
     });
     el.p.querySelectorAll('button[data-o]').forEach(function (b) { b.disabled = !sel; b.classList.toggle('armed', b.getAttribute('data-o') === 'move' && moveArmed); });
     el.status.textContent = (stats.last || (sel ? sel.name + ' selected' : 'Pick a squad')) + (LOS() ? ' · KIA ' + mine.reduce(function (a, S) { return a + S.kills; }, 0) + ' / lost ' + mine.reduce(function (a, S) { return a + S.lost; }, 0) : '');
+    if (el.med) {   // v12.0.66 casualty care line (army medics, js/ai/medics.js)
+      var M = LB.medics && LB.medics.careEnabled && LB.medics.careEnabled() ? LB.medics.getStats() : null;
+      el.med.parentNode.hidden = !M;
+      if (M) el.med.textContent = 'MEDICS ' + M.medics + ' · casualties ' + M.wounded + ' · treated ' + M.treated + ' (' + M.serious + ' urgent so far) · dragged ' + M.dragged + ' · cover smoke ' + M.smoked;
+    }
     doc.body.classList.toggle('sq-moving', moveArmed);
   }
   function update() {
