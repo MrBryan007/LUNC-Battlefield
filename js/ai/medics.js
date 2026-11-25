@@ -27,7 +27,7 @@
   var enabled = qs.get('medics') !== '0';
   var care = enabled && qs.get('casualty') !== '0';   // v12.0.66 casualty care
   var casevac = care && qs.get('casevac') !== '0';    // v12.0.67 CASEVAC
-  var EVAC_SPEED = 1.6, LIMP_SPEED = 0.9, CCP_REST = 20, BEDS = 6, bedUse = { '-1': [], '1': [] }, litters = [], litterMat = null, poleMat = null;
+  var EVAC_SPEED = 1.6, LIMP_SPEED = 0.9, CCP_REST = 20, BEDS = 6, bedUse = { '-1': [], '1': [] }, noLitter = { '-1': false, '1': false }, litters = [], litterMat = null, poleMat = null;
   var RANGE = care ? 30 : 45, DANGER = 14, DRAG = 6, smokeT = { '-1': 0, '1': 0 }, ccp = null, simNow = 0;
   var E = function () { return LB.engine; };
   var CAP = { LOW: 2, MEDIUM: 4, HIGH: 7, ULTRA: 9 };
@@ -286,7 +286,7 @@
   function freeBed(side, k) { if (k != null) bedUse[side][k] = false; }
   function makeLitter() {
     var e = E(), THREE = e.THREE;
-    if (!litterMat) { litterMat = new THREE.MeshStandardMaterial({ color: 0x3e4630, roughness: 0.92 }); poleMat = new THREE.MeshStandardMaterial({ color: 0x6b6f62, roughness: 0.5, metalness: 0.6 }); }
+    if (!litterMat) { litterMat = new THREE.MeshStandardMaterial({ color: 0x232818, roughness: 1, metalness: 0 }); poleMat = new THREE.MeshStandardMaterial({ color: 0x6b6f62, roughness: 0.5, metalness: 0.6 }); }
     var g = new THREE.Group(); g.name = 'casevac-litter';
     var bed = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.03, 1.85), litterMat); g.add(bed);
     for (var s = -1; s <= 1; s += 2) { var pl = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 2.3), poleMat); pl.position.set(s * 0.29, 0.01, 0); g.add(pl); }
@@ -298,7 +298,7 @@
   /** Treatment done on a SERIOUS casualty: form a litter team with a second free medic within RANGE, else it limps. */
   function startEvac(m, cu, x, z, yaw) {
     var side = cu.userData.side, bed = takeBed(side), best = null, bd = 1e9;
-    (medics[side] || []).forEach(function (o) { if (o === m || !freeMedic(o)) return; var d = Math.hypot(o.u.position.x - x, o.u.position.z - z); if (d < bd) { bd = d; best = o; } });
+    (medics[side] || []).forEach(function (o) { if (o === m || !freeMedic(o) || noLitter[side]) return; var d = Math.hypot(o.u.position.x - x, o.u.position.z - z); if (d < bd) { bd = d; best = o; } });
     cu.userData.evac = { mode: 'litter', x: x, z: z, yaw: yaw, bed: bed, t: 0, t0: simClock() };
     if (best && bd <= RANGE) {
       var task = { kind: 'evac', u: cu, side: side, lead: m, picked: false, bed: bed };
@@ -307,6 +307,7 @@
       say(side, tag(m.u) + ': "Need a litter here — one urgent to the CCP."', true);
     } else { cu.userData.evac.mode = 'limp'; stats.limped++; say(side, tag(m.u) + ': "No litter free — he\'s walking to the CCP."'); }
   }
+  function casevacCots() { return !(tierName() === 'LOW' || (E() && E().mobile)); }
   function simClock() { return Math.max(performance.now(), simNow); }
   /** Bearer hit / task dropped mid-carry: set the casualty down where it is and ask again. */
   function setDown(t, m) {
@@ -383,7 +384,7 @@
       }
       if (ev.mode === 'ccp') {
         nCcp++;
-        u.position.set(ev.x, e.terrainHeight(ev.x, ev.z) + 0.16, ev.z);
+        u.position.set(ev.x, e.terrainHeight(ev.x, ev.z - 0.88) + (casevacCots() ? 0.3 : 0.14), ev.z);
         u.rotation.order = 'YXZ'; u.rotation.set(-Math.PI / 2 + 0.05, ev.yaw, 0);
         if (ev.t > CCP_REST) { freeBed(ud.side, ev.bed); ud.evac = null; u.rotation.order = 'XYZ'; resetPose(u); stats.ccpDone++; if (Math.random() < 0.5) say(ud.side, tag(u) + ': "Treated at the CCP — returning to the line."'); }
         continue;
@@ -406,6 +407,7 @@
     var signTex = new THREE.CanvasTexture(canvas), signMat = new THREE.MeshStandardMaterial({ map: signTex, roughness: 0.8 });
     var post = new THREE.MeshStandardMaterial({ color: 0x5b4a36, roughness: 0.95 }), canvasMat = new THREE.MeshStandardMaterial({ color: 0x4e5236, roughness: 0.95, side: THREE.DoubleSide });
     var litter = new THREE.MeshStandardMaterial({ color: 0x343d2a, roughness: 0.9 });
+    var cotMat = new THREE.MeshStandardMaterial({ color: 0x1e2316, roughness: 1, metalness: 0 }), cotRail = new THREE.MeshStandardMaterial({ color: 0x4d5046, roughness: 0.55, metalness: 0.5 });   // v12.0.67 field cots
     [-1, 1].forEach(function (side) {
       var g = new THREE.Group(), x = rear(side) + side * 2.5, z = -7.5;
       g.position.set(x, e.terrainHeight(x, z), z);
@@ -415,9 +417,10 @@
         var tent = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.6, 4, 3, 1, true, Math.PI), canvasMat); tent.rotation.x = Math.PI / 2; tent.position.set(-side * 2.2, 0.8, 0); g.add(tent);
         var flap = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.4), signMat); flap.position.set(-side * 2.2, 0.95, 2.02); g.add(flap);
         for (var k = 0; k < 2; k++) { var L = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.05, 2.0), litter); L.position.set(side * 0.9 + k * 0.7 * side, 0.05 + k * 0.06, 1.2); g.add(L); }
-        if (casevac) for (var b = 0; b < BEDS; b++) {   // v12.0.67: ground cots at the CASEVAC bed slots, axis across the tent
-          var bp = bedPos(side, b), cot = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.06, 1.85), litter);
-          cot.position.set(bp.x - x, e.terrainHeight(bp.x, bp.z - 0.88) - g.position.y + 0.08, bp.z - 0.88 - z); cot.name = 'ccp-cot'; g.add(cot);
+        if (casevac) for (var b = 0; b < BEDS; b++) {   // v12.0.67: folding field cots (canvas on two steel rails) at the CASEVAC bed slots
+          var bp = bedPos(side, b), cot = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.04, 1.85), cotMat), cy = e.terrainHeight(bp.x, bp.z - 0.88) - g.position.y;
+          cot.position.set(bp.x - x, cy + 0.2, bp.z - 0.88 - z); cot.name = 'ccp-cot'; g.add(cot);
+          for (var r = -1; r <= 1; r += 2) { var rail = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.18, 1.95), cotRail); rail.position.set(bp.x - x + r * 0.29, cy + 0.11, bp.z - 0.88 - z); g.add(rail); }
         }
       }
       g.traverse(function (o) { if (o.isMesh) { o.castShadow = !lite; o.receiveShadow = true; } });
@@ -460,9 +463,10 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
   LB.medics = { update: update, reset: reset, isEnabled: function () { return enabled; }, careEnabled: function () { return care; }, casevacEnabled: function () { return casevac; },
     _evacOf: function (u) { var ev = u && u.userData.evac; return ev ? { mode: ev.mode, x: ev.x, z: ev.z, picked: !!(ev.team && ev.team.picked), bed: ev.bed, t: ev.t, litters: litters.length, y: u.position.y - E().terrainHeight(u.position.x, u.position.z) } : null; },
+    _noLitter: function (side, b) { noLitter[side] = !!b; },
     _hitBearer: function (u) { var ev = u && u.userData.evac; if (!ev || !ev.team) return false; var m = ev.team.lead; dropTask(m); stats.medicsHit++; return true; },
     // test hooks (v12.0.66): wound a given unit, step the medic sim with a fixed dt, read a medic's state
-    _wound: function (u, serious) { if (enabled && u && u.userData && !u.userData.wounded) wound(u, serious, performance.now()); return !!(u && u.userData.wounded); },
+    _wound: function (u, serious) { if (enabled && u && u.userData && !u.userData.wounded) wound(u, serious, simClock()); return !!(u && u.userData.wounded); },
     _step: function (sec) { var e = E(); if (!e) return; var t0 = Math.max(performance.now(), simNow); for (var t = 0; t < sec - 1e-6; t += 0.1) tick(0.1, t0 + t * 1000); simNow = t0 + sec * 1000; },
     _medicOf: function (u) { var w = u && u.userData.wounded; return w && w.medic ? { st: w.medic.st, danger: !!(w.medic.task && w.medic.task.danger), x: w.medic.u.position.x, z: w.medic.u.position.z } : null; },
     _medics: function (side) { return (medics[side] || []).map(function (m) { return m.u; }); },
