@@ -40,7 +40,9 @@ require('fs').mkdirSync(OUT, { recursive: true });
       if (st === 'treat') { treatT += 0.1; if (xT == null) xT = u.userData.wounded.x; }
       if (st === 'drag' && !mid) mid = { x: u.position.x, z: u.position.z };
     }
-    return { seq, danger, treatT: +treatT.toFixed(1), drag: xT == null ? null : +((xT - x0) * -1).toFixed(2), healed: !u.userData.wounded, smoke: (SM ? SM.getState().stats.medic || 0 : 0) - sm0, x0: +x0.toFixed(1), z0: +z0.toFixed(1), mid };
+    // v12.0.67: a serious casualty now goes on to CASEVAC — finish it so the medics are free for the next case
+    const evSeq = []; for (let k = 0; k < 2000 && u.userData.evac; k++) { MD._step(0.1); const ev = MD._evacOf(u); if (ev && evSeq[evSeq.length - 1] !== ev.mode) evSeq.push(ev.mode); }
+    return { seq, evSeq, danger, treatT: +treatT.toFixed(1), drag: xT == null ? null : +((xT - x0) * -1).toFixed(2), healed: !u.userData.wounded, smoke: (SM ? SM.getState().stats.medic || 0 : 0) - sm0, x0: +x0.toFixed(1), z0: +z0.toFixed(1), mid };
   }, { i, serious });
   const out = {}, fails = [];
   const A = await mk('MEDIUM', false, '?play=1');

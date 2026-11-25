@@ -88,9 +88,9 @@
   // Single source of truth for current release metadata.
   // Historical comments and changelog entries are left untouched.
   const BUILD = Object.freeze({
-    version: 'v12.0.66',
-    codename: 'Casualty care',
-    date: '2026-11-24'
+    version: 'v12.0.67',
+    codename: 'CASEVAC',
+    date: '2026-11-25'
   });
 
   const config = {
