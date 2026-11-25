@@ -73,7 +73,8 @@ const checks = [
   ['revetments wired', index.includes('js/fx/revetments.js') && read('js/fx/revetments.js').includes("qs.get('revet') !== '0'") && read('js/theaters/theaters.js').includes('LB.revetments.tick(wdt)') && read('js/theaters/tacmap.js').includes('LB.revetments.drawMap')],
   ['smoke screens wired', index.includes('js/theaters/smoke.js') && read('js/theaters/smoke.js').includes("qs.get('smoke') !== '0'") && read('js/battle-engine.js').includes('LUNCBattle.smoke.update()') && read('js/theaters/los.js').includes('smoke') && read('js/theaters/tacmap.js').includes('LB.smoke.drawMap')],
   ['casualty care wired', read('js/ai/medics.js').includes("qs.get('casualty') !== '0'") && read('js/ai/medics.js').includes('LB.smoke.screen(') && read('js/theaters/squads.js').includes('sqMedics')],
-  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.66')],
+  ['casevac wired', read('js/ai/medics.js').includes("qs.get('casevac') !== '0'") && read('js/ai/medics.js').includes('function startEvac(') && read('js/theaters/squads.js').includes('casevacEnabled')],
+  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.67')],
   ['ground wired', index.includes('fx/ground.js') && index.indexOf('fx/ground.js') < index.indexOf('fx/roads.js') && read('js/fx/roads.js').includes('LB.groundY') && read('js/fx/sky-light.js').includes('LB.groundY') && read('js/theaters/theaters.js').includes('LB.groundY(x, vz)')]
 ];
 

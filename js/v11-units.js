@@ -570,7 +570,7 @@
           // v11.3: with big market armies the real units fill the field → thin out the visual escorts
           var escK = tier.infEscort * (infTotal > 280 ? 0.3 : infTotal > 140 ? 0.6 : 1);
           var nEsc = escK >= 1 ? Math.floor(escK) : (det(infIdx, 9) < escK ? 1 : 0);
-          if (ud.wounded || ud.medic) nEsc = 0;
+          if (ud.wounded || ud.medic || ud.evac) nEsc = 0;
           for (var e = 0; e < nEsc; e++) escort(u, f, infIdx, e, ci, st);
           infIdx++;
         } else {
