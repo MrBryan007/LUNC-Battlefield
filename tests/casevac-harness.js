@@ -52,7 +52,7 @@ require('fs').mkdirSync(OUT, { recursive: true });
     return r;
   }, Object.assign({ i, serious }, opt || {}));
   const out = {}, fails = [];
-  const A = await mk('MEDIUM', false, '?play=1');
+  const A = await mk('MEDIUM', false, '?play=1&medevac=0');
   out.s0 = await A.evaluate(() => { let cots = 0; const g = LUNCBattle.engine.scene.getObjectByName('ccp-points'); if (g) g.traverse(o => { if (o.name === 'ccp-cot') cots++; }); return { casevac: LUNCBattle.medics.casevacEnabled(), medics: LUNCBattle.medics._medics(-1).length, cots }; });
   if (!out.s0.casevac || out.s0.cots !== 12) fails.push('casevac / CCP cots missing ' + JSON.stringify(out.s0));
   const used = [];
@@ -116,7 +116,7 @@ require('fs').mkdirSync(OUT, { recursive: true });
   if (K.errs.length) fails.push('?casevac=0 errors: ' + K.errs.join(' | '));
   await K.context().close();
   // 6) phone LOW: no cots, evac still works, no errors
-  const M = await mk('LOW', true, '?play=1');
+  const M = await mk('LOW', true, '?play=1&medevac=0');
   out.phone0 = await M.evaluate(() => { let n = 0, cots = 0; const g = LUNCBattle.engine.scene.getObjectByName('ccp-points'); if (g) g.traverse(o => { if (o.isMesh) n++; if (o.name === 'ccp-cot') cots++; }); return { meshes: n, cots, medics: LUNCBattle.medics._medics(-1).length }; });
   const pi = await pick(M, []);
   if (pi != null) out.phone = await run(M, pi, true);
