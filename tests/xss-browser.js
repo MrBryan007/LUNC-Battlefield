@@ -51,7 +51,7 @@ async function main() {
   page.on('pageerror', function (err) { alerts.push('pageerror:' + err.message); });
 
   await page.goto('http://127.0.0.1:' + PORT + '/index.html', { waitUntil: 'domcontentloaded', timeout: 30000 });
-  await page.waitForFunction('window.LUNCBattle && window.LUNCBattle.ui && window.LUNCBattle.ui.renderIntelPanels', { timeout: 20000 });
+  await page.waitForFunction('window.LUNCBattle && window.LUNCBattle.ui && window.LUNCBattle.ui.renderIntelPanels', { timeout: +(process.env.XSS_WAIT || 20000) });
 
   const result = await page.evaluate(function (payloads) {
     var LB = window.LUNCBattle;

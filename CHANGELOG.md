@@ -1,5 +1,21 @@
 # Changelog
 
+## v12.0.67 — CASEVAC: litter teams carry serious casualties to the CCP (2026-11-25, AI build)
+- From the realism checklist (Combat behavior: "CASEVAC of casualties to the CCP", the gap left open by v12.0.66). After v12.0.66 a SERIOUS casualty got a tourniquet and then simply stood up and walked back into its slot, and the CCP tent stood empty.
+- `js/ai/medics.js` now evacuates every treated SERIOUS casualty to its side's casualty collection point:
+  - **Litter team:** if a second free medic is within 30 m, it joins the treating medic. Both bearers close on the casualty, lift it onto a folding pole litter (olive canvas on two steel poles, ~2.3 m) and carry it at ~1.6 m/s (slower than the 2.1 m/s body teams), lead bearer in front, the second 2 m behind, the casualty lying on the litter at ~0.85 m. Radio: "Need a litter here — one urgent to the CCP." / "Litter team moving, one urgent to the CCP." / "Casualty at the CCP."
+  - **Walking wounded:** with no second medic free, the casualty limps back on its own at ~0.9 m/s with an uneven, leaning gait.
+  - **CCP beds:** six folding field cots (canvas on steel rails) per side beside the aid tent (MEDIUM and up; LOW / phones lay casualties on the ground beside the sign). A casualty rests ~20 s on its cot ("treated at the CCP"), then gets up and walks back to its slot in the line.
+  - **Bearer hit:** if a litter bearer is hit mid-carry the casualty is set down where it is ("Bearer down! Casualty on the ground, need another litter!"); two free medics re-form a litter team, or after ~12 s it limps the rest of the way.
+  - Minor wounds are still patched up in the field and return straight to the line.
+- Map → WAR SYSTEMS · SQUADS MEDICS line adds `evac N · at CCP N`. Stats in `LUNCBattle.medics.getStats()` (evacuated, limped, atCcp, ccpDone, setDown).
+- Game layer (SIMULATED) only: never changes market data, army counts, the front or data-truth labels. The market-driven frontline, Moon Shot, Commander, the v11.4 HUD/dock, Hide UI, v12.x systems, quality tiers and all `?flags` are unchanged. Kill switch: `?casevac=0` (v12.0.66 behaviour; also off with `?casualty=0` / `?medics=0`).
+- Version bump to v12.0.67 (BUILD dated 2026-11-25, quality api, index tags, footer label, cache-bust `?v=20261125v12067` on all local css/js tags). `tests/stabilization-smoke.js` checks the CASEVAC wiring; `tests/quality-loads-probe.js` adds a `?casevac=0` load; `tests/xss-browser.js` takes `XSS_WAIT` for slow boxes.
+- Tested on 11/25: `node --check` on all JS files; p0-hardening, progression-persist and stabilization-smoke pass; browser XSS regression ALL PASS. Headless HIGH / MEDIUM / LOW / iPhone 390x844 plus 16 kill-switch loads (incl. new `?casevac=0`): 0 page errors, 0 shader errors. v12.0.66 casualty probe still PASS.
+  - New CASEVAC probe (`tests/casevac-harness.js`) PASS: serious casualty → litter team → carried at 1.63 m/s, 0.85 m up → reaches its CCP cot 4.9 m behind the tent line → rests 20.0 s → back in the line; no free litter → limps at 0.90 m/s → CCP → returns; bearer hit mid-carry → set down (litter removed) → picked up again → CCP; minor casualty → no evac; `?casevac=0` → v12.0.66 behaviour, no cots; phone LOW: no cots, a litter carry completes, 0 errors. Screenshots are on the box (not in the repo).
+- Known gaps: rear-echelon vehicles can still park over the CCP; no MEDEVAC helicopter yet (the nine-line call is radio only).
+- Build hours (real timestamps, 11/25 cycle 1): planning 06:11–06:12, building 06:12–06:23, testing 06:23–06:38 PT, deploying from 06:38 PT; the day total (vs the 2–4 h target) is in the last entry of the day.
+
 ## v12.0.66 — Casualty care: triage, covering smoke, casualty drag and a CCP (2026-11-24, AI build)
 - From the realism checklist (Combat behavior: "medic ranges", the last open item there; builds on the v12.0.65 smoke). The v11.3 army medics sprinted up to 45 m straight to any casualty, even one lying in the open next to the enemy, treated every wound for the same 2.2 s where it fell, and the casualty collection point (CCP) was just a row of bodies.
 - `js/ai/medics.js` now does care under fire (TCCC-style):
