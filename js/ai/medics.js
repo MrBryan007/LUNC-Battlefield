@@ -286,7 +286,7 @@
   function freeBed(side, k) { if (k != null) bedUse[side][k] = false; }
   function makeLitter() {
     var e = E(), THREE = e.THREE;
-    if (!litterMat) { litterMat = new THREE.MeshStandardMaterial({ color: 0x232818, roughness: 1, metalness: 0 }); poleMat = new THREE.MeshStandardMaterial({ color: 0x6b6f62, roughness: 0.5, metalness: 0.6 }); }
+    if (!litterMat) { litterMat = new THREE.MeshStandardMaterial({ color: 0x3e4630, roughness: 0.95 }); poleMat = new THREE.MeshStandardMaterial({ color: 0x6b6f62, roughness: 0.5, metalness: 0.6 }); litterMat.color.convertSRGBToLinear(); poleMat.color.convertSRGBToLinear(); }
     var g = new THREE.Group(); g.name = 'casevac-litter';
     var bed = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.03, 1.85), litterMat); g.add(bed);
     for (var s = -1; s <= 1; s += 2) { var pl = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 2.3), poleMat); pl.position.set(s * 0.29, 0.01, 0); g.add(pl); }
@@ -418,7 +418,9 @@
     var signTex = new THREE.CanvasTexture(canvas), signMat = new THREE.MeshStandardMaterial({ map: signTex, roughness: 0.8 });
     var post = new THREE.MeshStandardMaterial({ color: 0x5b4a36, roughness: 0.95 }), canvasMat = new THREE.MeshStandardMaterial({ color: 0x4e5236, roughness: 0.95, side: THREE.DoubleSide });
     var litter = new THREE.MeshStandardMaterial({ color: 0x343d2a, roughness: 0.9 });
-    var cotMat = new THREE.MeshStandardMaterial({ color: 0x1e2316, roughness: 1, metalness: 0 }), cotRail = new THREE.MeshStandardMaterial({ color: 0x4d5046, roughness: 0.55, metalness: 0.5 });   // v12.0.67 field cots
+    var cotMat = new THREE.MeshStandardMaterial({ color: 0x3a4230, roughness: 1, metalness: 0 }), cotRail = new THREE.MeshStandardMaterial({ color: 0x4d5046, roughness: 0.55, metalness: 0.5 });   // v12.0.67 field cots
+    // v12.0.68: CCP colours were authored as sRGB hex but read as linear in r128 (washed-out tent and cots) → convert
+    [post, canvasMat, litter, cotMat, cotRail].forEach(function (mm) { mm.color.convertSRGBToLinear(); });
     [-1, 1].forEach(function (side) {
       var g = new THREE.Group(), x = rear(side) + side * 2.5, z = -7.5;
       g.position.set(x, e.terrainHeight(x, z), z);

@@ -48,6 +48,8 @@
       cot: new T.MeshStandardMaterial({ color: 0x1e2316, roughness: 1 }),
       litter: new T.MeshStandardMaterial({ color: 0x232818, roughness: 1 })
     };
+    // authored as sRGB hex; three r128 here treats hex as linear (v12.0.15 found theater colours washed out) → convert
+    Object.keys(mats).forEach(function (k) { if (mats[k].color && k !== 'red' && k !== 'disc') mats[k].color.convertSRGBToLinear(); });
     return mats;
   }
   function box(w, h, d, m, x, y, z, parent) { var T = E().THREE, o = new T.Mesh(new T.BoxGeometry(w, h, d), m); o.position.set(x, y, z); if (parent) parent.add(o); return o; }
@@ -85,10 +87,17 @@
   }
   function buildCrew() {
     var T = E().THREE, m = M(), g = new T.Group(); g.name = 'medevac-crew';
-    box(0.42, 0.62, 0.26, m.suit, 0, 1.15, 0, g); box(0.38, 0.8, 0.22, m.suit, 0, 0.42, 0, g);
-    var h = new T.Mesh(new T.SphereGeometry(0.15, 10, 8), m.helmet); h.position.set(0, 1.62, 0); g.add(h);
-    box(0.25, 0.06, 0.14, m.glass, 0, 1.62, 0.12, g);
-    var arm = crossDecal(g, -0.22, 1.25, 0, -Math.PI / 2, 0.16); arm.scale.x = 0.9;
+    // flight suit + vest, two legs and arms that swing (g.userData.legs / arms), HGU-56 style helmet with a dark visor
+    box(0.4, 0.56, 0.24, m.suit, 0, 1.2, 0, g); box(0.42, 0.36, 0.28, m.helmet, 0, 1.22, 0, g);
+    var legs = [], arms = [];
+    [-1, 1].forEach(function (s) {
+      var lp = new T.Group(); lp.position.set(s * 0.1, 0.9, 0); g.add(lp); box(0.15, 0.86, 0.17, m.suit, 0, -0.43, 0, lp); box(0.15, 0.1, 0.26, m.dark, 0, -0.86, 0.04, lp); legs.push(lp);
+      var ap = new T.Group(); ap.position.set(s * 0.26, 1.44, 0); g.add(ap); box(0.11, 0.6, 0.12, m.suit, 0, -0.3, 0, ap); arms.push(ap);
+    });
+    var h = new T.Mesh(new T.SphereGeometry(0.15, 10, 8), m.helmet); h.position.set(0, 1.66, 0); g.add(h);
+    box(0.24, 0.07, 0.08, m.glass, 0, 1.66, 0.12, g);
+    crossDecal(g, -0.33, 1.32, 0, -Math.PI / 2, 0.14);
+    g.userData = { legs: legs, arms: arms, ph: Math.random() * 6 };
     g.visible = false; E().scene.add(g); return g;
   }
   function buildLitter() {
@@ -293,7 +302,14 @@
         j.a = { x: dp.x, z: dp.z, yaw: 0 };
       }
     }
-    if (h.job) [[c0, j.a], [c1, j.b]].forEach(function (p) { p[0].position.set(p[1].x, e.terrainHeight(p[1].x, p[1].z), p[1].z); p[0].rotation.y = p[1].yaw; });
+    if (h.job) [[c0, j.a], [c1, j.b]].forEach(function (p) {
+      var c = p[0], o = p[1], moved = o.px == null ? 0 : Math.hypot(o.x - o.px, o.z - o.pz); o.px = o.x; o.pz = o.z;
+      c.position.set(o.x, e.terrainHeight(o.x, o.z), o.z); c.rotation.y = o.yaw;
+      var cu = c.userData; cu.ph += moved * 3.2; var sw = moved > 1e-4 ? Math.sin(cu.ph) * 0.5 : 0, carrying = j.st === 'carry' || j.st === 'lift';
+      cu.legs[0].rotation.x = sw; cu.legs[1].rotation.x = -sw;
+      cu.arms[0].rotation.x = carrying ? -0.25 : -sw * 0.7; cu.arms[1].rotation.x = carrying ? -0.25 : sw * 0.7;   // arms down on the litter handles
+      if (j.st === 'lift') { var k = Math.min(1, j.t / 0.6); cu.legs[0].rotation.x = cu.legs[1].rotation.x = -0.6 * (1 - k); }
+    });
     else crewHide(h);
   }
 
