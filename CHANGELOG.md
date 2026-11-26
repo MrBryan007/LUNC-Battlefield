@@ -1,5 +1,13 @@
 # Changelog
 
+## v12.0.69 — TRACER: 1-in-5 tracer rounds (2026-11-26, AI build)
+- From the realism checklist (FX: "tracer 1-in-5 everywhere", partial until now). Every small-arms round drew a glowing streak; real belts load one tracer per four ball rounds.
+- `js/effects.js`: per side, 4 of every 5 `tracer` projectiles are now dark ball rounds. They still fly, hit, impact and show the muzzle flash (gameplay and hit rates unchanged); only the streak is skipped. The lit 1-in-5 tracers are 20 % larger so the field stays readable. `LUNCBattle.engine.effects.getTracerStats()` reports lit/dark counts.
+- Game layer (SIMULATED) only: no change to market data, the market-driven front, data-truth labels, Moon Shot, Commander, v11.4 HUD/dock, Hide UI, quality tiers or other `?flags`. Kill switch: `?tracer15=0` (every round glows, v12.0.68 look).
+- Version bump to v12.0.69. New `tests/tracer-harness.js` (200 rounds → 40 lit / 160 dark; `?tracer15=0` → all lit), `?tracer15=0` load in the loads probe, stabilization-smoke wiring check.
+- Tested 11/26: node --check all JS; smoke, p0-hardening, progression-persist, casevac, casualty, medevac, tracer harnesses PASS; asset lifecycle 33/33; headless HIGH/MEDIUM/LOW/iPhone + 18 kill-switch loads: 0 page errors.
+- Build hours (real timestamps, 11/26 cycle 2): building 06:28:32–06:30:43, testing 06:30:43–06:50:16 PT. Day total vs 2–4 h target: see latest entry.
+
 ## v12.0.68 — MEDEVAC: dustoff helicopter lifts urgent casualties from the CCP to a Role 2 hospital (2026-11-26, AI build; WIP from 11/25 cycle 2)
 - Closes v12.0.67's open item. SERIOUS casualties at the CCP now trigger a MEDEVAC helicopter from the Role 2 hospital: green smoke at the HLZ, landing, crew carry the patient aboard on a litter, flight to the hospital, ~40 s in the ward, return to duty on the next sortie, dismount at the HLZ and walk back to the line at ~1.4 m/s. Casualties hold fire; MEDEVAC and CCP colours are sRGB-correct; crew have legs/arms with walk swing.
 - Game layer (SIMULATED) only: no change to market data, the market-driven front, data-truth labels, Moon Shot, Commander, v11.4 HUD/dock, Hide UI, quality tiers or other `?flags`. Kill switch: `?medevac=0` (v12.0.67 behaviour).
