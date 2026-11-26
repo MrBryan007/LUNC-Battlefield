@@ -897,7 +897,7 @@
 
   // Public API
   var api = {
-    version: 'v12.0.68',
+    version: 'v12.0.69',
     getEffectiveName: getEffectiveName,
     MODES: MODES,
     PRESETS: PRESETS,
