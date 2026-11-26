@@ -1955,6 +1955,7 @@
       const type=u.userData.type|0;
       // v9.4.11: jets fire ONLY from RELEASE phase via fireJetWeapon (runId-synced)
       if (type === 4 || type === 3) return false;
+      if (u.userData.wounded || u.userData.evac) return false;   // v12.0.68: casualties (down, in CASEVAC / MEDEVAC) don't fire
       u.userData.shot-=dt;
       if(u.userData.shot>0) return false;
       const isAir = type===3 || u.userData.air;

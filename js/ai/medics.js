@@ -27,12 +27,12 @@
   var enabled = qs.get('medics') !== '0';
   var care = enabled && qs.get('casualty') !== '0';   // v12.0.66 casualty care
   var casevac = care && qs.get('casevac') !== '0';    // v12.0.67 CASEVAC
-  var EVAC_SPEED = 1.6, LIMP_SPEED = 0.9, CCP_REST = 20, BEDS = 6, bedUse = { '-1': [], '1': [] }, noLitter = { '-1': false, '1': false }, litters = [], litterMat = null, poleMat = null;
+  var EVAC_SPEED = 1.6, LIMP_SPEED = 0.9, RTL_SPEED = 1.4, CCP_REST = 20, MDV_WAIT = 150, BEDS = 6, bedUse = { '-1': [], '1': [] }, noLitter = { '-1': false, '1': false }, litters = [], litterMat = null, poleMat = null;
   var RANGE = care ? 30 : 45, DANGER = 14, DRAG = 6, smokeT = { '-1': 0, '1': 0 }, ccp = null, simNow = 0;
   var E = function () { return LB.engine; };
   var CAP = { LOW: 2, MEDIUM: 4, HIGH: 7, ULTRA: 9 };
   var medics = { '-1': [], '1': [] }, requests = [], ccpCount = { '-1': 0, '1': 0 };
-  var stats = { medics: 0, wounded: 0, treated: 0, carried: 0, medicsHit: 0, requests: 0, ms: 0, minor: 0, serious: 0, smoked: 0, dragged: 0, ccp: 0, evacuated: 0, limped: 0, atCcp: 0, ccpDone: 0, evacNow: 0, setDown: 0 };
+  var stats = { medics: 0, wounded: 0, treated: 0, carried: 0, medicsHit: 0, requests: 0, ms: 0, minor: 0, serious: 0, smoked: 0, dragged: 0, ccp: 0, evacuated: 0, limped: 0, atCcp: 0, ccpDone: 0, evacNow: 0, setDown: 0, rtl: 0, dustoff: 0 };
   var lastT = 0, assignT = 0, dispatchT = 0, radioT = { '-1': 0, '1': 0 }, markGeo = null, markMat = null, crossMat = null;
   function tierName() { try { return LB.quality.getEffectiveName(); } catch (_) { return 'HIGH'; } }
   function rear(side) { return side * 38; }
@@ -286,7 +286,7 @@
   function freeBed(side, k) { if (k != null) bedUse[side][k] = false; }
   function makeLitter() {
     var e = E(), THREE = e.THREE;
-    if (!litterMat) { litterMat = new THREE.MeshStandardMaterial({ color: 0x232818, roughness: 1, metalness: 0 }); poleMat = new THREE.MeshStandardMaterial({ color: 0x6b6f62, roughness: 0.5, metalness: 0.6 }); }
+    if (!litterMat) { litterMat = new THREE.MeshStandardMaterial({ color: 0x3e4630, roughness: 0.95 }); poleMat = new THREE.MeshStandardMaterial({ color: 0x6b6f62, roughness: 0.5, metalness: 0.6 }); litterMat.color.convertSRGBToLinear(); poleMat.color.convertSRGBToLinear(); }
     var g = new THREE.Group(); g.name = 'casevac-litter';
     var bed = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.03, 1.85), litterMat); g.add(bed);
     for (var s = -1; s <= 1; s += 2) { var pl = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 2.3), poleMat); pl.position.set(s * 0.29, 0.01, 0); g.add(pl); }
@@ -308,6 +308,9 @@
     } else { cu.userData.evac.mode = 'limp'; stats.limped++; say(side, tag(m.u) + ': "No litter free — he\'s walking to the CCP."'); }
   }
   function casevacCots() { return !(tierName() === 'LOW' || (E() && E().mobile)); }
+  var OWNED = { board: 1, aboard: 1, hosp: 1, rtdWait: 1, rtdBoard: 1 };
+  /** v12.0.68: put an urgent casualty that reached the CCP on the MEDEVAC manifest (js/theaters/medevac.js). */
+  function toMedevac(u) { var MV = LB.medevac; if (!MV || !MV.isEnabled() || !MV.request(u)) return false; stats.dustoff++; say(u.userData.side, 'CCP: "Nine-line sent — one urgent, litter. Requesting dustoff."'); return true; }
   function simClock() { return Math.max(performance.now(), simNow); }
   /** Bearer hit / task dropped mid-carry: set the casualty down where it is and ask again. */
   function setDown(t, m) {
@@ -358,7 +361,7 @@
     if (t.litter) { t.litter.position.set(mx, E().terrainHeight(mx, mz) + 0.78, mz); t.litter.rotation.set(0, yaw, 0); }
     if (arrived) {
       dropLitter(t.litter); t.litter = null;
-      ev.team = null; ev.mode = 'ccp'; ev.t = 0; ev.x = bp.x; ev.z = bp.z; ev.yaw = 0;
+      ev.team = null; ev.mode = 'ccp'; ev.t = 0; ev.x = bp.x; ev.z = bp.z; ev.yaw = 0; ev.mdv = toMedevac(cu);
       say(side, tag(m.u) + ': "Casualty at the CCP."');
       m.st = 'idle'; m.task = null; resetPose(m.u); if (p2) { p2.st = 'idle'; p2.task = null; p2.partner = null; resetPose(p2.u); } m.partner = null;
     }
@@ -372,7 +375,7 @@
       nNow++; ev.t += dt;
       if (ev.mode === 'limp') {
         var bp = bedPos(ud.side, ev.bed), dx = bp.x - ev.x, dz = bp.z - ev.z, d = Math.hypot(dx, dz);
-        if (d < 0.5) { ev.mode = 'ccp'; ev.t = 0; ev.x = bp.x; ev.z = bp.z; ev.yaw = 0; }
+        if (d < 0.5) { ev.mode = 'ccp'; ev.t = 0; ev.x = bp.x; ev.z = bp.z; ev.yaw = 0; ev.mdv = toMedevac(u); }
         else {
           var gait = 0.55 + 0.45 * Math.abs(Math.sin(ev.t * 3.2));            // uneven step: favours the injured leg
           var st = Math.min(d, LIMP_SPEED * gait / 0.837 * dt); ev.x += dx / d * st; ev.z += dz / d * st; ev.yaw = Math.atan2(dx, dz);
@@ -382,11 +385,19 @@
           continue;
         }
       }
+      if (OWNED[ev.mode]) { if (ev.bed != null) { freeBed(ud.side, ev.bed); ev.bed = null; } continue; }   // v12.0.68: js/theaters/medevac.js drives these
+      if (ev.mode === 'rtl') {   // v12.0.68 return to the line at a walk (the engine's slot approach would dash ~40 m/s)
+        var sx = e.getFrontlineX() + ud.side * ((ud.home && ud.home.depth != null) ? ud.home.depth : 7.8), rdx = sx - ev.x;
+        if (Math.abs(rdx) < 1.2) { ud.evac = null; u.rotation.order = 'XYZ'; resetPose(u); stats.rtl++; continue; }
+        var rs = Math.min(Math.abs(rdx), RTL_SPEED * dt) * Math.sign(rdx); ev.x += rs; ev.yaw = rdx > 0 ? Math.PI / 2 : -Math.PI / 2;
+        u.position.set(ev.x, e.terrainHeight(ev.x, ev.z), ev.z); u.rotation.order = 'YXZ'; u.rotation.set(0.05, ev.yaw, 0); ud.facing = ev.yaw; ud.mpos = null;
+        continue;
+      }
       if (ev.mode === 'ccp') {
         nCcp++;
         u.position.set(ev.x, e.terrainHeight(ev.x, ev.z - 0.88) + (casevacCots() ? 0.3 : 0.14), ev.z);
         u.rotation.order = 'YXZ'; u.rotation.set(-Math.PI / 2 + 0.05, ev.yaw, 0);
-        if (ev.t > CCP_REST) { freeBed(ud.side, ev.bed); ud.evac = null; u.rotation.order = 'XYZ'; resetPose(u); stats.ccpDone++; if (Math.random() < 0.5) say(ud.side, tag(u) + ': "Treated at the CCP — returning to the line."'); }
+        if (!ev.board && ev.t > (ev.mdv ? MDV_WAIT : CCP_REST)) { freeBed(ud.side, ev.bed); ev.bed = null; ev.mode = 'rtl'; ev.mdv = false; ev.t = 0; stats.ccpDone++; if (Math.random() < 0.5) say(ud.side, tag(u) + ': "Treated at the CCP — returning to the line."'); }
         continue;
       }
       // waiting for / riding the litter
@@ -407,7 +418,9 @@
     var signTex = new THREE.CanvasTexture(canvas), signMat = new THREE.MeshStandardMaterial({ map: signTex, roughness: 0.8 });
     var post = new THREE.MeshStandardMaterial({ color: 0x5b4a36, roughness: 0.95 }), canvasMat = new THREE.MeshStandardMaterial({ color: 0x4e5236, roughness: 0.95, side: THREE.DoubleSide });
     var litter = new THREE.MeshStandardMaterial({ color: 0x343d2a, roughness: 0.9 });
-    var cotMat = new THREE.MeshStandardMaterial({ color: 0x1e2316, roughness: 1, metalness: 0 }), cotRail = new THREE.MeshStandardMaterial({ color: 0x4d5046, roughness: 0.55, metalness: 0.5 });   // v12.0.67 field cots
+    var cotMat = new THREE.MeshStandardMaterial({ color: 0x3a4230, roughness: 1, metalness: 0 }), cotRail = new THREE.MeshStandardMaterial({ color: 0x4d5046, roughness: 0.55, metalness: 0.5 });   // v12.0.67 field cots
+    // v12.0.68: CCP colours were authored as sRGB hex but read as linear in r128 (washed-out tent and cots) → convert
+    [post, canvasMat, litter, cotMat, cotRail].forEach(function (mm) { mm.color.convertSRGBToLinear(); });
     [-1, 1].forEach(function (side) {
       var g = new THREE.Group(), x = rear(side) + side * 2.5, z = -7.5;
       g.position.set(x, e.terrainHeight(x, z), z);
@@ -433,6 +446,7 @@
     var e = E(); if (!e) return;
     var now = performance.now(), dt = Math.min(0.5, (now - (lastT || now)) / 1000); lastT = now;
     if (care && !ccp && e.scene && e.THREE) { try { buildCCP(); } catch (err) { ccp = 1; console.warn('[medics] ccp', err); } }
+    if (casevac && LB.medevac && LB.medevac.ensure) LB.medevac.ensure();
     if (e.isPaused() || (LB.cutscene && LB.cutscene.isActive())) return;
     tick(dt, now);
   }
@@ -443,10 +457,12 @@
     if (now > dispatchT) { dispatchT = now + 500; dispatch(); }
     tickWounded(A, dt, now);
     [-1, 1].forEach(function (s) { medics[s].forEach(function (m) { tickMedic(m, dt, now); }); });
+    if (casevac && LB.medevac && LB.medevac.tick) { try { LB.medevac.tick(dt); } catch (err) { if (!tick._mvErr) { tick._mvErr = 1; console.warn('[medevac]', err); } } }
     stats.ms = stats.ms * 0.9 + (performance.now() - t0) * 0.1;
   }
   function reset() {
     [-1, 1].forEach(function (s) { medics[s].forEach(function (m) { if (m.st !== 'idle') dropTask(m); }); });
+    if (LB.medevac && LB.medevac.reset) try { LB.medevac.reset(); } catch (_) {}
     requests.length = 0; ccpCount[-1] = ccpCount[1] = 0; bedUse[-1] = []; bedUse[1] = []; litters.slice().forEach(dropLitter);
     try { var A = E().getArmies(); A.bulls.concat(A.bears).forEach(function (u) { if (u.userData && (u.userData.wounded || u.userData.evac)) { u.userData.wounded = null; u.userData.evac = null; u.rotation.order = 'XYZ'; resetPose(u); } }); } catch (_) {}
   }

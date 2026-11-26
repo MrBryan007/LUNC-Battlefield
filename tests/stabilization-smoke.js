@@ -74,7 +74,8 @@ const checks = [
   ['smoke screens wired', index.includes('js/theaters/smoke.js') && read('js/theaters/smoke.js').includes("qs.get('smoke') !== '0'") && read('js/battle-engine.js').includes('LUNCBattle.smoke.update()') && read('js/theaters/los.js').includes('smoke') && read('js/theaters/tacmap.js').includes('LB.smoke.drawMap')],
   ['casualty care wired', read('js/ai/medics.js').includes("qs.get('casualty') !== '0'") && read('js/ai/medics.js').includes('LB.smoke.screen(') && read('js/theaters/squads.js').includes('sqMedics')],
   ['casevac wired', read('js/ai/medics.js').includes("qs.get('casevac') !== '0'") && read('js/ai/medics.js').includes('function startEvac(') && read('js/theaters/squads.js').includes('casevacEnabled')],
-  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.67')],
+  ['medevac wired', read('js/theaters/medevac.js').includes("'medevac', 'casevac', 'casualty', 'medics'") && read('index.html').includes('js/theaters/medevac.js') && read('js/ai/medics.js').includes('LB.medevac.tick(dt)') && read('js/battle-engine.js').includes('if (u.userData.wounded || u.userData.evac) return false;')],
+  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.68')],
   ['ground wired', index.includes('fx/ground.js') && index.indexOf('fx/ground.js') < index.indexOf('fx/roads.js') && read('js/fx/roads.js').includes('LB.groundY') && read('js/fx/sky-light.js').includes('LB.groundY') && read('js/theaters/theaters.js').includes('LB.groundY(x, vz)')]
 ];
 
