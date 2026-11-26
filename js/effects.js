@@ -145,12 +145,23 @@
     scene.add(tracerBatchBull);
     scene.add(tracerBatchBear);
 
+    /* v12.0.69 TRACER 1-IN-5: real belts load one tracer per four ball rounds, so only ~20 % of small-arms rounds are drawn.
+       The dark rounds still fly, hit and impact (gameplay unchanged); only the glowing streak is skipped. ?tracer15=0 = every round glows. */
+    const TRACER15 = !/[?&]tracer15=0/.test((typeof location !== 'undefined' && location.search) || '');
+    const tracerStats = { lit: 0, dark: 0 };
+    const tracerCount = { '-1': 0, '1': 0 };
+    function nextIsLit(side) {
+      if (!TRACER15) return true;
+      const k = side < 0 ? '-1' : '1';
+      return (tracerCount[k]++ % 5) === 0;
+    }
+
     function syncTracerBatches() {
       let nb = 0, ne = 0;
       for (let i = 0; i < projectilePool.length; i++) {
         const b = projectilePool[i];
         const ud = b.userData;
-        if (!ud || ud.kind !== 'tracer' || ud.hit) continue;
+        if (!ud || ud.kind !== 'tracer' || ud.hit || ud.dark) continue;
         const batch = ud.side < 0 ? tracerBatchBull : tracerBatchBear;
         const n = ud.side < 0 ? nb : ne;
         if (n >= CAPS.projectiles) continue;
@@ -889,6 +900,10 @@
         jetStrike: !!opts.jetStrike,
         onHit: typeof opts.onHit === 'function' ? opts.onHit : null
       };
+      if (kind === 'tracer') {
+        if (nextIsLit(side)) { mesh.userData.visualScale = visualScale * 1.2; tracerStats.lit++; }
+        else { mesh.userData.dark = true; tracerStats.dark++; }
+      }
       projectilePool.push(mesh);
 
       const mz = from.z != null ? from.z : 0;
@@ -1349,6 +1364,7 @@
       getDurationScale: function () { return effectDurationScale; },
       scaleFromUsd: scaleFromUsd,
       scaleFromBurn: scaleFromBurn,
+      getTracerStats: function () { return { on: TRACER15, lit: tracerStats.lit, dark: tracerStats.dark }; },
       fireWeapon: fireWeapon,
       fireBarrage: fireBarrage,
       muzzleFlash: muzzleFlash,
