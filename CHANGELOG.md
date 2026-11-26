@@ -1,5 +1,12 @@
 # Changelog
 
+## v12.0.68 — MEDEVAC: dustoff helicopter lifts urgent casualties from the CCP to a Role 2 hospital (2026-11-26, AI build; WIP from 11/25 cycle 2)
+- Closes v12.0.67's open item. SERIOUS casualties at the CCP now trigger a MEDEVAC helicopter from the Role 2 hospital: green smoke at the HLZ, landing, crew carry the patient aboard on a litter, flight to the hospital, ~40 s in the ward, return to duty on the next sortie, dismount at the HLZ and walk back to the line at ~1.4 m/s. Casualties hold fire; MEDEVAC and CCP colours are sRGB-correct; crew have legs/arms with walk swing.
+- Game layer (SIMULATED) only: no change to market data, the market-driven front, data-truth labels, Moon Shot, Commander, v11.4 HUD/dock, Hide UI, quality tiers or other `?flags`. Kill switch: `?medevac=0` (v12.0.67 behaviour).
+- Version bump to v12.0.68 (BUILD dated 2026-11-26). `tests/medevac-harness.js` probe, `?medevac=0` load added to the loads probe, stabilization-smoke checks wiring.
+- Tested 11/26: node --check all JS; stabilization-smoke, smoke-harness, p0-hardening, casevac, casualty, medevac harnesses PASS; asset lifecycle 33/33; headless HIGH/MEDIUM/LOW/iPhone 390x844 + 17 kill-switch loads: 0 page errors.
+- Build hours (real timestamps, 11/26 cycle 1): planning 06:09:46–06:10:00, testing 06:10:01–06:27:17 PT. Day total vs 2–4 h target: see latest entry.
+
 ## v12.0.67 — CASEVAC: litter teams carry serious casualties to the CCP (2026-11-25, AI build)
 - From the realism checklist (Combat behavior: "CASEVAC of casualties to the CCP", the gap left open by v12.0.66). After v12.0.66 a SERIOUS casualty got a tourniquet and then simply stood up and walked back into its slot, and the CCP tent stood empty.
 - `js/ai/medics.js` now evacuates every treated SERIOUS casualty to its side's casualty collection point:
