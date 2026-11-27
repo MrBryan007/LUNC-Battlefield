@@ -50,8 +50,28 @@ async function main() {
   page.on('dialog', function (d) { alerts.push(d.message()); d.dismiss(); });
   page.on('pageerror', function (err) { alerts.push('pageerror:' + err.message); });
 
-  await page.goto('http://127.0.0.1:' + PORT + '/index.html', { waitUntil: 'domcontentloaded', timeout: 30000 });
-  await page.waitForFunction('window.LUNCBattle && window.LUNCBattle.ui && window.LUNCBattle.ui.renderIntelPanels', { timeout: +(process.env.XSS_WAIT || 20000) });
+  // Load a minimal harness (config.js + ui.js only). The full game page pulls
+  // Three.js from a CDN and boots WebGL, which often exceeds 20s in CI.
+  const harness = 'http://127.0.0.1:' + PORT + '/tests/xss-harness.html';
+  await page.goto(harness, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  try {
+    await page.waitForFunction(
+      'window.LUNCBattle && window.LUNCBattle.ui && window.LUNCBattle.ui.renderIntelPanels',
+      { timeout: +(process.env.XSS_WAIT || 20000) }
+    );
+  } catch (err) {
+    const diag = await page.evaluate(function () {
+      var LB = window.LUNCBattle;
+      return {
+        ready: document.readyState,
+        hasLB: !!LB,
+        hasUI: !!(LB && LB.ui),
+        hasRender: !!(LB && LB.ui && LB.ui.renderIntelPanels),
+        keys: LB ? Object.keys(LB).slice(0, 20) : []
+      };
+    }).catch(function () { return { evalFailed: true }; });
+    throw new Error((err && err.message) + ' ' + JSON.stringify(diag));
+  }
 
   const result = await page.evaluate(function (payloads) {
     var LB = window.LUNCBattle;
