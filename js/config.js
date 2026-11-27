@@ -88,8 +88,8 @@
   // Single source of truth for current release metadata.
   // Historical comments and changelog entries are left untouched.
   const BUILD = Object.freeze({
-    version: 'v12.0.70',
-    codename: 'HULKS',
+    version: 'v12.0.71',
+    codename: 'EARTHWORKS',
     date: '2026-11-27'
   });
 

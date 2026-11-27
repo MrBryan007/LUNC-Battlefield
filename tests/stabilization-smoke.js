@@ -77,7 +77,8 @@ const checks = [
   ['medevac wired', read('js/theaters/medevac.js').includes("'medevac', 'casevac', 'casualty', 'medics'") && read('index.html').includes('js/theaters/medevac.js') && read('js/ai/medics.js').includes('LB.medevac.tick(dt)') && read('js/battle-engine.js').includes('if (u.userData.wounded || u.userData.evac) return false;')],
   ['tracer 1-in-5 wired', read('js/effects.js').includes('TRACER15') && read('js/effects.js').includes('tracer15=0')],
   ['hulks wired', read('js/fx/persist.js').includes("get('hulks') !== '0'") && read('js/fx/persist.js').includes('function lodTick(') && read('js/fx/damage.js').includes("kind: ty === 1 ? 'mbt'")],
-  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.70')],
+  ['earthworks wired', read('js/price-territory.js').includes("get('earthworks') !== '0'") && read('js/price-territory.js').includes('function alignPiece(') && read('js/price-territory.js').includes('function pillowCluster(')],
+  ['loadBuild aligned', index.includes('id="loadBuild">v12.0.71')],
   ['ground wired', index.includes('fx/ground.js') && index.indexOf('fx/ground.js') < index.indexOf('fx/roads.js') && read('js/fx/roads.js').includes('LB.groundY') && read('js/fx/sky-light.js').includes('LB.groundY') && read('js/theaters/theaters.js').includes('LB.groundY(x, vz)')]
 ];
 
