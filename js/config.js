@@ -88,9 +88,9 @@
   // Single source of truth for current release metadata.
   // Historical comments and changelog entries are left untouched.
   const BUILD = Object.freeze({
-    version: 'v12.0.69',
-    codename: 'TRACER',
-    date: '2026-11-26'
+    version: 'v12.0.70',
+    codename: 'HULKS',
+    date: '2026-11-27'
   });
 
   const config = {

@@ -300,7 +300,7 @@
   function crash(x, z, p) {
     if (isWater(x, z)) { splash(x, z, p); return; }
     if (LB.damage) try { LB.damage.burst({ x: x, y: 0.3, z: z, n: 10, power: p, size: 0.32, trail: true }); } catch (_) {}
-    if (LB.persist) try { LB.persist.addWreck({ x: x, z: z, rotY: Math.random() * 6, sx: 2.4, sy: 0.35, sz: 0.8, color: 0x2a2b2c, tilt: 0.2 }); } catch (_) {}
+    if (LB.persist) try { LB.persist.addWreck({ x: x, z: z, rotY: Math.random() * 6, sx: 2.4, sy: 0.35, sz: 0.8, color: 0x2a2b2c, tilt: 0.2, kind: 'air' }); } catch (_) {}
     var F = fx(); if (F) F.zone({ kind: 'fire', x: x, z: z, r: 1, dur: 5 });
   }
 

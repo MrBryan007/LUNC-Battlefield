@@ -1,5 +1,14 @@
 # Changelog
 
+## v12.0.70 — HULKS: burnt-out wrecks that read as real hulks, with a distance LOD (2026-11-27, AI build)
+- From the realism checklist (FX: "persistent wreck LODs further out"). Every burnt-out vehicle and downed aircraft stayed on the field as one plain box, at any distance, and the soot colour rendered as pale grey (sRGB hex fed to a linear instance colour).
+- `js/fx/persist.js`: each persistent wreck now keeps its kind and gets detail parts in two more static instanced batches. MBT: open turret ring (the turret already flies off as debris), a thrown track lying beside the hull, a skewed side skirt. SPG: casemate knocked askew, gun drooping into the dirt, thrown track. Downed aircraft: snapped wing lying off-axis, a wing stub and a canted tail fin. Soot-to-rust colour variation. Wreck, debris and rubble colours are sRGB-correct.
+- Distance LOD: the detail parts show within a per-tier camera radius (ULTRA 320 m / HIGH 220 m / MEDIUM 140 m; LOW and phones on LOW keep hull only); the hull stays out to the horizon. Re-checked at 2 Hz and only wrecks that cross the radius are rewritten (no per-frame work). `LUNCBattle.persist.getHulkStats()` reports near/far counts and kinds.
+- Game layer (SIMULATED) only: no change to market data, the market-driven front, data-truth labels, Moon Shot, Commander, v11.4 HUD/dock, Hide UI, quality tiers or other `?flags`. Kill switch: `?hulks=0` (v12.0.69 single-box wrecks).
+- Version bump to v12.0.70 (BUILD dated 2026-11-27, cache-bust `?v=20261127v12070`). New `tests/hulks-harness.js` (HIGH: 12 near + 4 far hulks, LOD drops to 0 near when the camera moves 5 km away and restores; `?hulks=0` and LOW: no detail batches), `?hulks=0` load in the loads probe, stabilization-smoke wiring check.
+- Tested 11/27: node --check on all JS; p0-hardening, progression-persist, stabilization-smoke, browser XSS regression ALL PASS; hulks, tracer, medevac harnesses PASS; headless HIGH / MEDIUM / LOW / iPhone 390x844 + 19 kill-switch loads: 0 page errors, 0 shader errors.
+- Build hours (real timestamps, 11/27 cycle 1): planning 06:06:25–06:07:33, building 06:07:33–06:09:18, testing 06:09:18–06:28:53 PT. Day total so far 0.38 h vs the 2–4 h target (deploying and later cycles logged in the next entry).
+
 ## v12.0.69 — TRACER: 1-in-5 tracer rounds (2026-11-26, AI build)
 - From the realism checklist (FX: "tracer 1-in-5 everywhere", partial until now). Every small-arms round drew a glowing streak; real belts load one tracer per four ball rounds.
 - `js/effects.js`: per side, 4 of every 5 `tracer` projectiles are now dark ball rounds. They still fly, hit, impact and show the muzzle flash (gameplay and hit rates unchanged); only the streak is skipped. The lit 1-in-5 tracers are 20 % larger so the field stays readable. `LUNCBattle.engine.effects.getTracerStats()` reports lit/dark counts.
