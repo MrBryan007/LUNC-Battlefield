@@ -129,7 +129,7 @@
       if (LB.heavyFx) LB.heavyFx.zone({ kind: 'fire', x: p.x, z: p.z, r: 0.9, dur: dur * 0.6 });
     } else if (LB.persist) {
       var gx = p.x + (Math.random() - 0.5) * 3, gz = p.z + (Math.random() - 0.5) * 3;
-      LB.persist.addWreck({ x: gx, z: gz, rotY: Math.random() * 6.28, sx: 2.2, sy: 0.35, sz: 0.7, color: 0x2a2b2c, tilt: 0.2 });
+      LB.persist.addWreck({ x: gx, z: gz, rotY: Math.random() * 6.28, sx: 2.2, sy: 0.35, sz: 0.7, color: 0x2a2b2c, tilt: 0.2, kind: 'air' });
       if (LB.heavyFx) LB.heavyFx.zone({ kind: 'fire', x: gx, z: gz, r: 0.8, dur: 6 });
     }
     if (air && LB.heavyFx) {
@@ -276,7 +276,7 @@
       if (!LB.persist && w.t > w.dur - 3) w.mesh.position.y -= dt * 0.35;
       if (w.t >= w.dur && LB.persist) {   // burnt out → permanent husk in the static wreck batch, unit reinforces
         var ty = w.u.userData.type | 0;
-        LB.persist.addWreck({ x: w.mesh.position.x, z: w.mesh.position.z, rotY: w.mesh.rotation.y, sx: ty === 2 ? 1.4 : 1.9, sy: 0.55, sz: 1.1, tilt: (Math.random() - 0.5) * 0.15 });
+        LB.persist.addWreck({ x: w.mesh.position.x, z: w.mesh.position.z, rotY: w.mesh.rotation.y, sx: ty === 2 ? 1.4 : 1.9, sy: 0.55, sz: 1.1, tilt: (Math.random() - 0.5) * 0.15, kind: ty === 1 ? 'mbt' : ty === 2 ? 'spg' : 'box' });
         scene.remove(w.mesh); w.mesh.traverse(function (o) { if (o.geometry) o.geometry.dispose(); }); restoreUnit(w.u); wrecks.splice(wi, 1); continue;
       }
       if (w.t >= w.dur) { scene.remove(w.mesh); w.mesh.traverse(function (o) { if (o.geometry) o.geometry.dispose(); }); restoreUnit(w.u); wrecks.splice(wi, 1); }
