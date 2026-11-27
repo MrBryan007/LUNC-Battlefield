@@ -74,7 +74,8 @@
     _p.set(x, y + 0.02, z); _q.setFromAxisAngle(_s.set(0, 1, 0), Math.random() * 6.28);
     var k = 0.5 + (size || 1) * 0.5; _s.set(k, 0.22 * k, k);
     var i = P.head; P.head = (P.head + 1) % P.cap; P.used = Math.min(P.cap, P.used + 1);
-    P.im.setMatrixAt(i, _m.compose(_p, _q, _s)); P.im.setColorAt(i, _c.setHex(0x3b352d));
+    _c.setHex(0x3b352d); if (HULKS) _c.convertSRGBToLinear();
+    P.im.setMatrixAt(i, _m.compose(_p, _q, _s)); P.im.setColorAt(i, _c);
     P.im.instanceMatrix.needsUpdate = true; if (P.im.instanceColor) P.im.instanceColor.needsUpdate = true;
   }
   /** Reserve `n` consecutive slots (a body uses 7 segment slots); imprints whatever was there. */
@@ -96,7 +97,8 @@
     if (!ensure()) return; scratch();
     _m.copy(matrix); _p.setFromMatrixPosition(_m);
     var i = slot(B.debris, _p.x, _p.z, 0.4);
-    B.debris.im.setMatrixAt(i, _m); B.debris.im.setColorAt(i, _c.setHex(colorHex == null ? 0x3d3f3a : colorHex)); flush(B.debris);
+    _c.setHex(colorHex == null ? 0x3d3f3a : colorHex); if (HULKS) _c.convertSRGBToLinear();   // v12.0.70: sRGB-correct (pale before)
+    B.debris.im.setMatrixAt(i, _m); B.debris.im.setColorAt(i, _c); flush(B.debris);
     stats.debris = B.debris.used;
   }
   /** Wreck hull: {x,z,rotY,sx,sy,sz,color,tilt,kind} — kind 'mbt' | 'spg' | 'air' (else a plain box). */
@@ -110,7 +112,8 @@
     _p.set(o.x, y + (o.sy || 0.5) * 0.5 - 0.08, o.z);
     _q.setFromEuler(new THREE.Euler(o.tilt || 0, o.rotY || 0, (o.tilt || 0) * 0.6));
     _s.set(o.sx || 1.9, o.sy || 0.5, o.sz || 1.1);
-    B.wreck.im.setMatrixAt(i, _m.compose(_p, _q, _s)); B.wreck.im.setColorAt(i, _c.setHex(col)); flush(B.wreck);
+    _c.setHex(col); if (HULKS) _c.convertSRGBToLinear();   // v12.0.70: sRGB-correct soot (was showing pale grey)
+    B.wreck.im.setMatrixAt(i, _m.compose(_p, _q, _s)); B.wreck.im.setColorAt(i, _c); flush(B.wreck);
     stats.wrecks = B.wreck.used;
     if (B.hbox) hulkParts(i, o, y, col);
   }
@@ -147,7 +150,7 @@
     }
     B.hkind[i] = kind; B.hcol[i] = col; B.hnear[i] = 0;
     hstats.kinds[['', 'mbt', 'spg', 'air', 'box'][kind]]++;
-    _c.setHex(col).multiplyScalar(0.85);
+    _c.setHex(col).convertSRGBToLinear().multiplyScalar(0.8);
     for (var k = 0; k < 3; k++) { B.hbox.im.setMatrixAt(i * 3 + k, _hu); B.hbox.im.setColorAt(i * 3 + k, _c); }
     B.hbar.im.setMatrixAt(i, _hu); B.hbar.im.setColorAt(i, _c);
     applyLod(i, isNear(i), true);
