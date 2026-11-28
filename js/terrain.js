@@ -122,6 +122,10 @@
     // Crater bowls
     h -= craterDepth(x, z).depth;
 
+    // v12: persistent battle damage (0 until js/fx/craters.js is ready, and 0 below HIGH tier)
+    const C = global.LUNCBattle && global.LUNCBattle.craters;
+    if (C) h -= C.offsetAt(x, z);
+
     return h;
   }
 
@@ -156,9 +160,9 @@
     const colGrass = new THREE.Color(0x4f6b34); // v10 richer grass
     const colOlive = new THREE.Color(0x5e6c3a);
     const colDirt = new THREE.Color(0x6e5636);
-    const colMud = new THREE.Color(0x2e261c);
+    const colMud = new THREE.Color(0x3e3428); // v12.0.13 lighter mud
     const colRock = new THREE.Color(0x6d6c5c);
-    const colScorch = new THREE.Color(0x1c1a16);
+    const colScorch = new THREE.Color(0x3a3228); // v12.0.13 earthy, not near-black
     const tintBull = new THREE.Color(0x1a3a28);
     const tintBear = new THREE.Color(0x3a221c);
 
@@ -218,8 +222,8 @@
         if (roadProx > 0.35) c.lerp(colMud, (roadProx - 0.35) * 0.4);
 
         // No-man's-land: scorch + mud, not a painted faction stripe
-        c.lerp(colMud, noman * 0.22);
-        c.lerp(colScorch, noman * 0.18 + crater * 0.85);
+        c.lerp(colMud, noman * 0.14);
+        c.lerp(colScorch, noman * 0.10 + crater * 0.55);
 
         // Subtle bull-west / bear-east tint (~3–5%)
         const sideTint = x < 0 ? tintBull : tintBear;

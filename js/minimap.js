@@ -172,8 +172,8 @@
         ctx.lineWidth = 1;
         ctx.stroke();
       }
-      hq(-48, '#49d39a');
-      hq(48, '#e4675f');
+      hq(-((global.LUNCBattle && LUNCBattle.config && LUNCBattle.config.layout && LUNCBattle.config.layout.hqX) || 48), '#49d39a');
+      hq(((global.LUNCBattle && LUNCBattle.config && LUNCBattle.config.layout && LUNCBattle.config.layout.hqX) || 48), '#e4675f');
     }
 
     function drawDefenses() {
