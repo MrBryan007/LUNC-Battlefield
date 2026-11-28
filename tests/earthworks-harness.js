@@ -22,7 +22,7 @@ require('fs').mkdirSync(OUT, { recursive: true });
         if (o.isMesh && geo.type === 'BoxGeometry' && geo.parameters.width >= 1.8) boxes++;
         if (o.isMesh && geo.type === 'SphereGeometry' && o.scale.x >= 0.9) { mounds++; if (earthR == null) earthR = o.material.color.r; }
         const isDisc = o.isMesh && geo.type === 'CircleGeometry';
-        if ((o.isMesh && geo.type === 'SphereGeometry') || isDisc || isGroup) {
+        if ((o.isMesh && geo.type === 'SphereGeometry' && geo.parameters.radius === 1) || isDisc || isGroup) {   // mounds, scorch discs, bag clusters (not the smoke wisps)
           const x = o.position.x, z = o.position.z, d = 0.6;
           const hx = (E.terrainHeight(x + d, z) - E.terrainHeight(x - d, z)) / (2 * d), hz = (E.terrainHeight(x, z + d) - E.terrainHeight(x, z - d)) / (2 * d);
           n.set(-hx, 1, -hz).normalize();
