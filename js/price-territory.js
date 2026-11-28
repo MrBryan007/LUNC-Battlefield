@@ -1,5 +1,10 @@
 /* LUNC Battlefield v9.4.13 — price territory + contested no-man's-land frontline
- * v12.0.13: soft earthy frontline scorches (no solid black strip). */
+ * v12.0.13: soft earthy frontline scorches (no solid black strip).
+ * v12.0.71 EARTHWORKS (?earthworks=0 → v12.0.70 look): sRGB-correct earth / burlap / timber palette (it rendered as pale
+ * cream boxes), berms become lumpy earth mounds and frontline sandbags become 2-course pillow-bag clusters, berms and
+ * scorch discs tilt to the terrain normal (no floating edges or z-fighting on the trench berm slopes; re-aligned only
+ * when the front moves), tier-1 liquidity sandbags become a 3-course running-bond wall and tier-2 bunkers get an earth
+ * roof and a firing slit. Data-truth looks (partial / uncertain opacity, UNAVAILABLE = no props) are unchanged. */
 (function (global) {
   'use strict';
 
@@ -9,6 +14,8 @@
     const terrainHeight = opts.terrainHeight || function () { return 0; };
     const mobile = !!opts.mobile;
     const pushFeed = typeof opts.pushFeed === 'function' ? opts.pushFeed : function () {};
+    const EW = (function () { try { return new URLSearchParams(global.location.search).get('earthworks') !== '0'; } catch (_) { return true; } })();
+    const ewStats = { on: EW, mounds: 0, bagClusters: 0, aligned: 0, bagWalls: 0, bunkerRoofs: 0, realigns: 0 };
     const DataTruth = opts.DataTruth || (global.LUNCBattle && global.LUNCBattle.DataTruth) || {
       LIVE: 'LIVE', CALCULATED: 'CALCULATED', ESTIMATED: 'ESTIMATED',
       SIMULATED: 'SIMULATED', UNAVAILABLE: 'UNAVAILABLE', PARTIAL: 'PARTIAL'
@@ -78,6 +85,50 @@
       plaqueBear: mat(0x402828, 0.7, 0.1),
       plaqueContested: mat(0x3a3828, 0.7, 0.1)
     };
+
+    // ---- v12.0.71 EARTHWORKS: sRGB-correct palette + earth mound / pillow sandbag geometry ----
+    const EWG = {};
+    if (EW) {
+      for (const k in MAT) {
+        const m = MAT[k];
+        if (m && m.color && m.color.convertSRGBToLinear) { m.color.convertSRGBToLinear(); if (m.emissive) m.emissive.convertSRGBToLinear(); }
+      }
+      const lumpy = function (seed) {   // hemisphere with a hashed lumpy surface, bottom ring sunk below ground
+        const g = new THREE.SphereGeometry(1, mobile ? 10 : 14, mobile ? 4 : 6, 0, Math.PI * 2, 0, Math.PI / 2);
+        const pa = g.attributes.position;
+        for (let i = 0; i < pa.count; i++) {
+          const x = pa.getX(i), y = pa.getY(i), z = pa.getZ(i);
+          const n = Math.sin(x * 7.1 + seed) * Math.cos(z * 6.3 - seed * 1.7) * 0.07 + Math.sin((x + z) * 13 + seed * 3) * 0.03;
+          const k = 1 + n * (0.4 + y);
+          pa.setXYZ(i, x * k, y < 0.02 ? -0.35 : y * k, z * k);
+        }
+        g.computeVertexNormals();
+        return g;
+      };
+      EWG.mound = [lumpy(1.3), lumpy(4.1)];
+      EWG.pillow = new THREE.SphereGeometry(0.5, 8, 5); EWG.pillow.scale(1, 0.34, 0.42);
+      EWG.slit = new THREE.BoxGeometry(1, 1, 1);
+      const burlap = function (c) { const m = mat(c, 0.98, 0.02); m.color.convertSRGBToLinear(); return m; };
+      EWG.bagMats = [burlap(0x6a5a3e), burlap(0x5e5038), burlap(0x74644a)];
+      EWG.slitMat = mat(0x0b0b0a, 1, 0);
+    }
+    function pillowCluster(courses, perCourse, mats, castShadow) {   // running-bond stack of pillow sandbags (local origin at ground)
+      const g = new THREE.Group();
+      for (let c = 0; c < courses; c++) {
+        const n = perCourse - (c % 2);
+        for (let b = 0; b < n; b++) {
+          const m = Array.isArray(mats) ? mats[(b * 7 + c * 3) % mats.length] : mats;
+          const bag = new THREE.Mesh(EWG.pillow, m);
+          bag.scale.set(0.62, 0.62, 0.62);
+          bag.position.set((b - (n - 1) / 2) * 0.6, 0.1 + c * 0.19, (c % 2) * 0.03);
+          bag.rotation.y = ((b * 13 + c * 7) % 5 - 2) * 0.04;
+          bag.castShadow = !!castShadow;
+          bag.receiveShadow = true;
+          g.add(bag);
+        }
+      }
+      return g;
+    }
 
     // ---- State ----
     let token = { symbol: 'LUNC', decimals: 8, base: 0.00005122, hasOrderBook: true };
@@ -458,9 +509,26 @@
     // terrainHeight(frontlineX + localX, z) so translating the strip never floats/sinks.
     const frontlinePieces = []; // { mesh, localX, localZ, yOff }
 
-    function addFrontlinePiece(mesh, localX, localZ, yOff) {
+    function addFrontlinePiece(mesh, localX, localZ, yOff, o) {
       frontlineGroup.add(mesh);
-      frontlinePieces.push({ mesh: mesh, localX: localX, localZ: localZ, yOff: yOff });
+      const p = { mesh: mesh, localX: localX, localZ: localZ, yOff: yOff };
+      if (o && o.align) { p.align = true; p.yaw = o.yaw || 0; p.disc = !!o.disc; p.ax = NaN; if (p.disc) p.sx = mesh.scale.x; ewStats.aligned++; }
+      frontlinePieces.push(p);
+    }
+    // v12.0.71: tilt a piece to the terrain normal (finite differences); only when the front has moved since last time
+    const _ewUp = new THREE.Vector3(0, 1, 0), _ewN = new THREE.Vector3(), _ewQ = new THREE.Quaternion(), _ewY = new THREE.Quaternion(), _ewX = new THREE.Quaternion();
+    _ewX.setFromAxisAngle(new THREE.Vector3(1, 0, 0), -Math.PI / 2);
+    function alignPiece(p, wx, wz) {
+      if (Math.abs(p.ax - wx) < 0.02) return;
+      p.ax = wx; ewStats.realigns++;
+      const d = 0.6;
+      const hx = (terrainHeight(wx + d, wz) - terrainHeight(wx - d, wz)) / (2 * d);
+      const hz = (terrainHeight(wx, wz + d) - terrainHeight(wx, wz - d)) / (2 * d);
+      _ewN.set(-hx, 1, -hz).normalize();
+      _ewQ.setFromUnitVectors(_ewUp, _ewN);
+      _ewY.setFromAxisAngle(_ewUp, p.yaw || 0);
+      p.mesh.quaternion.copy(_ewQ).multiply(_ewY);
+      if (p.disc) p.mesh.quaternion.multiply(_ewX);   // CircleGeometry faces +z → lay it in the tilted ground plane
     }
 
     function seatFrontlinePieces() {
@@ -471,6 +539,7 @@
         const wz = p.localZ;
         const ty = terrainHeight(wx, wz);
         p.mesh.position.set(wx, ty + p.yOff, wz);
+        if (p.align) alignPiece(p, wx, wz);
       }
       for (let i = 0; i < smokeWisps.length; i++) {
         const s = smokeWisps[i];
@@ -510,18 +579,33 @@
         const h = flHash(i, 8);
         // Broken berms — skip some so the band is a scar, not a fence
         if (h > 0.16) {
+          if (EW) {   // v12.0.71: lumpy earth mound aligned to the terrain slope
+            const mound = new THREE.Mesh(EWG.mound[i % 2], i % 3 ? MAT.earth : MAT.earthDark);
+            const L = h > 0.62 ? 1.0 : 1.4, Wd = h > 0.62 ? 0.42 : 0.5;
+            mound.scale.set(L, (h > 0.62 ? 0.42 : 0.36) * 1.05, Wd);
+            mound.castShadow = !mobile; mound.receiveShadow = true;
+            addFrontlinePiece(mound, (h - 0.5) * 1.8, z, -0.02, { align: true, yaw: (flHash(i, 12) - 0.5) * 0.7 });
+            ewStats.mounds++;
+          } else {
           const berm = new THREE.Mesh(h > 0.62 ? GEO.berm : GEO.bermLong, MAT.earth);
           berm.rotation.y = (flHash(i, 12) - 0.5) * 0.7;
           berm.castShadow = !mobile;
           berm.receiveShadow = true;
           addFrontlinePiece(berm, (h - 0.5) * 1.8, z, 0.18);
+          }
         }
         // Sandbag clusters, not one bag per slot
         if (h > 0.28 && h < 0.9) {
+          if (EW) {   // v12.0.71: 2-course pillow sandbag cluster
+            const cl = pillowCluster(2, 3, EWG.bagMats, !mobile);
+            addFrontlinePiece(cl, (h > 0.55 ? 0.7 : -0.65), z + (flHash(i, 18) - 0.5) * 0.8, -0.03, { align: true, yaw: Math.PI / 2 + (flHash(i, 15) - 0.5) * 0.5 });
+            ewStats.bagClusters++;
+          } else {
           const bag = new THREE.Mesh(GEO.bag, MAT.sandbag);
           bag.rotation.y = Math.PI / 2 + (flHash(i, 15) - 0.5) * 0.5;
           bag.castShadow = !mobile;
           addFrontlinePiece(bag, (h > 0.55 ? 0.7 : -0.65), z + (flHash(i, 18) - 0.5) * 0.8, 0.26);
+          }
         }
         // Sparse contested markers
         if (i % 4 === 1) {
@@ -537,7 +621,7 @@
           const hole = new THREE.Mesh(GEO.crater, MAT.scorch);
           hole.rotation.x = -Math.PI / 2;
           hole.receiveShadow = true;
-          addFrontlinePiece(hole, (flHash(i, 22) - 0.5) * 2.2, z + (flHash(i, 24) - 0.5) * 1.4, 0.04);
+          addFrontlinePiece(hole, (flHash(i, 22) - 0.5) * 2.2, z + (flHash(i, 24) - 0.5) * 1.4, EW ? 0.03 : 0.04, EW ? { align: true, disc: true } : null);
         }
       }
 
@@ -549,7 +633,7 @@
         hole.rotation.x = -Math.PI / 2;
         hole.scale.setScalar(0.7 + flHash(i, 46) * 0.6);
         hole.receiveShadow = true;
-        addFrontlinePiece(hole, (flHash(i, 44) - 0.5) * 3.4, z, 0.035);
+        addFrontlinePiece(hole, (flHash(i, 44) - 0.5) * 3.4, z, EW ? 0.03 : 0.035, EW ? { align: true, disc: true } : null);
       }
 
       const smokeN = mobile ? 2 : 5;
@@ -629,7 +713,10 @@
       const ty = terrainHeight(x, z);
       const g = new THREE.Group();
       const useMat = uncertain ? MAT.defenseFaint : (partial ? MAT.defensePartial : MAT.sandbag);
-      if (tier <= 1) {
+      if (tier <= 1 && EW) {   // v12.0.71: 3-course running-bond sandbag wall (same data-truth material)
+        const wall = pillowCluster(3, 3, partial || uncertain ? useMat : EWG.bagMats, !mobile && !partial);
+        g.add(wall); ewStats.bagWalls++;
+      } else if (tier <= 1) {
         const bag = new THREE.Mesh(GEO.sandbagStack, useMat);
         bag.position.y = 0.28;
         bag.castShadow = !mobile && !partial;
@@ -639,9 +726,18 @@
         b.position.y = 0.42;
         b.castShadow = !mobile && !uncertain;
         g.add(b);
+        if (EW && !partial && !uncertain) {   // v12.0.71: earth-covered roof + firing slit facing the front
+          const roof = new THREE.Mesh(EWG.mound[0], MAT.earth);
+          roof.scale.set(0.95, 0.32, 0.72); roof.position.y = 0.82; g.add(roof);
+          const sl = new THREE.Mesh(EWG.slit, EWG.slitMat);
+          sl.scale.set(0.06, 0.12, 0.85); sl.position.set((x < frontlineX ? 1 : -1) * 0.81, 0.62, 0); g.add(sl);
+          const cl = pillowCluster(2, 2, EWG.bagMats, false); cl.position.set(0.7, 0, 0.55); g.add(cl);
+          ewStats.bunkerRoofs++;
+        } else {
         const bag = new THREE.Mesh(GEO.bag, useMat);
         bag.position.set(0.7, 0.25, 0.4);
         g.add(bag);
+        }
       } else {
         const tw = new THREE.Mesh(GEO.tower, partial || uncertain ? useMat : MAT.metal);
         tw.position.y = 1.1;
@@ -868,6 +964,7 @@
           if (GEO[k] && GEO[k].dispose) GEO[k].dispose();
         } catch (_) {}
       }
+      try { if (EW) { EWG.mound.forEach(function (g) { g.dispose(); }); EWG.pillow.dispose(); EWG.slit.dispose(); EWG.bagMats.forEach(function (m) { m.dispose(); }); EWG.slitMat.dispose(); } } catch (_) {}
     }
 
     // Initial build
@@ -878,7 +975,9 @@
     desiredFrontlineX = frontlineX;
     seatFrontlinePieces();
 
+    try { if (global.LUNCBattle && global.LUNCBattle.priceTerritory) global.LUNCBattle.priceTerritory.getEarthworksStats = function () { return Object.assign({}, ewStats); }; } catch (_) {}
     return {
+      getEarthworksStats: function () { return Object.assign({}, ewStats); },
       priceToWorldX: priceToWorldX,
       worldXToPrice: worldXToPrice,
       getPriceStep: getPriceStep,
